@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daily Tasks - History</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', Arial, sans-serif; 
+            background: #f0f2f5;
+            min-height: 100vh;
+        }
+        .header {
+            background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
+            color: white;
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 { font-size: 22px; }
+        .header-nav a {
+            color: white;
+            text-decoration: none;
+            margin-left: 20px;
+            opacity: 0.9;
+        }
+        .header-nav a:hover { opacity: 1; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            margin-bottom: 20px;
+        }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .card-title { font-size: 18px; font-weight: 600; color: #333; }
+        
+        /* Filter */
+        .filter-row {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            align-items: flex-end;
+        }
+        .form-group { display: flex; flex-direction: column; }
+        .form-group label { font-size: 12px; color: #666; margin-bottom: 4px; }
+        .form-group select, .form-group input {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .btn-primary { background: #1976d2; color: white; }
+        .btn-primary:hover { background: #1565c0; }
+        .btn-success { background: #4caf50; color: white; }
+        .btn-success:hover { background: #43a047; }
+        
+        /* Table */
+        .table-responsive { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background: #f8f9fa; font-weight: 600; color: #333; font-size: 13px; }
+        td { font-size: 14px; }
+        tr:hover { background: #f5f5f5; }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .badge-primary { background: #e3f2fd; color: #1976d2; }
+        .badge-success { background: #e8f5e9; color: #4caf50; }
+        .badge-warning { background: #fff8e1; color: #ff9800; }
+        
+        .progress-bar {
+            width: 100px;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            background: #4caf50;
+            border-radius: 4px;
+        }
+        .progress-text { font-size: 12px; color: #666; }
+        
+        .action-btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            background: #1976d2;
+            color: white;
+        }
+        .action-btn:hover { background: #1565c0; }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+        .empty-state h3 { margin-bottom: 10px; color: #333; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📊 Daily Tasks History</h1>
+        <div class="header-nav">
+            <a href="/security-services/daily-tasks">📋 Fill Tasks</a>
+            <a href="/security-services">← Facility Management</a>
+        </div>
+    </div>
+    
+    <div class="container">
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Checklist Submissions</span>
+                <a href="/security-services/daily-tasks" class="btn btn-success">+ New Checklist</a>
+            </div>
+            
+            <!-- Filters -->
+            <div class="filter-row">
+                <div class="form-group">
+                    <label>Team Type</label>
+                    <select id="filterTeamType">
+                        <option value="">All Teams</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Date From</label>
+                    <input type="date" id="filterDateFrom">
+                </div>
+                <div class="form-group">
+                    <label>Date To</label>
+                    <input type="date" id="filterDateTo">
+                </div>
+                <button class="btn btn-primary" onclick="loadEntries()">Filter</button>
+                <button class="btn" style="background:#eee;" onclick="clearFilters()">Clear</button>
+            </div>
+            
+            <!-- Table -->
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Team Type</th>
+                            <th>Date Range</th>
+                            <th>Zones</th>
+                            <th>Progress</th>
+                            <th>Last Updated</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="entriesTable">
+                        <tr><td colspan="6" style="text-align:center;padding:40px;">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let teamTypes = [];
+        
+        document.addEventListener('DOMContentLoaded', init);
+        
+        async function init() {
+            await loadTeamTypes();
+            await loadEntries();
+        }
+        
+        async function loadTeamTypes() {
+            try {
+                const res = await fetch('/security-services/daily-tasks/api/team-types');
+                teamTypes = await res.json();
+                
+                const select = document.getElementById('filterTeamType');
+                teamTypes.forEach(tt => {
+                    const opt = document.createElement('option');
+                    opt.value = tt.Id;
+                    opt.textContent = tt.TeamTypeName;
+                    select.appendChild(opt);
+                });
+            } catch (err) {
+                console.error('Error loading team types:', err);
+            }
+        }
+        
+        async function loadEntries() {
+            const teamTypeId = document.getElementById('filterTeamType').value;
+            const dateFrom = document.getElementById('filterDateFrom').value;
+            const dateTo = document.getElementById('filterDateTo').value;
+            
+            let url = '/security-services/daily-tasks/api/entries?';
+            if (teamTypeId) url += `teamTypeId=${teamTypeId}&`;
+            if (dateFrom) url += `dateFrom=${dateFrom}&`;
+            if (dateTo) url += `dateTo=${dateTo}&`;
+            
+            try {
+                const res = await fetch(url);
+                const data = await res.json();
+                
+                // Check if response is an error object
+                if (!res.ok || data.error) {
+                    throw new Error(data.error || 'Failed to load entries');
+                }
+                
+                // Ensure data is an array
+                const entries = Array.isArray(data) ? data : [];
+                renderEntries(entries);
+            } catch (err) {
+                console.error('Error loading entries:', err);
+                document.getElementById('entriesTable').innerHTML = 
+                    '<tr><td colspan="6" style="text-align:center;color:red;">Error loading data: ' + err.message + '</td></tr>';
+            }
+        }
+        
+        function renderEntries(entries) {
+            const tbody = document.getElementById('entriesTable');
+            
+            if (entries.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6">
+                            <div class="empty-state">
+                                <h3>No submissions yet</h3>
+                                <p>Start by filling out a daily tasks checklist</p>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            tbody.innerHTML = entries.map(e => {
+                const percent = e.TotalTasks > 0 ? Math.round((e.CompletedTasks / e.TotalTasks) * 100) : 0;
+                const dateRange = formatDateRange(e.DateFrom, e.DateTo);
+                const teamBadgeClass = e.TeamTypeId === 1 ? 'badge-primary' : 'badge-success';
+                
+                return `
+                    <tr>
+                        <td><span class="badge ${teamBadgeClass}">${e.TeamTypeName}</span></td>
+                        <td><strong>${dateRange}</strong></td>
+                        <td>${e.ZonesCompleted} / ${e.TotalZones} zones</td>
+                        <td>
+                            <div class="progress-bar">
+                                <div class="progress-bar-fill" style="width:${percent}%"></div>
+                            </div>
+                            <span class="progress-text">${percent}% (${e.CompletedTasks}/${e.TotalTasks})</span>
+                        </td>
+                        <td>
+                            ${e.LastUpdatedBy || 'Unknown'}<br>
+                            <small style="color:#666;">${formatDateTime(e.UpdatedAt || e.CreatedAt)}</small>
+                        </td>
+                        <td>
+                            <button class="action-btn" onclick="openEntry(${e.TeamTypeId}, '${e.DateFrom.split('T')[0]}', '${e.DateTo.split('T')[0]}')">
+                                View / Edit
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+        
+        function openEntry(teamTypeId, dateFrom, dateTo) {
+            // Navigate to fill form with pre-selected values
+            window.location.href = `/security-services/daily-tasks?team=${teamTypeId}&from=${dateFrom}&to=${dateTo}`;
+        }
+        
+        function clearFilters() {
+            document.getElementById('filterTeamType').value = '';
+            document.getElementById('filterDateFrom').value = '';
+            document.getElementById('filterDateTo').value = '';
+            loadEntries();
+        }
+        
+        function formatDateRange(from, to) {
+            const fromDate = new Date(from);
+            const toDate = new Date(to);
+            const options = { weekday: 'short', day: 'numeric', month: 'short' };
+            return fromDate.toLocaleDateString('en-GB', options) + ' - ' + toDate.toLocaleDateString('en-GB', options);
+        }
+        
+        function formatDateTime(dateStr) {
+            if (!dateStr) return '';
+            return new Date(dateStr).toLocaleDateString('en-GB', {
+                day: 'numeric', month: 'short', year: 'numeric',
+                hour: '2-digit', minute: '2-digit'
+            });
+        }
+    </script>
+</body>
+</html>

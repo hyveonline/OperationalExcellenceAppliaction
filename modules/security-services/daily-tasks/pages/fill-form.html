@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daily Tasks Checklist</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', Arial, sans-serif; 
+            background: #f0f2f5;
+            min-height: 100vh;
+        }
+        .header {
+            background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
+            color: white;
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 { font-size: 22px; }
+        .header-nav a {
+            color: white;
+            text-decoration: none;
+            margin-left: 20px;
+            opacity: 0.9;
+        }
+        .header-nav a:hover { opacity: 1; }
+        .container { max-width: 1600px; margin: 0 auto; padding: 20px; }
+        
+        /* Setup */
+        .setup-card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            margin-bottom: 20px;
+        }
+        .setup-card h2 { margin-bottom: 15px; color: #333; font-size: 18px; }
+        .setup-row {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: flex-end;
+        }
+        .form-group { display: flex; flex-direction: column; }
+        .form-group label { margin-bottom: 6px; font-weight: 500; color: #555; font-size: 14px; }
+        .form-group select, .form-group input {
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            min-width: 180px;
+        }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .btn-primary { background: #1976d2; color: white; }
+        .btn-primary:hover { background: #1565c0; }
+        .btn-success { background: #4caf50; color: white; }
+        .btn-success:hover { background: #43a047; }
+        
+        /* Checklist Form */
+        .checklist-form {
+            display: none;
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        }
+        .checklist-form.active { display: block; }
+        .form-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #eee;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .form-title { display: flex; align-items: center; gap: 15px; flex-wrap: wrap; }
+        .team-badge {
+            background: #1976d2;
+            color: white;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+        }
+        .date-badge {
+            background: #e3f2fd;
+            color: #1976d2;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+        }
+        
+        /* Zone Section */
+        .zone-section {
+            margin-bottom: 25px;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .zone-header {
+            background: linear-gradient(135deg, #37474f, #455a64);
+            color: white;
+            padding: 12px 20px;
+            font-size: 16px;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .zone-header .zone-progress {
+            font-size: 12px;
+            background: rgba(255,255,255,0.2);
+            padding: 4px 10px;
+            border-radius: 10px;
+        }
+        
+        /* Task Table */
+        .task-grid { overflow-x: auto; }
+        .task-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .task-table th, .task-table td {
+            border: 1px solid #e0e0e0;
+            padding: 10px;
+            text-align: center;
+            font-size: 13px;
+        }
+        .task-table th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #333;
+        }
+        .task-table th.day-col {
+            background: #1976d2;
+            color: white;
+            min-width: 70px;
+        }
+        .task-table td.task-name {
+            text-align: left;
+            font-weight: 500;
+            background: #fafafa;
+            min-width: 200px;
+        }
+        .task-table td.task-name .icon { margin-right: 8px; }
+        
+        /* Checkbox */
+        .task-checkbox {
+            width: 22px;
+            height: 22px;
+            cursor: pointer;
+            accent-color: #4caf50;
+        }
+        .task-cell { position: relative; }
+        .task-cell.completed { background: #e8f5e9; }
+        .task-cell.na {
+            background: #f5f5f5;
+            color: #999;
+            font-size: 11px;
+        }
+        .completed-by {
+            display: block;
+            font-size: 10px;
+            color: #666;
+            margin-top: 3px;
+        }
+        
+        /* Save Status */
+        .save-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid #eee;
+        }
+        .save-status { font-size: 13px; color: #666; }
+        .save-status.saving { color: #ff9800; }
+        .save-status.saved { color: #4caf50; }
+        .save-status.error { color: #f44336; }
+        
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #333;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            display: none;
+            z-index: 1000;
+        }
+        .toast.show { display: block; }
+        .toast.error { background: #f44336; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📋 Daily Tasks Checklist</h1>
+        <div class="header-nav">
+            <a href="/security-services/daily-tasks/history">📊 History</a>
+            <a href="/security-services">← Facility Management</a>
+        </div>
+    </div>
+    
+    <div class="container">
+        <!-- Setup Section -->
+        <div class="setup-card" id="setupSection">
+            <h2>Select Team Type and Date Range</h2>
+            <div class="setup-row">
+                <div class="form-group">
+                    <label>Team Type</label>
+                    <select id="teamTypeSelect">
+                        <option value="">-- Select Team --</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Date From</label>
+                    <input type="date" id="dateFrom">
+                </div>
+                <div class="form-group">
+                    <label>Date To</label>
+                    <input type="date" id="dateTo">
+                </div>
+                <button class="btn btn-primary" onclick="loadChecklist()">Load Checklist</button>
+            </div>
+        </div>
+        
+        <!-- Checklist Form -->
+        <div class="checklist-form" id="checklistForm">
+            <div class="form-header">
+                <div class="form-title">
+                    <h2 id="formTitle">Daily Tasks</h2>
+                    <span class="team-badge" id="teamBadge">Team</span>
+                    <span class="date-badge" id="dateBadge">Date Range</span>
+                </div>
+                <div>
+                    <button class="btn btn-success" onclick="saveChecklist()">💾 Save All</button>
+                    <button class="btn" style="background:#eee;margin-left:10px;" onclick="resetForm()">Change Selection</button>
+                </div>
+            </div>
+            
+            <div id="zonesContainer">
+                <!-- Zone sections will be rendered here -->
+            </div>
+            
+            <div class="save-bar">
+                <span class="save-status" id="saveStatus"></span>
+                <button class="btn btn-success" onclick="saveChecklist()">💾 Save All Changes</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="toast" id="toast"></div>
+    
+    <script>
+        let selectedTeamType = null;
+        let formData = null;
+        let entryData = null;
+        const dayNames = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', init);
+        
+        async function init() {
+            setDefaultDates();
+            await loadTeamTypes();
+            
+            // Check for URL parameters (from history page)
+            const params = new URLSearchParams(window.location.search);
+            const teamId = params.get('team');
+            const fromDate = params.get('from');
+            const toDate = params.get('to');
+            
+            if (teamId && fromDate && toDate) {
+                // Auto-load the form
+                document.getElementById('dateFrom').value = fromDate;
+                document.getElementById('dateTo').value = toDate;
+                
+                // Select the team type
+                const select = document.getElementById('teamTypeSelect');
+                for (let i = 0; i < select.options.length; i++) {
+                    if (select.options[i].value) {
+                        const tt = JSON.parse(select.options[i].value);
+                        if (tt.Id == teamId) {
+                            select.selectedIndex = i;
+                            break;
+                        }
+                    }
+                }
+                
+                // Auto-load checklist
+                setTimeout(() => loadChecklist(), 100);
+            }
+        }
+        
+        function setDefaultDates() {
+            const today = new Date();
+            const day = today.getDay();
+            const monday = new Date(today);
+            monday.setDate(today.getDate() - day + (day === 0 ? -6 : 1));
+            const friday = new Date(monday);
+            friday.setDate(monday.getDate() + 4);
+            
+            document.getElementById('dateFrom').value = monday.toISOString().split('T')[0];
+            document.getElementById('dateTo').value = friday.toISOString().split('T')[0];
+        }
+        
+        async function loadTeamTypes() {
+            try {
+                const res = await fetch('/security-services/daily-tasks/api/team-types');
+                const teamTypes = await res.json();
+                
+                const select = document.getElementById('teamTypeSelect');
+                select.innerHTML = '<option value="">-- Select Team --</option>';
+                teamTypes.forEach(tt => {
+                    const opt = document.createElement('option');
+                    opt.value = JSON.stringify(tt);
+                    opt.textContent = tt.TeamTypeName;
+                    select.appendChild(opt);
+                });
+            } catch (err) {
+                console.error('Error loading team types:', err);
+                showToast('Error loading team types', true);
+            }
+        }
+        
+        async function loadChecklist() {
+            const teamValue = document.getElementById('teamTypeSelect').value;
+            const dateFrom = document.getElementById('dateFrom').value;
+            const dateTo = document.getElementById('dateTo').value;
+            
+            if (!teamValue) {
+                showToast('Please select a team type', true);
+                return;
+            }
+            if (!dateFrom || !dateTo) {
+                showToast('Please select date range', true);
+                return;
+            }
+            if (new Date(dateFrom) > new Date(dateTo)) {
+                showToast('Date From cannot be after Date To', true);
+                return;
+            }
+            
+            selectedTeamType = JSON.parse(teamValue);
+            
+            try {
+                // Load form structure
+                const formRes = await fetch(`/security-services/daily-tasks/api/form/team/${selectedTeamType.Id}`);
+                formData = await formRes.json();
+                
+                // Load existing data
+                const entryRes = await fetch(`/security-services/daily-tasks/api/entry/team/${selectedTeamType.Id}?dateFrom=${dateFrom}&dateTo=${dateTo}`);
+                entryData = await entryRes.json();
+                
+                renderChecklist(dateFrom, dateTo);
+                
+                // Show form, hide setup
+                document.getElementById('setupSection').style.display = 'none';
+                document.getElementById('checklistForm').classList.add('active');
+                
+                // Update badges
+                document.getElementById('teamBadge').textContent = selectedTeamType.TeamTypeName;
+                document.getElementById('dateBadge').textContent = formatDateRange(dateFrom, dateTo);
+                
+            } catch (err) {
+                console.error('Error loading checklist:', err);
+                showToast('Error loading checklist', true);
+            }
+        }
+        
+        function renderChecklist(dateFrom, dateTo) {
+            const container = document.getElementById('zonesContainer');
+            container.innerHTML = '';
+            
+            const dates = getDateRange(dateFrom, dateTo);
+            
+            if (selectedTeamType.Id === 1) {
+                // Multi-Zone Team
+                renderMultiZoneChecklist(container, dates);
+            } else {
+                // Fixed Area Team
+                renderFixedAreaChecklist(container, dates);
+            }
+            
+            // Apply existing data
+            applyExistingData();
+        }
+        
+        function renderMultiZoneChecklist(container, dates) {
+            formData.zones.forEach(zone => {
+                const section = document.createElement('div');
+                section.className = 'zone-section';
+                
+                let tableHtml = `
+                    <div class="zone-header">
+                        <span>📍 ${zone.ZoneName}</span>
+                        <span class="zone-progress" id="progress-${zone.ZoneId}">0%</span>
+                    </div>
+                    <div class="task-grid">
+                    <table class="task-table">
+                        <thead>
+                            <tr>
+                                <th>Time Slot</th>
+                                <th>Task Description</th>
+                                ${dates.map(d => `<th class="day-col">${dayNames[getDayOfWeek(d)]}<br><small>${formatDateShort(d)}</small></th>`).join('')}
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+                
+                formData.timeSlots.forEach(slot => {
+                    if (slot.IsBreak) {
+                        tableHtml += `
+                            <tr style="background:#fff8e1;">
+                                <td><strong>${slot.SlotName}</strong></td>
+                                <td>Break</td>
+                                ${dates.map(() => `<td>-</td>`).join('')}
+                            </tr>
+                        `;
+                    } else {
+                        const taskDesc = zone.timeSlotTasks[slot.TimeSlotId] || '-';
+                        tableHtml += `
+                            <tr>
+                                <td><strong>${slot.SlotName}</strong></td>
+                                <td>${taskDesc}</td>
+                                ${dates.map(d => `
+                                    <td class="task-cell">
+                                        <input type="checkbox" class="task-checkbox"
+                                            data-zone="${zone.ZoneId}"
+                                            data-slot="${slot.TimeSlotId}"
+                                            data-date="${d}"
+                                            onchange="updateProgress(${zone.ZoneId})">
+                                    </td>
+                                `).join('')}
+                            </tr>
+                        `;
+                    }
+                });
+                
+                tableHtml += '</tbody></table></div>';
+                section.innerHTML = tableHtml;
+                container.appendChild(section);
+            });
+        }
+        
+        function renderFixedAreaChecklist(container, dates) {
+            formData.zones.forEach(zone => {
+                const section = document.createElement('div');
+                section.className = 'zone-section';
+                
+                let tableHtml = `
+                    <div class="zone-header">
+                        <span>📍 ${zone.ZoneName}</span>
+                        <span class="zone-progress" id="progress-${zone.ZoneId}">0%</span>
+                    </div>
+                    <div class="task-grid">
+                    <table class="task-table">
+                        <thead>
+                            <tr>
+                                <th>Task</th>
+                                ${dates.map(d => `<th class="day-col">${dayNames[getDayOfWeek(d)]}<br><small>${formatDateShort(d)}</small></th>`).join('')}
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+                
+                formData.tasks.forEach(task => {
+                    const isApplicable = zone.taskApplicability[task.TaskItemId] !== 0;
+                    
+                    tableHtml += `
+                        <tr>
+                            <td class="task-name"><span class="icon">${task.TaskIcon || '📋'}</span>${task.TaskName}</td>
+                            ${dates.map(d => {
+                                const dayOfWeek = getDayOfWeek(d);
+                                if (isApplicable) {
+                                    return `
+                                        <td class="task-cell">
+                                            <input type="checkbox" class="task-checkbox"
+                                                data-zone="${zone.ZoneId}"
+                                                data-task="${task.TaskItemId}"
+                                                data-day="${dayOfWeek}"
+                                                data-date="${d}"
+                                                onchange="updateProgress(${zone.ZoneId})">
+                                        </td>
+                                    `;
+                                } else {
+                                    return `<td class="task-cell na">N/A</td>`;
+                                }
+                            }).join('')}
+                        </tr>
+                    `;
+                });
+                
+                tableHtml += '</tbody></table></div>';
+                section.innerHTML = tableHtml;
+                container.appendChild(section);
+            });
+        }
+        
+        function applyExistingData() {
+            if (!entryData || !entryData.details) return;
+            
+            entryData.details.forEach(detail => {
+                let checkbox;
+                
+                if (selectedTeamType.Id === 1) {
+                    // Multi-Zone
+                    const dateStr = detail.TaskDate.split('T')[0];
+                    checkbox = document.querySelector(`input[data-zone="${detail.ZoneId}"][data-slot="${detail.TimeSlotId}"][data-date="${dateStr}"]`);
+                } else {
+                    // Fixed Area
+                    checkbox = document.querySelector(`input[data-zone="${detail.ZoneId}"][data-task="${detail.TaskItemId}"][data-day="${detail.DayOfWeek}"]`);
+                }
+                
+                if (checkbox && detail.IsCompleted) {
+                    checkbox.checked = true;
+                    const cell = checkbox.parentElement;
+                    cell.classList.add('completed');
+                    
+                    if (detail.CompletedByName) {
+                        const span = document.createElement('span');
+                        span.className = 'completed-by';
+                        span.textContent = detail.CompletedByName;
+                        cell.appendChild(span);
+                    }
+                }
+            });
+            
+            // Update all progress indicators
+            formData.zones.forEach(z => updateProgress(z.ZoneId));
+        }
+        
+        function updateProgress(zoneId) {
+            const checkboxes = document.querySelectorAll(`input[data-zone="${zoneId}"]`);
+            const checked = document.querySelectorAll(`input[data-zone="${zoneId}"]:checked`);
+            const percent = checkboxes.length > 0 ? Math.round((checked.length / checkboxes.length) * 100) : 0;
+            
+            const progressEl = document.getElementById(`progress-${zoneId}`);
+            if (progressEl) {
+                progressEl.textContent = `${percent}%`;
+            }
+            
+            // Update cell styling
+            checkboxes.forEach(cb => {
+                const cell = cb.parentElement;
+                if (cb.checked) {
+                    cell.classList.add('completed');
+                } else {
+                    cell.classList.remove('completed');
+                    const label = cell.querySelector('.completed-by');
+                    if (label) label.remove();
+                }
+            });
+        }
+        
+        async function saveChecklist() {
+            const dateFrom = document.getElementById('dateFrom').value;
+            const dateTo = document.getElementById('dateTo').value;
+            
+            // Collect all checkbox states
+            const details = [];
+            const checkboxes = document.querySelectorAll('.task-checkbox');
+            
+            checkboxes.forEach(cb => {
+                const zoneId = parseInt(cb.dataset.zone);
+                
+                if (selectedTeamType.Id === 1) {
+                    // Multi-Zone
+                    details.push({
+                        zoneId: zoneId,
+                        timeSlotId: parseInt(cb.dataset.slot),
+                        taskDate: cb.dataset.date,
+                        isCompleted: cb.checked
+                    });
+                } else {
+                    // Fixed Area
+                    details.push({
+                        zoneId: zoneId,
+                        taskItemId: parseInt(cb.dataset.task),
+                        dayOfWeek: parseInt(cb.dataset.day),
+                        isCompleted: cb.checked
+                    });
+                }
+            });
+            
+            const saveStatus = document.getElementById('saveStatus');
+            saveStatus.textContent = 'Saving...';
+            saveStatus.className = 'save-status saving';
+            
+            try {
+                const res = await fetch(`/security-services/daily-tasks/api/entry/team/${selectedTeamType.Id}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ dateFrom, dateTo, details })
+                });
+                
+                const result = await res.json();
+                
+                if (result.success) {
+                    saveStatus.textContent = '✓ Saved successfully at ' + new Date().toLocaleTimeString();
+                    saveStatus.className = 'save-status saved';
+                    showToast('Saved successfully!');
+                } else {
+                    throw new Error(result.error || 'Save failed');
+                }
+            } catch (err) {
+                console.error('Error saving:', err);
+                saveStatus.textContent = '✗ Error saving';
+                saveStatus.className = 'save-status error';
+                showToast('Error saving checklist', true);
+            }
+        }
+        
+        function resetForm() {
+            document.getElementById('setupSection').style.display = 'block';
+            document.getElementById('checklistForm').classList.remove('active');
+            document.getElementById('saveStatus').textContent = '';
+        }
+        
+        // Utility functions
+        function getDateRange(from, to) {
+            const dates = [];
+            const current = new Date(from);
+            const end = new Date(to);
+            
+            while (current <= end) {
+                const day = current.getDay();
+                if (day !== 0 && day !== 6) { // Skip weekends
+                    dates.push(current.toISOString().split('T')[0]);
+                }
+                current.setDate(current.getDate() + 1);
+            }
+            return dates;
+        }
+        
+        function getDayOfWeek(dateStr) {
+            const day = new Date(dateStr).getDay();
+            return day === 0 ? 7 : day;
+        }
+        
+        function formatDateRange(from, to) {
+            const options = { weekday: 'short', day: 'numeric', month: 'short' };
+            return new Date(from).toLocaleDateString('en-GB', options) + ' - ' + new Date(to).toLocaleDateString('en-GB', options);
+        }
+        
+        function formatDateShort(dateStr) {
+            return new Date(dateStr).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+        }
+        
+        function showToast(message, isError = false) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'toast show' + (isError ? ' error' : '');
+            setTimeout(() => { toast.classList.remove('show'); }, 3000);
+        }
+    </script>
+</body>
+</html>

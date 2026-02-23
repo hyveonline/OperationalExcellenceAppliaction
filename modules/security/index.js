@@ -10,10 +10,25 @@ const sql = require('mssql');
 // Import sub-routes
 const checklistReferenceRoutes = require('./checklist-reference/routes');
 const cleaningReferenceRoutes = require('./cleaning-reference/routes');
+const multizoneTeamRoutes = require('./multizone-team/routes');
+const fixedareaTeamRoutes = require('./fixedarea-team/routes');
 
 // Mount sub-routes
 router.use('/checklist-reference', checklistReferenceRoutes);
 router.use('/cleaning-reference', cleaningReferenceRoutes);
+router.use('/multizone-team', multizoneTeamRoutes);
+router.use('/fixedarea-team', fixedareaTeamRoutes);
+
+// Redirect old daily-tasks path to security-services
+router.get('/daily-tasks', (req, res) => {
+    const queryString = req.originalUrl.split('?')[1];
+    res.redirect('/security-services/daily-tasks' + (queryString ? '?' + queryString : ''));
+});
+router.get('/daily-tasks/*', (req, res) => {
+    const path = req.params[0] || '';
+    const queryString = req.originalUrl.split('?')[1];
+    res.redirect('/security-services/daily-tasks/' + path + (queryString ? '?' + queryString : ''));
+});
 
 // Database config
 const dbConfig = {
@@ -277,6 +292,28 @@ router.get('/', async (req, res) => {
                         background: #f3e5f5;
                         color: #8e24aa;
                     }
+                    .dashboard-card.multizone {
+                        border-bottom: 5px solid #9c27b0;
+                    }
+                    .dashboard-card.multizone:hover {
+                        border-color: #9c27b0;
+                    }
+                    .stat-number.multizone { color: #9c27b0; }
+                    .view-btn.multizone {
+                        background: #f3e5f5;
+                        color: #9c27b0;
+                    }
+                    .dashboard-card.fixedarea {
+                        border-bottom: 5px solid #009688;
+                    }
+                    .dashboard-card.fixedarea:hover {
+                        border-color: #009688;
+                    }
+                    .stat-number.fixedarea { color: #009688; }
+                    .view-btn.fixedarea {
+                        background: #e0f2f1;
+                        color: #009688;
+                    }
                 </style>
             </head>
             <body>
@@ -421,6 +458,32 @@ router.get('/', async (req, res) => {
                                 </div>
                             </div>
                             <div class="view-btn cleaning">Manage &#8594;</div>
+                        </a>
+                        
+                        <a href="/security/multizone-team" class="dashboard-card multizone">
+                            <div class="card-icon">🔄</div>
+                            <div class="card-title">Multi-Zone Team</div>
+                            <div class="card-desc">Configure zones, time slots, and agent assignments for multi-zone cleaning team</div>
+                            <div class="card-stats">
+                                <div class="stat-item">
+                                    <div class="stat-number multizone">Setup</div>
+                                    <div class="stat-label">Admin</div>
+                                </div>
+                            </div>
+                            <div class="view-btn multizone">Manage &#8594;</div>
+                        </a>
+                        
+                        <a href="/security/fixedarea-team" class="dashboard-card fixedarea">
+                            <div class="card-icon">📍</div>
+                            <div class="card-title">Fixed Area Team</div>
+                            <div class="card-desc">Configure areas, task items, and agent assignments for fixed area cleaning team</div>
+                            <div class="card-stats">
+                                <div class="stat-item">
+                                    <div class="stat-number fixedarea">Setup</div>
+                                    <div class="stat-label">Admin</div>
+                                </div>
+                            </div>
+                            <div class="view-btn fixedarea">Manage &#8594;</div>
                         </a>
                     </div>
                 </div>

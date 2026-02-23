@@ -15,6 +15,7 @@ const visitorCarsRoutes = require('./visitor-cars/routes');
 const parkingViolationRoutes = require('./parking-violation/routes');
 const securityChecklistRoutes = require('./security-checklist/routes');
 const cleaningChecklistRoutes = require('./cleaning-checklist/routes');
+const dailyTasksRoutes = require('./daily-tasks/routes');
 
 // Mount sub-routes
 router.use('/delivery-log', deliveryLogRoutes);
@@ -25,6 +26,7 @@ router.use('/visitor-cars', visitorCarsRoutes); // Form accessible via direct UR
 router.use('/parking-violation', parkingViolationRoutes); // Form accessible via direct URL only
 router.use('/security-checklist', securityChecklistRoutes);
 router.use('/cleaning-checklist', cleaningChecklistRoutes);
+router.use('/daily-tasks', dailyTasksRoutes);
 
 // Landing Page
 router.get('/', async (req, res) => {
@@ -221,6 +223,12 @@ router.get('/', async (req, res) => {
                         <div class="card-icon">🧹</div>
                         <div class="card-title">Cleaning Checklist</div>
                         <div class="card-desc">Weekly cleaning checklist for toilets and canteens - قائمة التنظيف</div>
+                        <span class="card-badge internal">Internal</span>
+                    </a>
+                    <a href="/security-services/daily-tasks" class="menu-card internal">
+                        <div class="card-icon">📝</div>
+                        <div class="card-title">Daily Tasks</div>
+                        <div class="card-desc">Daily task form for Multi-Zone and Fixed Area cleaning teams - المهام اليومية</div>
                         <span class="card-badge internal">Internal</span>
                     </a>
                 </div>

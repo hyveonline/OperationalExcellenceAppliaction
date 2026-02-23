@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daily Tasks - Fill Form</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', Arial, sans-serif; 
+            background: #f0f2f5;
+            min-height: 100vh;
+        }
+        .header {
+            background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
+            color: white;
+            padding: 20px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 { 
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .header-nav a {
+            color: white;
+            text-decoration: none;
+            margin-left: 20px;
+            opacity: 0.9;
+            transition: opacity 0.3s;
+        }
+        .header-nav a:hover { opacity: 1; }
+        .container { 
+            max-width: 1400px; 
+            margin: 0 auto; 
+            padding: 30px 20px; 
+        }
+        
+        /* Setup Section */
+        .setup-section {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            margin-bottom: 20px;
+        }
+        .setup-section h2 {
+            margin-bottom: 20px;
+            color: #333;
+            font-size: 20px;
+        }
+        .setup-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+        .form-group label {
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #333;
+        }
+        .form-group select, .form-group input {
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .form-group select:focus, .form-group input:focus {
+            outline: none;
+            border-color: #1976d2;
+        }
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        .btn-primary {
+            background: #1976d2;
+            color: white;
+        }
+        .btn-primary:hover { background: #1565c0; }
+        .btn-success {
+            background: #4caf50;
+            color: white;
+        }
+        .btn-success:hover { background: #43a047; }
+        .btn-secondary {
+            background: #e0e0e0;
+            color: #333;
+        }
+        .btn-secondary:hover { background: #d0d0d0; }
+        
+        /* Task Form */
+        .task-form {
+            display: none;
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        }
+        .task-form.active {
+            display: block;
+        }
+        .form-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        .form-header h2 {
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .zone-badge {
+            background: linear-gradient(135deg, #1976d2, #1565c0);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+        }
+        .date-range-badge {
+            background: #e3f2fd;
+            color: #1976d2;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+        }
+        
+        /* Task Grid */
+        .task-grid {
+            overflow-x: auto;
+        }
+        .task-table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 700px;
+        }
+        .task-table th, .task-table td {
+            border: 1px solid #e0e0e0;
+            padding: 12px;
+            text-align: center;
+        }
+        .task-table th {
+            background: #f5f5f5;
+            font-weight: 600;
+            color: #333;
+        }
+        .task-table th.day-header {
+            background: #1976d2;
+            color: white;
+        }
+        .task-table th.time-header {
+            background: #8e24aa;
+            color: white;
+        }
+        .task-table td.task-name {
+            text-align: left;
+            font-weight: 500;
+        }
+        .task-table td.task-name .task-icon {
+            margin-right: 8px;
+        }
+        
+        /* Checkbox styling */
+        .task-checkbox {
+            width: 24px;
+            height: 24px;
+            cursor: pointer;
+            accent-color: #4caf50;
+        }
+        .task-checkbox:checked {
+            background: #4caf50;
+        }
+        .task-cell {
+            position: relative;
+        }
+        .task-cell.applicable {
+            background: white;
+        }
+        .task-cell.not-applicable {
+            background: #f5f5f5;
+        }
+        .task-cell.not-applicable .task-checkbox {
+            display: none;
+        }
+        .na-label {
+            color: #999;
+            font-size: 12px;
+            font-style: italic;
+        }
+        .task-cell.completed {
+            background: #e8f5e9;
+        }
+        .completed-by {
+            font-size: 10px;
+            color: #666;
+            display: block;
+            margin-top: 4px;
+        }
+        
+        /* Break row */
+        .break-row td {
+            background: #fff3e0 !important;
+            color: #ff9800;
+            font-weight: 500;
+        }
+        
+        /* Save button area */
+        .form-actions {
+            margin-top: 25px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .save-status {
+            color: #666;
+            font-size: 14px;
+        }
+        .save-status.saving { color: #ff9800; }
+        .save-status.saved { color: #4caf50; }
+        .save-status.error { color: #f44336; }
+        
+        /* User info */
+        .user-info {
+            background: #e3f2fd;
+            padding: 15px 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #1976d2;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 16px;
+        }
+        .user-details h3 {
+            color: #333;
+            font-size: 16px;
+            margin-bottom: 2px;
+        }
+        .user-details p {
+            color: #666;
+            font-size: 13px;
+        }
+        
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 15px 25px;
+            background: #4caf50;
+            color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            transform: translateX(150%);
+            transition: transform 0.3s;
+            z-index: 2000;
+        }
+        .toast.show { transform: translateX(0); }
+        .toast.error { background: #ef5350; }
+        
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #1976d2;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* No zones message */
+        .no-zones {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        .no-zones h3 {
+            margin-bottom: 10px;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📋 Daily Tasks</h1>
+        <div class="header-nav">
+            <a href="/security/daily-tasks/history">📊 History</a>
+            <a href="/security">← Back to Security</a>
+        </div>
+    </div>
+    
+    <div class="container">
+        <!-- User Info -->
+        <div class="user-info" id="userInfo">
+            <div class="user-avatar" id="userAvatar">?</div>
+            <div class="user-details">
+                <h3 id="userName">Loading...</h3>
+                <p id="userEmail">...</p>
+            </div>
+        </div>
+        
+        <!-- Setup Section -->
+        <div class="setup-section" id="setupSection">
+            <h2>Select Zone and Date Range</h2>
+            <div class="setup-row">
+                <div class="form-group">
+                    <label>Zone / Area *</label>
+                    <select id="zoneSelect" required>
+                        <option value="">-- Select Zone --</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Date From *</label>
+                    <input type="date" id="dateFrom" required>
+                </div>
+                <div class="form-group">
+                    <label>Date To *</label>
+                    <input type="date" id="dateTo" required>
+                </div>
+            </div>
+            <button class="btn btn-primary" onclick="loadForm()">Load Task Form</button>
+        </div>
+        
+        <!-- Task Form -->
+        <div class="task-form" id="taskForm">
+            <div class="form-header">
+                <h2>
+                    <span id="formZoneName">Zone</span>
+                    <span class="zone-badge" id="formTeamType">Team Type</span>
+                </h2>
+                <span class="date-range-badge" id="formDateRange">Date Range</span>
+            </div>
+            
+            <div class="task-grid">
+                <table class="task-table" id="taskTable">
+                    <thead id="taskTableHead">
+                        <!-- Headers will be dynamically added -->
+                    </thead>
+                    <tbody id="taskTableBody">
+                        <!-- Rows will be dynamically added -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="form-actions">
+                <span class="save-status" id="saveStatus"></span>
+                <div>
+                    <button class="btn btn-secondary" onclick="resetForm()">← Change Zone/Date</button>
+                    <button class="btn btn-success" onclick="saveForm()">💾 Save Tasks</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- No Zones Message -->
+        <div class="no-zones" id="noZonesMessage" style="display: none;">
+            <h3>No Zones Assigned</h3>
+            <p>You don't have any zones assigned to you. Please contact your manager.</p>
+        </div>
+    </div>
+    
+    <div class="toast" id="toast"></div>
+    
+    <script>
+        let currentUser = null;
+        let myZones = [];
+        let selectedZone = null;
+        let formData = null;
+        let entryData = null;
+        let pendingChanges = [];
+        
+        const dayNames = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+        
+        // Initialize
+        async function init() {
+            await loadCurrentUser();
+            await loadMyZones();
+            setDefaultDates();
+        }
+        
+        // Load current user
+        async function loadCurrentUser() {
+            try {
+                const res = await fetch('/security/daily-tasks/api/current-user');
+                currentUser = await res.json();
+                
+                document.getElementById('userName').textContent = currentUser.displayName || currentUser.email || 'Unknown User';
+                document.getElementById('userEmail').textContent = currentUser.email || '';
+                document.getElementById('userAvatar').textContent = (currentUser.displayName || currentUser.email || '?')[0].toUpperCase();
+            } catch (err) {
+                console.error('Error loading user:', err);
+            }
+        }
+        
+        // Load user's assigned zones
+        async function loadMyZones() {
+            try {
+                const res = await fetch('/security/daily-tasks/api/my-zones');
+                myZones = await res.json();
+                
+                const select = document.getElementById('zoneSelect');
+                
+                if (myZones.length === 0) {
+                    // Try loading all zones (for admins)
+                    const allRes = await fetch('/security/daily-tasks/api/zones');
+                    myZones = await allRes.json();
+                }
+                
+                if (myZones.length === 0) {
+                    document.getElementById('setupSection').style.display = 'none';
+                    document.getElementById('noZonesMessage').style.display = 'block';
+                    return;
+                }
+                
+                // Group by team type
+                const grouped = {};
+                myZones.forEach(z => {
+                    if (!grouped[z.TeamTypeName]) grouped[z.TeamTypeName] = [];
+                    grouped[z.TeamTypeName].push(z);
+                });
+                
+                select.innerHTML = '<option value="">-- Select Zone --</option>';
+                Object.keys(grouped).forEach(teamType => {
+                    const optgroup = document.createElement('optgroup');
+                    optgroup.label = teamType;
+                    grouped[teamType].forEach(z => {
+                        const option = document.createElement('option');
+                        option.value = JSON.stringify({ zoneId: z.ZoneId, teamTypeId: z.TeamTypeId, zoneName: z.ZoneName, teamTypeName: z.TeamTypeName });
+                        option.textContent = z.ZoneName;
+                        optgroup.appendChild(option);
+                    });
+                    select.appendChild(optgroup);
+                });
+            } catch (err) {
+                console.error('Error loading zones:', err);
+                showToast('Error loading zones', true);
+            }
+        }
+        
+        // Set default dates (current week Monday to Friday)
+        function setDefaultDates() {
+            const today = new Date();
+            const dayOfWeek = today.getDay();
+            const monday = new Date(today);
+            monday.setDate(today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1));
+            const friday = new Date(monday);
+            friday.setDate(monday.getDate() + 4);
+            
+            document.getElementById('dateFrom').value = monday.toISOString().split('T')[0];
+            document.getElementById('dateTo').value = friday.toISOString().split('T')[0];
+        }
+        
+        // Load task form
+        async function loadForm() {
+            const zoneValue = document.getElementById('zoneSelect').value;
+            const dateFrom = document.getElementById('dateFrom').value;
+            const dateTo = document.getElementById('dateTo').value;
+            
+            if (!zoneValue || !dateFrom || !dateTo) {
+                showToast('Please select zone and dates', true);
+                return;
+            }
+            
+            if (new Date(dateFrom) > new Date(dateTo)) {
+                showToast('Date From cannot be after Date To', true);
+                return;
+            }
+            
+            selectedZone = JSON.parse(zoneValue);
+            
+            try {
+                // Load form structure based on team type
+                if (selectedZone.teamTypeId === 1) {
+                    // Multi-Zone Team
+                    const res = await fetch(`/security/daily-tasks/api/form/multi-zone/${selectedZone.zoneId}`);
+                    formData = await res.json();
+                    renderMultiZoneForm(dateFrom, dateTo);
+                } else {
+                    // Fixed Area Team
+                    const res = await fetch(`/security/daily-tasks/api/form/fixed-area/${selectedZone.zoneId}`);
+                    formData = await res.json();
+                    renderFixedAreaForm(dateFrom, dateTo);
+                }
+                
+                // Load existing entry data
+                const entryRes = await fetch(`/security/daily-tasks/api/entry?zoneId=${selectedZone.zoneId}&dateFrom=${dateFrom}&dateTo=${dateTo}`);
+                entryData = await entryRes.json();
+                
+                if (!entryData.isNew) {
+                    applyExistingData();
+                }
+                
+                // Show form, hide setup
+                document.getElementById('setupSection').style.display = 'none';
+                document.getElementById('taskForm').classList.add('active');
+                
+                // Update header
+                document.getElementById('formZoneName').textContent = selectedZone.zoneName;
+                document.getElementById('formTeamType').textContent = selectedZone.teamTypeName;
+                document.getElementById('formDateRange').textContent = `${formatDate(dateFrom)} - ${formatDate(dateTo)}`;
+                
+            } catch (err) {
+                console.error('Error loading form:', err);
+                showToast('Error loading form', true);
+            }
+        }
+        
+        // Render Multi-Zone form
+        function renderMultiZoneForm(dateFrom, dateTo) {
+            const thead = document.getElementById('taskTableHead');
+            const tbody = document.getElementById('taskTableBody');
+            
+            // Get dates in range
+            const dates = getDateRange(dateFrom, dateTo);
+            
+            // Build header
+            thead.innerHTML = `
+                <tr>
+                    <th>Time Slot</th>
+                    <th>Task</th>
+                    ${dates.map(d => `<th class="day-header">${dayNames[getDayOfWeek(d)]}<br><small>${formatDateShort(d)}</small></th>`).join('')}
+                </tr>
+            `;
+            
+            // Build rows
+            tbody.innerHTML = '';
+            formData.timeSlots.forEach(slot => {
+                const tr = document.createElement('tr');
+                
+                if (slot.IsBreak) {
+                    tr.className = 'break-row';
+                    tr.innerHTML = `
+                        <td>${slot.SlotName}</td>
+                        <td>Break</td>
+                        ${dates.map(() => `<td>-</td>`).join('')}
+                    `;
+                } else {
+                    tr.innerHTML = `
+                        <td class="task-name"><strong>${slot.SlotName}</strong></td>
+                        <td>${slot.TaskDescription || 'No task assigned'}</td>
+                        ${dates.map(d => `
+                            <td class="task-cell applicable">
+                                <input type="checkbox" class="task-checkbox"
+                                    data-slot="${slot.TimeSlotId}"
+                                    data-date="${d}"
+                                    onchange="markChanged(this)">
+                            </td>
+                        `).join('')}
+                    `;
+                }
+                
+                tbody.appendChild(tr);
+            });
+        }
+        
+        // Render Fixed Area form
+        function renderFixedAreaForm(dateFrom, dateTo) {
+            const thead = document.getElementById('taskTableHead');
+            const tbody = document.getElementById('taskTableBody');
+            
+            // Get dates in range
+            const dates = getDateRange(dateFrom, dateTo);
+            
+            // Build header
+            thead.innerHTML = `
+                <tr>
+                    <th>Task</th>
+                    ${dates.map(d => `<th class="day-header">${dayNames[getDayOfWeek(d)]}<br><small>${formatDateShort(d)}</small></th>`).join('')}
+                </tr>
+            `;
+            
+            // Build rows
+            tbody.innerHTML = '';
+            formData.tasks.forEach(task => {
+                const tr = document.createElement('tr');
+                
+                tr.innerHTML = `
+                    <td class="task-name">
+                        <span class="task-icon">${task.TaskIcon || '📋'}</span>
+                        ${task.TaskName}
+                    </td>
+                    ${dates.map(d => {
+                        const dayOfWeek = getDayOfWeek(d);
+                        if (task.IsApplicable) {
+                            return `
+                                <td class="task-cell applicable">
+                                    <input type="checkbox" class="task-checkbox"
+                                        data-task="${task.TaskItemId}"
+                                        data-day="${dayOfWeek}"
+                                        data-date="${d}"
+                                        onchange="markChanged(this)">
+                                </td>
+                            `;
+                        } else {
+                            return `
+                                <td class="task-cell not-applicable">
+                                    <span class="na-label">N/A</span>
+                                </td>
+                            `;
+                        }
+                    }).join('')}
+                `;
+                
+                tbody.appendChild(tr);
+            });
+        }
+        
+        // Apply existing entry data to checkboxes
+        function applyExistingData() {
+            if (!entryData || !entryData.details) return;
+            
+            entryData.details.forEach(detail => {
+                let checkbox;
+                
+                if (selectedZone.teamTypeId === 1) {
+                    // Multi-Zone
+                    checkbox = document.querySelector(`input[data-slot="${detail.TimeSlotId}"][data-date="${detail.TaskDate.split('T')[0]}"]`);
+                } else {
+                    // Fixed Area
+                    checkbox = document.querySelector(`input[data-task="${detail.TaskItemId}"][data-day="${detail.DayOfWeek}"]`);
+                }
+                
+                if (checkbox && detail.IsCompleted) {
+                    checkbox.checked = true;
+                    const cell = checkbox.parentElement;
+                    cell.classList.add('completed');
+                    
+                    if (detail.CompletedByName) {
+                        const span = document.createElement('span');
+                        span.className = 'completed-by';
+                        span.textContent = detail.CompletedByName;
+                        cell.appendChild(span);
+                    }
+                }
+            });
+        }
+        
+        // Mark checkbox as changed
+        function markChanged(checkbox) {
+            const cell = checkbox.parentElement;
+            
+            if (checkbox.checked) {
+                cell.classList.add('completed');
+            } else {
+                cell.classList.remove('completed');
+                // Remove completed-by label if exists
+                const label = cell.querySelector('.completed-by');
+                if (label) label.remove();
+            }
+        }
+        
+        // Save form
+        async function saveForm() {
+            const dateFrom = document.getElementById('dateFrom').value;
+            const dateTo = document.getElementById('dateTo').value;
+            
+            // Collect all checkbox states
+            const details = [];
+            const checkboxes = document.querySelectorAll('.task-checkbox');
+            
+            checkboxes.forEach(cb => {
+                if (selectedZone.teamTypeId === 1) {
+                    // Multi-Zone
+                    details.push({
+                        timeSlotId: parseInt(cb.dataset.slot),
+                        taskDate: cb.dataset.date,
+                        isCompleted: cb.checked
+                    });
+                } else {
+                    // Fixed Area
+                    details.push({
+                        taskItemId: parseInt(cb.dataset.task),
+                        dayOfWeek: parseInt(cb.dataset.day),
+                        isCompleted: cb.checked
+                    });
+                }
+            });
+            
+            const saveStatus = document.getElementById('saveStatus');
+            saveStatus.textContent = 'Saving...';
+            saveStatus.className = 'save-status saving';
+            
+            try {
+                const res = await fetch('/security/daily-tasks/api/entry', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        zoneId: selectedZone.zoneId,
+                        teamTypeId: selectedZone.teamTypeId,
+                        dateFrom,
+                        dateTo,
+                        details
+                    })
+                });
+                
+                if (res.ok) {
+                    saveStatus.textContent = '✓ Saved successfully';
+                    saveStatus.className = 'save-status saved';
+                    showToast('Tasks saved successfully!');
+                    
+                    // Update completed-by labels for newly checked items
+                    checkboxes.forEach(cb => {
+                        if (cb.checked) {
+                            const cell = cb.parentElement;
+                            let label = cell.querySelector('.completed-by');
+                            if (!label) {
+                                label = document.createElement('span');
+                                label.className = 'completed-by';
+                                label.textContent = currentUser.displayName || currentUser.email;
+                                cell.appendChild(label);
+                            }
+                        }
+                    });
+                } else {
+                    const err = await res.json();
+                    saveStatus.textContent = 'Error saving';
+                    saveStatus.className = 'save-status error';
+                    showToast(err.error || 'Error saving tasks', true);
+                }
+            } catch (err) {
+                console.error('Error saving:', err);
+                saveStatus.textContent = 'Error saving';
+                saveStatus.className = 'save-status error';
+                showToast('Error saving tasks', true);
+            }
+        }
+        
+        // Reset form
+        function resetForm() {
+            document.getElementById('taskForm').classList.remove('active');
+            document.getElementById('setupSection').style.display = 'block';
+            selectedZone = null;
+            formData = null;
+            entryData = null;
+            document.getElementById('saveStatus').textContent = '';
+        }
+        
+        // Helper functions
+        function getDateRange(startDate, endDate) {
+            const dates = [];
+            const current = new Date(startDate);
+            const end = new Date(endDate);
+            
+            while (current <= end) {
+                dates.push(current.toISOString().split('T')[0]);
+                current.setDate(current.getDate() + 1);
+            }
+            
+            return dates;
+        }
+        
+        function getDayOfWeek(dateStr) {
+            const date = new Date(dateStr);
+            const day = date.getDay();
+            return day === 0 ? 7 : day; // Convert Sunday from 0 to 7
+        }
+        
+        function formatDate(dateStr) {
+            return new Date(dateStr).toLocaleDateString('en-GB', { 
+                weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' 
+            });
+        }
+        
+        function formatDateShort(dateStr) {
+            return new Date(dateStr).toLocaleDateString('en-GB', { 
+                day: 'numeric', month: 'short'
+            });
+        }
+        
+        // Toast notification
+        function showToast(message, isError = false) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'toast' + (isError ? ' error' : '');
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+        
+        // Initialize on load
+        init();
+    </script>
+</body>
+</html>

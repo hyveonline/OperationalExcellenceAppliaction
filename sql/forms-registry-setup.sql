@@ -71,11 +71,15 @@ USING (VALUES
     ('SECURITY_PARKING', 'Parking Violations', 'Security', '/security/parking-violations', 'Parking violation records'),
     ('SECURITY_CHECKLIST', 'Security Checklist Reference', 'Security', '/security/checklist-reference', 'Checklist management'),
     ('SECURITY_CLEANING', 'Cleaning Reference', 'Security', '/security/cleaning-reference', 'Cleaning checklist reference'),
+    ('SECURITY_MULTIZONE', 'Multi-Zone Team Config', 'Security', '/security/multizone-team', 'Configure multi-zone team zones and assignments'),
+    ('SECURITY_FIXEDAREA', 'Fixed Area Team Config', 'Security', '/security/fixedarea-team', 'Configure fixed area team zones and task matrix'),
     
     -- Security Services Module (Store-level)
     ('SEC_SERVICES_DASHBOARD', 'Security Services', 'Security Services', '/security-services', 'Store-level security services'),
     ('SEC_CHECKLIST', 'Security Checklist', 'Security Services', '/security-services/checklist', 'Daily security checklist'),
     ('SEC_CLEANING_CHECKLIST', 'Cleaning Checklist', 'Security Services', '/security-services/cleaning-checklist', 'Cleaning inspection checklist'),
+    ('SECURITY_DAILY_TASKS', 'Daily Tasks', 'Security Services', '/security-services/daily-tasks', 'Fill and track daily cleaning tasks'),
+    ('SECURITY_DAILY_TASKS_HISTORY', 'Daily Tasks History', 'Security Services', '/security-services/daily-tasks/history', 'View daily tasks submission history'),
     
     -- Stores Module
     ('STORES_DASHBOARD', 'Stores Dashboard', 'Stores', '/stores', 'Stores module landing page'),
