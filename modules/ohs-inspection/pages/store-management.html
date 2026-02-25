@@ -579,6 +579,23 @@
                         <option value="false">Inactive</option>
                     </select>
                 </div>
+                
+                <!-- Read-only Responsibles Section -->
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 15px; margin-bottom: 15px;">
+                    <label style="display: block; font-weight: 600; color: #475569; margin-bottom: 10px; font-size: 14px;">📋 Store Responsibility (Read-Only)</label>
+                    <p style="font-size: 11px; color: #94a3b8; margin-bottom: 12px;">Manage these assignments in <a href="/operational-excellence/system-settings" style="color: #7c3aed;">System Settings → Store Responsibility</a></p>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <div class="form-group" style="margin: 0;">
+                            <label style="font-size: 12px; color: #7c3aed;">👔 Head of Operations</label>
+                            <input type="text" id="editHeadOfOps" readonly style="background: #ede9fe; border-color: #c4b5fd; color: #5b21b6; cursor: not-allowed;">
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label style="font-size: 12px; color: #2563eb;">👥 Area Manager</label>
+                            <input type="text" id="editAreaManager" readonly style="background: #dbeafe; border-color: #93c5fd; color: #1d4ed8; cursor: not-allowed;">
+                        </div>
+                    </div>
+                </div>
+                
                 <div class="form-group">
                     <label>Store Managers (max 2)</label>
                     <div class="multi-select-container">
@@ -629,14 +646,19 @@
         let templates = [];
         let availableManagers = [];
         let managerAssignments = {};
+        let storeResponsibles = {};
         let selectedEditManagers = [];
         let selectedAssignManagers = [];
 
         // Initialize
-        document.addEventListener('DOMContentLoaded', () => {
-            loadTemplates();
-            loadAvailableManagers();
-            loadStores();
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Load all required data in parallel, then load stores
+            await Promise.all([
+                loadTemplates(),
+                loadAvailableManagers(),
+                loadStoreResponsibles()
+            ]);
+            await loadStores();
             
             // Close dropdowns when clicking outside
             document.addEventListener('click', (e) => {
@@ -665,6 +687,28 @@
                 managerAssignments = result.data || {};
             } catch (error) {
                 console.error('Error loading manager assignments:', error);
+            }
+        }
+
+        // Load store responsibles (Area Manager & Head of Ops)
+        async function loadStoreResponsibles() {
+            try {
+                const response = await fetch('/operational-excellence/system-settings/api/store-responsibles');
+                const data = await response.json();
+                // Convert to lookup by storeId
+                storeResponsibles = {};
+                if (Array.isArray(data)) {
+                    data.forEach(r => {
+                        storeResponsibles[r.StoreId] = {
+                            areaManagerName: r.AreaManagerName || null,
+                            areaManagerEmail: r.AreaManagerEmail || null,
+                            headOfOpsName: r.HeadOfOpsName || null,
+                            headOfOpsEmail: r.HeadOfOpsEmail || null
+                        };
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading store responsibles:', error);
             }
         }
 
@@ -738,6 +782,8 @@
                                 <th>Store Name</th>
                                 <th>Location</th>
                                 <th>Template</th>
+                                <th>Head of Ops</th>
+                                <th>Area Manager</th>
                                 <th>Store Managers</th>
                                 <th>Status</th>
                                 <th>Actions</th>
@@ -746,12 +792,23 @@
                         <tbody>
                             ${stores.map(store => {
                                 const managers = managerAssignments[store.storeId] || [];
+                                const responsible = storeResponsibles[store.storeId] || {};
                                 return `
                                 <tr>
                                     <td><strong>${store.storeCode || '-'}</strong></td>
                                     <td>${store.storeName}</td>
                                     <td>${store.location || '-'}</td>
                                     <td><span class="template-badge">${store.templateName || 'Not set'}</span></td>
+                                    <td>
+                                        ${responsible.headOfOpsName 
+                                            ? `<span class="manager-badge" style="background: #ede9fe; color: #7c3aed;">👔 ${responsible.headOfOpsName}</span>`
+                                            : '<span style="color: #999; font-size: 12px;">Not assigned</span>'}
+                                    </td>
+                                    <td>
+                                        ${responsible.areaManagerName 
+                                            ? `<span class="manager-badge" style="background: #dbeafe; color: #2563eb;">👥 ${responsible.areaManagerName}</span>`
+                                            : '<span style="color: #999; font-size: 12px;">Not assigned</span>'}
+                                    </td>
                                     <td class="managers-cell">
                                         ${managers.length > 0 ? managers.map(m => `
                                             <span class="manager-badge ${m.isPrimary ? 'primary' : ''}">
@@ -826,6 +883,11 @@
             document.getElementById('editStoreLocation').value = store.location || '';
             document.getElementById('editStoreTemplate').value = store.templateId || '';
             document.getElementById('editStoreActive').value = store.isActive ? 'true' : 'false';
+
+            // Load store responsibles (read-only)
+            const responsible = storeResponsibles[storeId] || {};
+            document.getElementById('editHeadOfOps').value = responsible.headOfOpsName || 'Not assigned';
+            document.getElementById('editAreaManager').value = responsible.areaManagerName || 'Not assigned';
 
             // Load current managers for this store
             selectedEditManagers = (managerAssignments[storeId] || []).map(m => m.userId);
