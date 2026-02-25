@@ -887,6 +887,23 @@ router.put('/api/templates/sections/:sectionId', async (req, res) => {
     }
 });
 
+// Update section department (for settings page)
+router.put('/api/section/:sectionId/department', async (req, res) => {
+    try {
+        const { departmentId } = req.body;
+        const pool = await sql.connect(dbConfig);
+        await pool.request()
+            .input('id', sql.Int, req.params.sectionId)
+            .input('departmentId', sql.Int, departmentId || null)
+            .query(`UPDATE OHS_InspectionTemplateSections SET DepartmentId = @departmentId WHERE Id = @id`);
+        await pool.close();
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Error updating section department:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
 // Delete section
 router.delete('/api/templates/sections/:sectionId', async (req, res) => {
     try {
@@ -2559,6 +2576,7 @@ router.get('/api/schemas', async (req, res) => {
         
         const schemas = [];
         for (const schema of result.recordset) {
+            // Get sections with department info
             const sectionsResult = await pool.request()
                 .input('templateId', sql.Int, schema.SchemaID)
                 .query(`
@@ -2567,14 +2585,29 @@ router.get('/api/schemas', async (req, res) => {
                         ts.SectionName,
                         ts.SectionOrder,
                         ts.SectionIcon,
-                        ISNULL(ts.PassingGrade, 80) as PassingGrade
+                        ISNULL(ts.PassingGrade, 80) as PassingGrade,
+                        ts.DepartmentId,
+                        d.DepartmentName
                     FROM OHS_InspectionTemplateSections ts
+                    LEFT JOIN OHS_InspectionTemplateDepartments d ON ts.DepartmentId = d.Id
                     WHERE ts.TemplateId = @templateId
                     ORDER BY ts.SectionOrder
                 `);
+            
+            // Get available departments for this template
+            const departmentsResult = await pool.request()
+                .input('templateId', sql.Int, schema.SchemaID)
+                .query(`
+                    SELECT Id as DepartmentId, DepartmentName, DepartmentIcon
+                    FROM OHS_InspectionTemplateDepartments
+                    WHERE TemplateId = @templateId AND IsActive = 1
+                    ORDER BY DepartmentOrder
+                `);
+            
             schemas.push({
                 ...schema,
-                sections: sectionsResult.recordset
+                sections: sectionsResult.recordset,
+                departments: departmentsResult.recordset
             });
         }
         

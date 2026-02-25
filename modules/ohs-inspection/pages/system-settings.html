@@ -901,6 +901,26 @@
         let hasIconChanges = false;
         let currentIconPickerSectionId = null;
 
+        // Toast notification helper
+        function showNotification(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.style.cssText = `
+                position: fixed;
+                bottom: 80px;
+                right: 20px;
+                padding: 12px 24px;
+                border-radius: 8px;
+                color: white;
+                font-weight: 600;
+                z-index: 10001;
+                animation: slideIn 0.3s ease;
+                background: ${type === 'success' ? '#10b981' : '#ef4444'};
+            `;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
         document.addEventListener('DOMContentLoaded', async () => {
             await loadSchemas();
             await loadEscalationSettings();
@@ -1133,9 +1153,9 @@
                     <div class="settings-section">
                         <div class="section-title">
                             <span>📋</span>
-                            Section Passing Grades
+                            Section Passing Grades & Departments
                             <span style="font-size: 12px; font-weight: 400; color: #9ca3af; margin-left: auto;">
-                                ${sections.length} sections
+                                ${sections.length} sections • <strong style="color: #e17055;">${schema.SchemaName}</strong>
                             </span>
                         </div>
                         <div class="sections-grid">
@@ -1143,9 +1163,20 @@
                                 <div class="section-card">
                                     <div class="section-info">
                                         <span class="section-icon">${section.SectionIcon || '📄'}</span>
-                                        <div>
+                                        <div style="flex: 1;">
                                             <div class="section-name">${section.SectionName}</div>
                                             <div class="section-number">Section ${section.SectionOrder}</div>
+                                            <select class="department-select" 
+                                                    data-section-id="${section.SectionID}"
+                                                    onchange="updateSectionDepartment(${section.SectionID}, this.value)"
+                                                    style="margin-top: 6px; padding: 4px 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 12px; width: 100%; max-width: 180px; background: ${section.DepartmentId ? '#f0fdf4' : '#fef2f2'}; cursor: pointer;">
+                                                <option value="">-- No Department --</option>
+                                                ${(schema.departments || []).map(dept => `
+                                                    <option value="${dept.DepartmentId}" ${section.DepartmentId === dept.DepartmentId ? 'selected' : ''}>
+                                                        ${dept.DepartmentIcon || '🏪'} ${dept.DepartmentName}
+                                                    </option>
+                                                `).join('')}
+                                            </select>
                                         </div>
                                     </div>
                                     <div class="grade-input-group">
@@ -1379,6 +1410,43 @@
         function updateSectionGrade(sectionId, value) {
             currentValues.sections[sectionId] = parseInt(value) || 0;
             checkForChanges();
+        }
+
+        async function updateSectionDepartment(sectionId, departmentId) {
+            try {
+                const response = await fetch(`/ohs-inspection/api/section/${sectionId}/department`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ departmentId: departmentId ? parseInt(departmentId) : null })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    // Update the dropdown background color
+                    const select = document.querySelector(`select[data-section-id="${sectionId}"]`);
+                    if (select) {
+                        select.style.background = departmentId ? '#f0fdf4' : '#fef2f2';
+                    }
+                    
+                    // Update the schema data
+                    const schema = schemas.find(s => s.SchemaID === currentSchemaId);
+                    if (schema) {
+                        const section = schema.sections.find(s => s.SectionID === sectionId);
+                        if (section) {
+                            section.DepartmentId = departmentId ? parseInt(departmentId) : null;
+                            const dept = (schema.departments || []).find(d => d.DepartmentId === parseInt(departmentId));
+                            section.DepartmentName = dept ? dept.DepartmentName : null;
+                        }
+                    }
+                    
+                    showNotification('Department updated!', 'success');
+                } else {
+                    showNotification('Failed to update department', 'error');
+                }
+            } catch (error) {
+                console.error('Error updating department:', error);
+                showNotification('Error: ' + error.message, 'error');
+            }
         }
 
         function checkForChanges() {
