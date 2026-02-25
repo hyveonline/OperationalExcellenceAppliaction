@@ -2542,7 +2542,7 @@ router.post('/api/audits/:auditId/complete', async (req, res) => {
         if (actionItemsCreated > 0) {
             try {
                 const settingsResult = await pool.request()
-                    .query("SELECT SettingValue FROM OE_EscalationSettings WHERE SettingKey = 'DeadlineDays'");
+                    .query("SELECT SettingValue FROM OE_EscalationSettings WHERE SettingKey = 'ActionPlanDeadlineDays'");
                 const deadlineDays = settingsResult.recordset.length > 0 ? parseInt(settingsResult.recordset[0].SettingValue) || 7 : 7;
                 
                 await pool.request()
@@ -3721,6 +3721,7 @@ router.get('/api/verification/stats', async (req, res) => {
 
 const emailService = require('../../services/email-service');
 const emailTemplateBuilder = require('../../services/email-template-builder');
+const { getFreshAccessToken } = require('../../auth/auth-server');
 
 // Get email recipients for an audit (store manager + brand responsibles for CC)
 // For action-plan reports, the To recipient is the auditor who created the inspection
@@ -3958,13 +3959,16 @@ router.post('/api/audits/:auditId/send-report-email', async (req, res) => {
         const { auditId } = req.params;
         const { reportType, to, cc } = req.body;
         
-        if (!to || !to.email) {
-            return res.status(400).json({ error: 'Recipient (to) is required' });
+        // Handle both array format (from email modal) and object format
+        let toRecipient;
+        if (Array.isArray(to) && to.length > 0) {
+            toRecipient = to[0]; // Take first recipient
+        } else if (to && to.email) {
+            toRecipient = to;
         }
         
-        const accessToken = req.session?.accessToken;
-        if (!accessToken) {
-            return res.status(401).json({ error: 'Not authenticated. Please log in again.' });
+        if (!toRecipient || !toRecipient.email) {
+            return res.status(400).json({ error: 'Recipient (to) is required' });
         }
         
         const pool = await sql.connect(dbConfig);
@@ -4034,9 +4038,22 @@ router.post('/api/audits/:auditId/send-report-email', async (req, res) => {
         // Build CC string
         const ccEmails = cc && cc.length > 0 ? cc.map(c => c.email).join(',') : null;
         
-        // Send email
+        // Get fresh access token for the current user (refreshes if expired)
+        let accessToken;
+        try {
+            accessToken = await getFreshAccessToken(req.currentUser);
+        } catch (tokenError) {
+            console.error('[OE] Token refresh failed:', tokenError.message);
+            return res.status(401).json({ 
+                success: false, 
+                error: 'Your session has expired. Please log out and log in again.',
+                needsRelogin: true 
+            });
+        }
+        
+        // Send email from the logged-in user's account
         const emailResult = await emailService.sendEmail({
-            to: to.email,
+            to: toRecipient.email,
             subject: emailContent.subject,
             body: emailContent.body,
             cc: ccEmails,
@@ -4049,10 +4066,10 @@ router.post('/api/audits/:auditId/send-report-email', async (req, res) => {
             .input('documentNumber', sql.NVarChar, audit.DocumentNumber)
             .input('module', sql.NVarChar, 'OE')
             .input('reportType', sql.NVarChar, reportType)
-            .input('sentBy', sql.Int, req.currentUser?.Id || null)
+            .input('sentBy', sql.Int, req.currentUser?.userId || 0)
             .input('sentByEmail', sql.NVarChar, req.currentUser?.email || 'Unknown')
-            .input('sentByName', sql.NVarChar, req.currentUser?.DisplayName || 'Unknown')
-            .input('sentTo', sql.NVarChar, JSON.stringify([to]))
+            .input('sentByName', sql.NVarChar, req.currentUser?.displayName || 'Unknown')
+            .input('sentTo', sql.NVarChar, JSON.stringify([toRecipient]))
             .input('ccRecipients', sql.NVarChar, cc ? JSON.stringify(cc) : null)
             .input('subject', sql.NVarChar, emailContent.subject)
             .input('reportUrl', sql.NVarChar, reportUrl)

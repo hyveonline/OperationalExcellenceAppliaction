@@ -276,6 +276,52 @@ const SessionStore = {
 };
 
 /**
+ * Get a fresh access token for the user
+ * Uses MSAL's token cache to silently acquire a new token if the current one is expired
+ * @param {object} sessionData - The session data containing msalAccount
+ * @returns {Promise<string>} - Fresh access token
+ */
+async function getFreshAccessToken(sessionData) {
+    if (!sessionData || !sessionData.msalAccount) {
+        throw new Error('No MSAL account in session. User needs to re-login.');
+    }
+    
+    // Check if current token is still valid (with 5 min buffer)
+    if (sessionData.tokenExpiresOn) {
+        const expiryTime = new Date(sessionData.tokenExpiresOn);
+        const now = new Date();
+        const bufferMs = 5 * 60 * 1000; // 5 minutes buffer
+        
+        if (expiryTime.getTime() - now.getTime() > bufferMs) {
+            // Token is still valid
+            console.log('[AUTH] Using existing access token (still valid)');
+            return sessionData.accessToken;
+        }
+    }
+    
+    // Try to acquire token silently using MSAL cache
+    try {
+        console.log('[AUTH] Attempting silent token acquisition...');
+        const silentRequest = {
+            account: sessionData.msalAccount,
+            scopes: ['Mail.Send', 'User.Read']
+        };
+        
+        const response = await pca.acquireTokenSilent(silentRequest);
+        console.log('[AUTH] Silent token acquisition successful, new expiry:', response.expiresOn);
+        
+        // Update session with new token
+        sessionData.accessToken = response.accessToken;
+        sessionData.tokenExpiresOn = response.expiresOn;
+        
+        return response.accessToken;
+    } catch (error) {
+        console.error('[AUTH] Silent token acquisition failed:', error.message);
+        throw new Error('Token expired. Please log out and log in again to refresh your session.');
+    }
+}
+
+/**
  * Initialize authentication routes on the Express app
  */
 function initializeAuth(app) {
@@ -305,7 +351,7 @@ function initializeAuth(app) {
             `client_id=${process.env.AZURE_CLIENT_ID}` +
             `&response_type=code` +
             `&redirect_uri=${encodeURIComponent(process.env.REDIRECT_URI)}` +
-            `&scope=openid%20profile%20email%20User.Read` +
+            `&scope=openid%20profile%20email%20User.Read%20Mail.Send%20offline_access` +
             `&response_mode=query`;
         
         res.redirect(authUrl);
@@ -334,13 +380,22 @@ function initializeAuth(app) {
         
         try {
             // Exchange code for token
+            // Include offline_access to get a refresh token for silent token acquisition
             const tokenRequest = {
                 code: code,
-                scopes: ['openid', 'profile', 'email', 'User.Read'],
+                scopes: ['openid', 'profile', 'email', 'User.Read', 'Mail.Send', 'offline_access'],
                 redirectUri: process.env.REDIRECT_URI
             };
             
             const response = await pca.acquireTokenByCode(tokenRequest);
+            
+            // Log token info for debugging (mask sensitive data)
+            console.log('[AUTH] Token acquired:', {
+                hasAccessToken: !!response.accessToken,
+                expiresOn: response.expiresOn,
+                scopes: response.scopes,
+                accountId: response.account?.homeAccountId?.substring(0, 20) + '...'
+            });
             
             // Get user info from token
             const email = response.account.username;
@@ -458,6 +513,8 @@ function initializeAuth(app) {
                     roleNames: roleNames,
                     permissions: permissions,  // Include permissions in session!
                     accessToken: response.accessToken,
+                    tokenExpiresOn: response.expiresOn,  // Store expiry time
+                    msalAccount: response.account,  // Store MSAL account for silent token acquisition
                     isApproved: user.IsApproved,
                     isActive: user.IsActive,
                     createdAt: new Date()
@@ -864,5 +921,6 @@ function generateSessionId(userId) {
 module.exports = {
     initializeAuth,
     requireAuth,
-    requireRole
+    requireRole,
+    getFreshAccessToken
 };

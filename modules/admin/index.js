@@ -434,6 +434,32 @@ router.post('/api/job-monitor/preview-inspection-email', async (req, res) => {
     }
 });
 
+// Send test email to any address
+router.post('/api/job-monitor/send-test-email', async (req, res) => {
+    try {
+        const { to, subject, bodyHtml } = req.body;
+        
+        if (!to || !subject || !bodyHtml) {
+            return res.status(400).json({ success: false, error: 'Missing required fields: to, subject, bodyHtml' });
+        }
+        
+        // Send the email
+        const emailService = require('../../services/email-service');
+        await emailService.sendEmail({
+            to: to,
+            subject: '[TEST] ' + subject,
+            htmlContent: bodyHtml
+        });
+        
+        console.log(`[Job Monitor] Test email sent to ${to} by ${req.currentUser?.email || 'unknown'}`);
+        
+        res.json({ success: true, message: 'Test email sent successfully' });
+    } catch (err) {
+        console.error('Error sending test email:', err);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
 // Dry run API - check what notifications would be sent
 router.get('/api/job-monitor/dry-run', async (req, res) => {
     let pool;
@@ -2705,7 +2731,7 @@ router.get('/forms', async (req, res) => {
         const pool = await sql.connect(dbConfig);
         const forms = await pool.request().query(`
             SELECT f.*, 
-                   (SELECT COUNT(*) FROM RoleFormAccess WHERE FormId = f.Id) as RoleCount
+                   (SELECT COUNT(*) FROM RoleFormAccess WHERE FormCode = f.FormCode) as RoleCount
             FROM Forms f 
             ORDER BY f.ModuleName, f.FormName
         `);
@@ -3967,15 +3993,27 @@ router.delete('/api/forms/:id', async (req, res) => {
         
         const pool = await sql.connect(dbConfig);
         
+        // Get the FormCode for this form
+        const formResult = await pool.request()
+            .input('id', sql.Int, formId)
+            .query('SELECT FormCode FROM Forms WHERE Id = @id');
+        
+        if (formResult.recordset.length === 0) {
+            await pool.close();
+            return res.status(404).json({ success: false, error: 'Form not found' });
+        }
+        
+        const formCode = formResult.recordset[0].FormCode;
+        
         // Delete role permissions for this form first
         await pool.request()
-            .input('id', sql.Int, formId)
-            .query('DELETE FROM RoleFormAccess WHERE FormId = @id');
+            .input('formCode', sql.NVarChar, formCode)
+            .query('DELETE FROM RoleFormAccess WHERE FormCode = @formCode');
         
         // Delete user form access
         await pool.request()
-            .input('id', sql.Int, formId)
-            .query('DELETE FROM UserFormAccess WHERE FormId = @id');
+            .input('formCode', sql.NVarChar, formCode)
+            .query('DELETE FROM UserFormAccess WHERE FormCode = @formCode');
         
         // Delete the form
         await pool.request()
@@ -4007,7 +4045,7 @@ router.get('/forms/export', async (req, res) => {
                 f.FormUrl,
                 f.Description,
                 CASE WHEN f.IsActive = 1 THEN 'Active' ELSE 'Inactive' END as Status,
-                (SELECT COUNT(*) FROM RoleFormAccess WHERE FormId = f.Id) as RoleCount,
+                (SELECT COUNT(*) FROM RoleFormAccess WHERE FormCode = f.FormCode) as RoleCount,
                 FORMAT(f.CreatedAt, 'yyyy-MM-dd HH:mm') as CreatedAt
             FROM Forms f 
             ORDER BY f.ModuleName, f.FormName
@@ -5754,10 +5792,23 @@ router.get('/job-monitor', async (req, res) => {
                         <div class="modal-body">
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
                                 <div class="preview-subject"><label>From</label><div id="previewFrom">-</div></div>
-                                <div class="preview-subject"><label>To</label><div id="previewTo">-</div></div>
+                                <div class="preview-subject"><label>To (Original)</label><div id="previewTo">-</div></div>
                             </div>
                             <div class="preview-subject"><label>Subject</label><div id="previewSubject">-</div></div>
                             <iframe id="previewIframe" class="preview-iframe"></iframe>
+                            
+                            <!-- Send Test Email Section -->
+                            <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; border: 2px dashed #667eea;">
+                                <h4 style="margin: 0 0 10px; color: #333; font-size: 14px;">📧 Send Test Email</h4>
+                                <div style="display: flex; gap: 10px; align-items: center;">
+                                    <input type="email" id="testEmailRecipient" placeholder="Enter test email address..." 
+                                        style="flex: 1; padding: 10px 15px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;">
+                                    <button class="btn btn-primary" id="sendTestEmailBtn" onclick="sendTestEmail()">
+                                        📤 Send Test
+                                    </button>
+                                </div>
+                                <p style="margin: 8px 0 0; font-size: 11px; color: #888;">Enter any email address to receive a test copy of this notification.</p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -5928,6 +5979,9 @@ router.get('/job-monitor', async (req, res) => {
                         } catch (e) { showToast('Error: ' + e.message, 'error'); }
                     }
                     
+                    // Store current preview data for sending
+                    let currentPreviewData = null;
+                    
                     async function previewInspectionEmail(module, type, base64Data) {
                         // Decode Base64 data
                         const inspection = JSON.parse(atob(base64Data));
@@ -5940,16 +5994,69 @@ router.get('/job-monitor', async (req, res) => {
                             });
                             const data = await res.json();
                             if (data.success) {
+                                // Store for sending
+                                currentPreviewData = {
+                                    subject: data.preview.subject,
+                                    bodyHtml: data.preview.bodyHtml,
+                                    module: module,
+                                    type: type,
+                                    documentNumber: inspection.documentNumber
+                                };
+                                
                                 document.getElementById('previewTitle').textContent = '📧 ' + inspection.documentNumber + ' - ' + (type === 'overdue' ? 'Overdue Notice' : 'Reminder');
                                 document.getElementById('previewFrom').textContent = data.preview.from || 'N/A';
                                 document.getElementById('previewTo').textContent = (data.preview.toName || '') + ' <' + (data.preview.to || 'N/A') + '>';
                                 document.getElementById('previewSubject').textContent = data.preview.subject;
                                 document.getElementById('previewIframe').srcdoc = data.preview.bodyHtml;
+                                document.getElementById('testEmailRecipient').value = '';
                                 document.getElementById('previewModal').style.display = 'flex';
                             } else {
                                 showToast(data.error || 'Error loading preview', 'error');
                             }
                         } catch (e) { showToast('Error: ' + e.message, 'error'); }
+                    }
+                    
+                    async function sendTestEmail() {
+                        const email = document.getElementById('testEmailRecipient').value.trim();
+                        if (!email) {
+                            showToast('Please enter an email address', 'error');
+                            return;
+                        }
+                        if (!email.includes('@')) {
+                            showToast('Please enter a valid email address', 'error');
+                            return;
+                        }
+                        if (!currentPreviewData) {
+                            showToast('No email to send. Please preview first.', 'error');
+                            return;
+                        }
+                        
+                        const btn = document.getElementById('sendTestEmailBtn');
+                        btn.innerHTML = '<span class="loading"></span> Sending...';
+                        btn.disabled = true;
+                        
+                        try {
+                            const res = await fetch('/admin/api/job-monitor/send-test-email', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    to: email,
+                                    subject: currentPreviewData.subject,
+                                    bodyHtml: currentPreviewData.bodyHtml
+                                })
+                            });
+                            const data = await res.json();
+                            if (data.success) {
+                                showToast('✅ Test email sent to ' + email, 'success');
+                            } else {
+                                showToast(data.error || 'Failed to send', 'error');
+                            }
+                        } catch (e) {
+                            showToast('Error: ' + e.message, 'error');
+                        } finally {
+                            btn.innerHTML = '📤 Send Test';
+                            btn.disabled = false;
+                        }
                     }
                     
                     async function dryRunTemplate(key, module, type) {
