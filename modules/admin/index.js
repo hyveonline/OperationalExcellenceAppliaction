@@ -33,7 +33,8 @@ const requireSysAdmin = async (req, res, next) => {
         '/admin/sessions': 'ADMIN_SESSIONS',
         '/admin/notification-history': 'ADMIN_NOTIFICATIONS',
         '/admin/email-templates': 'ADMIN_EMAIL_TEMPLATES',
-        '/admin/job-monitor': 'ADMIN_JOB_MONITOR'
+        '/admin/job-monitor': 'ADMIN_JOB_MONITOR',
+        '/admin/org-tree': 'ADMIN_ORG_TREE'
     };
     
     // Find matching form code
