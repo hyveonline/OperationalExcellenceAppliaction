@@ -195,6 +195,7 @@ app.get('/dashboard', requireAuth, (req, res) => {
         // Security / Facility Management module
         'SECURITY_CLEANING': 'security',
         'LEGAL_CASES': 'legal-cases',
+        'THIRDPARTY_BLACKLIST': 'thirdparty-blacklist',
         
         // HR module (HR_DASHBOARD is required for HR access)
         'HR_DASHBOARD': 'hr',
@@ -222,7 +223,7 @@ app.get('/dashboard', requireAuth, (req, res) => {
     
     // System Administrator always has full access (no SQL check needed)
     if (roleNames.includes('System Administrator')) {
-        ['stores', 'security-services', 'ohs', 'ohs-inspection', 'oe', 'oe-inspection', 'thirdparty', 'security', 'hr', 'personnel', 'escalation', 'broadcast', 'maknezi-fnb', 'legal-cases'].forEach(m => accessibleMenus.add(m));
+        ['stores', 'security-services', 'ohs', 'ohs-inspection', 'oe', 'oe-inspection', 'thirdparty', 'security', 'hr', 'personnel', 'escalation', 'broadcast', 'maknezi-fnb', 'legal-cases', 'thirdparty-blacklist'].forEach(m => accessibleMenus.add(m));
     }
     
     // Build menu items based on permissions - organized by department/category
@@ -260,7 +261,8 @@ app.get('/dashboard', requireAuth, (req, res) => {
             icon: '🔒',
             color: '#343a40',
             items: [
-                { id: 'legal-cases', icon: '⚖️', title: 'Legal Cases', href: '/security-emp/legal-cases', desc: 'Track and manage security legal cases' }
+                { id: 'legal-cases', icon: '⚖️', title: 'Legal Cases', href: '/security-emp/legal-cases', desc: 'Track and manage security legal cases' },
+                { id: 'thirdparty-blacklist', icon: '🚫', title: 'Third Party Blacklist', href: '/security-emp/blacklist', desc: 'Blacklisted third-party staff' }
             ]
         },
         {
