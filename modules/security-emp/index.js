@@ -10,10 +10,12 @@ const router = express.Router();
 const legalCasesRoutes = require('./legal-cases/routes');
 const blacklistRoutes = require('./blacklist/routes');
 const dailyReportingRoutes = require('./daily-reporting/routes');
+const calendarRoutes = require('./calendar/routes');
 
 // Mount routes
 router.use('/legal-cases', legalCasesRoutes);
 router.use('/blacklist', blacklistRoutes);
 router.use('/daily-reporting', dailyReportingRoutes);
+router.use('/calendar', calendarRoutes);
 
 module.exports = router;

@@ -182,6 +182,7 @@ app.get('/dashboard', requireAuth, (req, res) => {
         'FEEDBACK_DASHBOARD': 'oe', 'PRODUCTION_DASHBOARD': 'oe', 'FIVE_DAYS_DASHBOARD': 'oe',
         'ATTENDANCE_DASHBOARD': 'oe', 'THIRDPARTY_DASHBOARD': 'oe', 'SECURITY_DASHBOARD': 'oe',
         'MASTER_TABLE': 'master-table',
+        'STORE_VISIT_CALENDAR': 'store-visit-calendar',
         
         // OE Inspection module
         'OE_INSPECTION': 'oe-inspection', 'OE_INSPECTION_START': 'oe-inspection', 
@@ -198,6 +199,7 @@ app.get('/dashboard', requireAuth, (req, res) => {
         'LEGAL_CASES': 'legal-cases',
         'THIRDPARTY_BLACKLIST': 'thirdparty-blacklist',
         'SECURITY_DAILY_REPORTING': 'security-daily-reporting',
+        'SEC_VISIT_CALENDAR': 'sec-visit-calendar',
         
         // HR module (HR_DASHBOARD is required for HR access)
         'HR_DASHBOARD': 'hr',
@@ -225,7 +227,7 @@ app.get('/dashboard', requireAuth, (req, res) => {
     
     // System Administrator always has full access (no SQL check needed)
     if (roleNames.includes('System Administrator')) {
-        ['stores', 'security-services', 'ohs', 'ohs-inspection', 'oe', 'oe-inspection', 'thirdparty', 'security', 'hr', 'personnel', 'escalation', 'broadcast', 'maknezi-fnb', 'legal-cases', 'thirdparty-blacklist', 'security-daily-reporting', 'master-table'].forEach(m => accessibleMenus.add(m));
+        ['stores', 'security-services', 'ohs', 'ohs-inspection', 'oe', 'oe-inspection', 'thirdparty', 'security', 'hr', 'personnel', 'escalation', 'broadcast', 'maknezi-fnb', 'legal-cases', 'thirdparty-blacklist', 'security-daily-reporting', 'master-table', 'store-visit-calendar', 'sec-visit-calendar'].forEach(m => accessibleMenus.add(m));
     }
     
     // Build menu items based on permissions - organized by department/category
@@ -238,7 +240,8 @@ app.get('/dashboard', requireAuth, (req, res) => {
                 { id: 'oe', icon: '📋', title: 'OE Dashboard', href: '/operational-excellence', desc: 'Audits, action plans & reports' },
                 { id: 'oe-inspection', icon: '🔍', title: 'OE Inspection', href: '/oe-inspection', desc: 'OE inspections, reports & action plans' },
                 { id: 'escalation', icon: '🔴', title: 'Escalation', href: '/escalation', desc: 'Escalate & track overdue action items' },
-                { id: 'master-table', icon: '📊', title: 'Master Table', href: '/operational-excellence/master-table', desc: 'Third-party staff master data' }
+                { id: 'master-table', icon: '📊', title: 'Master Table', href: '/operational-excellence/master-table', desc: 'Third-party staff master data' },
+                { id: 'store-visit-calendar', icon: '📅', title: 'Store Visit Calendar', href: '/operational-excellence/calendar', desc: 'Schedule & track employee store visits' }
             ]
         },
         {
@@ -266,7 +269,8 @@ app.get('/dashboard', requireAuth, (req, res) => {
             items: [
                 { id: 'legal-cases', icon: '⚖️', title: 'Legal Cases', href: '/security-emp/legal-cases', desc: 'Track and manage security legal cases' },
                 { id: 'thirdparty-blacklist', icon: '🚫', title: 'Third Party Blacklist', href: '/security-emp/blacklist', desc: 'Blacklisted third-party staff' },
-                { id: 'security-daily-reporting', icon: '📋', title: 'Daily Reporting', href: '/security-emp/daily-reporting', desc: 'Security guard daily reports' }
+                { id: 'security-daily-reporting', icon: '📋', title: 'Daily Reporting', href: '/security-emp/daily-reporting', desc: 'Security guard daily reports' },
+                { id: 'sec-visit-calendar', icon: '📅', title: 'Visit Schedule', href: '/security-emp/calendar', desc: 'View and update store visit schedules' }
             ]
         },
         {
