@@ -376,6 +376,15 @@ router.get('/view/:id', async (req, res) => {
         const fromDate = new Date(schedule.FromDate).toLocaleDateString('en-GB');
         const toDate = new Date(schedule.ToDate).toLocaleDateString('en-GB');
         
+        // Helper function to display day schedule
+        const formatDay = (isOff, from, to) => {
+            if (isOff) return '<span style="color:#dc3545;font-weight:600;">Off</span>';
+            if (from && to) return from + ' - ' + to;
+            if (from) return from + ' - ?';
+            if (to) return '? - ' + to;
+            return '-';
+        };
+        
         const employeeRows = employees.recordset.map(e => `
             <tr>
                 <td>${e.CompanyName}</td>
@@ -384,20 +393,13 @@ router.get('/view/:id', async (req, res) => {
                 <td>${e.EmployeePosition || '-'}</td>
                 <td>${e.LocationCovered || '-'}</td>
                 <td>${e.PhoneNumber || '-'}</td>
-                <td>${e.MondayFrom || '-'}</td>
-                <td>${e.MondayTo || '-'}</td>
-                <td>${e.TuesdayFrom || '-'}</td>
-                <td>${e.TuesdayTo || '-'}</td>
-                <td>${e.WednesdayFrom || '-'}</td>
-                <td>${e.WednesdayTo || '-'}</td>
-                <td>${e.ThursdayFrom || '-'}</td>
-                <td>${e.ThursdayTo || '-'}</td>
-                <td>${e.FridayFrom || '-'}</td>
-                <td>${e.FridayTo || '-'}</td>
-                <td>${e.SaturdayFrom || '-'}</td>
-                <td>${e.SaturdayTo || '-'}</td>
-                <td>${e.SundayFrom || '-'}</td>
-                <td>${e.SundayTo || '-'}</td>
+                <td>${formatDay(e.MondayOff, e.MondayFrom, e.MondayTo)}</td>
+                <td>${formatDay(e.TuesdayOff, e.TuesdayFrom, e.TuesdayTo)}</td>
+                <td>${formatDay(e.WednesdayOff, e.WednesdayFrom, e.WednesdayTo)}</td>
+                <td>${formatDay(e.ThursdayOff, e.ThursdayFrom, e.ThursdayTo)}</td>
+                <td>${formatDay(e.FridayOff, e.FridayFrom, e.FridayTo)}</td>
+                <td>${formatDay(e.SaturdayOff, e.SaturdayFrom, e.SaturdayTo)}</td>
+                <td>${formatDay(e.SundayOff, e.SundayFrom, e.SundayTo)}</td>
             </tr>
         `).join('');
         
@@ -491,36 +493,28 @@ router.get('/view/:id', async (req, res) => {
                     
                     <div class="card">
                         <h3 style="margin-top:0;">Employee Schedule</h3>
+                        <p style="color:#666; font-size:13px; margin-bottom:15px;">Days marked <span style="color:#dc3545;font-weight:600;">Off</span> indicate day off.</p>
                         <div style="overflow-x: auto;">
                             <table class="schedule-table">
                                 <thead>
                                     <tr>
-                                        <th rowspan="2">Company</th>
-                                        <th rowspan="2">Emp ID</th>
-                                        <th rowspan="2">Name</th>
-                                        <th rowspan="2">Position</th>
-                                        <th rowspan="2">Location</th>
-                                        <th rowspan="2">Phone</th>
-                                        <th colspan="2">Monday</th>
-                                        <th colspan="2">Tuesday</th>
-                                        <th colspan="2">Wednesday</th>
-                                        <th colspan="2">Thursday</th>
-                                        <th colspan="2">Friday</th>
-                                        <th colspan="2">Saturday</th>
-                                        <th colspan="2">Sunday</th>
-                                    </tr>
-                                    <tr>
-                                        <th>From</th><th>To</th>
-                                        <th>From</th><th>To</th>
-                                        <th>From</th><th>To</th>
-                                        <th>From</th><th>To</th>
-                                        <th>From</th><th>To</th>
-                                        <th>From</th><th>To</th>
-                                        <th>From</th><th>To</th>
+                                        <th>Company</th>
+                                        <th>Emp ID</th>
+                                        <th>Name</th>
+                                        <th>Position</th>
+                                        <th>Location</th>
+                                        <th>Phone</th>
+                                        <th>Monday</th>
+                                        <th>Tuesday</th>
+                                        <th>Wednesday</th>
+                                        <th>Thursday</th>
+                                        <th>Friday</th>
+                                        <th>Saturday</th>
+                                        <th>Sunday</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    ${employeeRows || '<tr><td colspan="20" style="text-align:center;color:#666;">No employees added</td></tr>'}
+                                    ${employeeRows || '<tr><td colspan="13" style="text-align:center;color:#666;">No employees added</td></tr>'}
                                 </tbody>
                             </table>
                         </div>

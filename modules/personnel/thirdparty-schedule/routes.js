@@ -6,6 +6,20 @@
 const express = require('express');
 const router = express.Router();
 const sql = require('mssql');
+const multer = require('multer');
+
+// Configure multer for CSV upload
+const upload = multer({ 
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype === 'text/csv' || file.originalname.endsWith('.csv')) {
+            cb(null, true);
+        } else {
+            cb(new Error('Only CSV files are allowed'));
+        }
+    }
+});
 
 // Database configuration
 const dbConfig = {
@@ -188,6 +202,17 @@ router.get('/', async (req, res) => {
     }
 });
 
+// Download CSV template
+router.get('/template', (req, res) => {
+    const headers = 'Company Name,Employee ID,Employee Name,Position,Mon Off,Mon From,Mon To,Tue Off,Tue From,Tue To,Wed Off,Wed From,Wed To,Thu Off,Thu From,Thu To,Fri Off,Fri From,Fri To,Sat Off,Sat From,Sat To,Sun Off,Sun From,Sun To';
+    const sampleRow = 'Bright,TP001,John Doe,Cleaner,,08:00,17:00,,08:00,17:00,,08:00,17:00,,08:00,17:00,,08:00,17:00,Yes,,,Yes,,';
+    const csvContent = headers + '\n' + sampleRow;
+    
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="thirdparty-schedule-template.csv"');
+    res.send(csvContent);
+});
+
 // New schedule form
 router.get('/new', async (req, res) => {
     try {
@@ -286,6 +311,12 @@ router.get('/new', async (req, res) => {
                     }
                     .schedule-table input[type="time"] { width: 85px; }
                     .schedule-table .employee-info input { text-align: left; }
+                    .schedule-table .day-off-cell { background: #f8f9fa; }
+                    .schedule-table .day-off-cell input[type="checkbox"] {
+                        width: 18px;
+                        height: 18px;
+                        cursor: pointer;
+                    }
                     .schedule-table .remove-btn {
                         background: #dc3545;
                         color: white;
@@ -318,6 +349,33 @@ router.get('/new', async (req, res) => {
                     
                     #employeeSection { display: none; }
                     #employeeSection.active { display: block; }
+                    
+                    .csv-upload-section {
+                        background: #f3e5f5;
+                        border: 2px dashed #8e44ad;
+                        border-radius: 10px;
+                        padding: 20px;
+                        margin-bottom: 20px;
+                        text-align: center;
+                    }
+                    .csv-upload-section:hover {
+                        background: #e8d5eb;
+                        border-color: #7d3c98;
+                    }
+                    .csv-upload-section h4 { margin: 0 0 10px 0; color: #8e44ad; }
+                    .csv-upload-section p { color: #666; font-size: 13px; margin-bottom: 15px; }
+                    .csv-upload-section input[type="file"] { display: none; }
+                    .btn-outline {
+                        background: white;
+                        border: 2px solid #8e44ad;
+                        color: #8e44ad;
+                        padding: 8px 16px;
+                        border-radius: 6px;
+                        cursor: pointer;
+                        font-weight: 600;
+                        margin: 0 5px;
+                    }
+                    .btn-outline:hover { background: #8e44ad; color: white; }
                 </style>
             </head>
             <body>
@@ -336,7 +394,7 @@ router.get('/new', async (req, res) => {
                                 <div class="form-row">
                                     <div class="form-group">
                                         <label>Store *</label>
-                                        <select name="storeId" id="storeSelect" required>
+                                        <select name="storeId" id="storeSelect" required onchange="updateStoreName()">
                                             <option value="">-- Select Store --</option>
                                             ${storeOptions}
                                         </select>
@@ -355,12 +413,22 @@ router.get('/new', async (req, res) => {
                                     </div>
                                 </div>
                             </div>
+                            
+                            <!-- CSV Import Section -->
+                            <div class="csv-upload-section">
+                                <h4>📥 Or Import from CSV</h4>
+                                <p>Download the template, fill in employee schedules, then upload.</p>
+                                <a href="/personnel/thirdparty-schedule/template" class="btn-outline">⬇ Download Template</a>
+                                <button type="button" class="btn-outline" onclick="document.getElementById('csvFile').click();">📁 Upload CSV</button>
+                                <input type="file" id="csvFile" accept=".csv" onchange="handleCSVUpload(this)">
+                                <div id="csvFileName" style="margin-top:10px; color:#28a745; font-weight:600;"></div>
+                            </div>
                         </div>
                         
                         <!-- Step 2: Employee List -->
                         <div class="card" id="employeeSection">
                             <div class="card-title">👥 Thirdparty Employees Schedule</div>
-                            <p style="color:#666; margin-bottom:15px;">Add thirdparty employees and their weekly schedule below.</p>
+                            <p style="color:#666; margin-bottom:15px;">Add thirdparty employees and their weekly schedule below. Check "Off" to mark a day off.</p>
                             
                             <div style="overflow-x: auto;">
                                 <table class="schedule-table" id="scheduleTable">
@@ -370,23 +438,23 @@ router.get('/new', async (req, res) => {
                                             <th rowspan="2" style="min-width:80px;">Employee ID</th>
                                             <th rowspan="2" style="min-width:120px;">Employee Name</th>
                                             <th rowspan="2" style="min-width:100px;">Position</th>
-                                            <th colspan="2" class="day-header">Monday</th>
-                                            <th colspan="2" class="day-header">Tuesday</th>
-                                            <th colspan="2" class="day-header">Wednesday</th>
-                                            <th colspan="2" class="day-header">Thursday</th>
-                                            <th colspan="2" class="day-header">Friday</th>
-                                            <th colspan="2" class="day-header">Saturday</th>
-                                            <th colspan="2" class="day-header">Sunday</th>
+                                            <th colspan="3" class="day-header">Monday</th>
+                                            <th colspan="3" class="day-header">Tuesday</th>
+                                            <th colspan="3" class="day-header">Wednesday</th>
+                                            <th colspan="3" class="day-header">Thursday</th>
+                                            <th colspan="3" class="day-header">Friday</th>
+                                            <th colspan="3" class="day-header">Saturday</th>
+                                            <th colspan="3" class="day-header">Sunday</th>
                                             <th rowspan="2">Action</th>
                                         </tr>
                                         <tr>
-                                            <th class="day-header">From</th><th class="day-header">To</th>
-                                            <th class="day-header">From</th><th class="day-header">To</th>
-                                            <th class="day-header">From</th><th class="day-header">To</th>
-                                            <th class="day-header">From</th><th class="day-header">To</th>
-                                            <th class="day-header">From</th><th class="day-header">To</th>
-                                            <th class="day-header">From</th><th class="day-header">To</th>
-                                            <th class="day-header">From</th><th class="day-header">To</th>
+                                            <th class="day-header">Off</th><th class="day-header">From</th><th class="day-header">To</th>
+                                            <th class="day-header">Off</th><th class="day-header">From</th><th class="day-header">To</th>
+                                            <th class="day-header">Off</th><th class="day-header">From</th><th class="day-header">To</th>
+                                            <th class="day-header">Off</th><th class="day-header">From</th><th class="day-header">To</th>
+                                            <th class="day-header">Off</th><th class="day-header">From</th><th class="day-header">To</th>
+                                            <th class="day-header">Off</th><th class="day-header">From</th><th class="day-header">To</th>
+                                            <th class="day-header">Off</th><th class="day-header">From</th><th class="day-header">To</th>
                                         </tr>
                                     </thead>
                                     <tbody id="employeeRows">
@@ -410,6 +478,13 @@ router.get('/new', async (req, res) => {
                 <script>
                     let rowCounter = 0;
                     
+                    function updateStoreName() {
+                        const store = document.getElementById('storeSelect');
+                        if (store.selectedIndex > 0) {
+                            document.getElementById('storeName').value = store.options[store.selectedIndex].dataset.name;
+                        }
+                    }
+                    
                     function startSchedule() {
                         const store = document.getElementById('storeSelect');
                         const fromDate = document.getElementById('fromDate').value;
@@ -421,7 +496,7 @@ router.get('/new', async (req, res) => {
                         }
                         
                         // Set store name
-                        document.getElementById('storeName').value = store.options[store.selectedIndex].dataset.name;
+                        updateStoreName();
                         
                         // Show employee section
                         document.getElementById('employeeSection').classList.add('active');
@@ -432,35 +507,134 @@ router.get('/new', async (req, res) => {
                         }
                     }
                     
-                    function addEmployeeRow() {
+                    function addEmployeeRow(data = {}) {
                         rowCounter++;
                         const tbody = document.getElementById('employeeRows');
                         const row = document.createElement('tr');
                         row.id = 'row_' + rowCounter;
                         
                         row.innerHTML = \`
-                            <td class="employee-info"><input type="text" name="company_\${rowCounter}" placeholder="Company"></td>
-                            <td class="employee-info"><input type="text" name="empId_\${rowCounter}" placeholder="ID"></td>
-                            <td class="employee-info"><input type="text" name="empName_\${rowCounter}" placeholder="Name"></td>
-                            <td class="employee-info"><input type="text" name="position_\${rowCounter}" placeholder="Position"></td>
-                            <td><input type="time" name="monFrom_\${rowCounter}"></td>
-                            <td><input type="time" name="monTo_\${rowCounter}"></td>
-                            <td><input type="time" name="tueFrom_\${rowCounter}"></td>
-                            <td><input type="time" name="tueTo_\${rowCounter}"></td>
-                            <td><input type="time" name="wedFrom_\${rowCounter}"></td>
-                            <td><input type="time" name="wedTo_\${rowCounter}"></td>
-                            <td><input type="time" name="thuFrom_\${rowCounter}"></td>
-                            <td><input type="time" name="thuTo_\${rowCounter}"></td>
-                            <td><input type="time" name="friFrom_\${rowCounter}"></td>
-                            <td><input type="time" name="friTo_\${rowCounter}"></td>
-                            <td><input type="time" name="satFrom_\${rowCounter}"></td>
-                            <td><input type="time" name="satTo_\${rowCounter}"></td>
-                            <td><input type="time" name="sunFrom_\${rowCounter}"></td>
-                            <td><input type="time" name="sunTo_\${rowCounter}"></td>
+                            <td class="employee-info"><input type="text" name="company_\${rowCounter}" placeholder="Company" value="\${data.company || ''}"></td>
+                            <td class="employee-info"><input type="text" name="empId_\${rowCounter}" placeholder="ID" value="\${data.empId || ''}"></td>
+                            <td class="employee-info"><input type="text" name="empName_\${rowCounter}" placeholder="Name" value="\${data.name || ''}"></td>
+                            <td class="employee-info"><input type="text" name="position_\${rowCounter}" placeholder="Position" value="\${data.position || ''}"></td>
+                            <td class="day-off-cell"><input type="checkbox" name="monOff_\${rowCounter}" \${data.monOff ? 'checked' : ''} onchange="toggleDayOff(this, 'mon', \${rowCounter})"></td>
+                            <td><input type="time" name="monFrom_\${rowCounter}" value="\${data.monFrom || ''}" \${data.monOff ? 'disabled' : ''}></td>
+                            <td><input type="time" name="monTo_\${rowCounter}" value="\${data.monTo || ''}" \${data.monOff ? 'disabled' : ''}></td>
+                            <td class="day-off-cell"><input type="checkbox" name="tueOff_\${rowCounter}" \${data.tueOff ? 'checked' : ''} onchange="toggleDayOff(this, 'tue', \${rowCounter})"></td>
+                            <td><input type="time" name="tueFrom_\${rowCounter}" value="\${data.tueFrom || ''}" \${data.tueOff ? 'disabled' : ''}></td>
+                            <td><input type="time" name="tueTo_\${rowCounter}" value="\${data.tueTo || ''}" \${data.tueOff ? 'disabled' : ''}></td>
+                            <td class="day-off-cell"><input type="checkbox" name="wedOff_\${rowCounter}" \${data.wedOff ? 'checked' : ''} onchange="toggleDayOff(this, 'wed', \${rowCounter})"></td>
+                            <td><input type="time" name="wedFrom_\${rowCounter}" value="\${data.wedFrom || ''}" \${data.wedOff ? 'disabled' : ''}></td>
+                            <td><input type="time" name="wedTo_\${rowCounter}" value="\${data.wedTo || ''}" \${data.wedOff ? 'disabled' : ''}></td>
+                            <td class="day-off-cell"><input type="checkbox" name="thuOff_\${rowCounter}" \${data.thuOff ? 'checked' : ''} onchange="toggleDayOff(this, 'thu', \${rowCounter})"></td>
+                            <td><input type="time" name="thuFrom_\${rowCounter}" value="\${data.thuFrom || ''}" \${data.thuOff ? 'disabled' : ''}></td>
+                            <td><input type="time" name="thuTo_\${rowCounter}" value="\${data.thuTo || ''}" \${data.thuOff ? 'disabled' : ''}></td>
+                            <td class="day-off-cell"><input type="checkbox" name="friOff_\${rowCounter}" \${data.friOff ? 'checked' : ''} onchange="toggleDayOff(this, 'fri', \${rowCounter})"></td>
+                            <td><input type="time" name="friFrom_\${rowCounter}" value="\${data.friFrom || ''}" \${data.friOff ? 'disabled' : ''}></td>
+                            <td><input type="time" name="friTo_\${rowCounter}" value="\${data.friTo || ''}" \${data.friOff ? 'disabled' : ''}></td>
+                            <td class="day-off-cell"><input type="checkbox" name="satOff_\${rowCounter}" \${data.satOff ? 'checked' : ''} onchange="toggleDayOff(this, 'sat', \${rowCounter})"></td>
+                            <td><input type="time" name="satFrom_\${rowCounter}" value="\${data.satFrom || ''}" \${data.satOff ? 'disabled' : ''}></td>
+                            <td><input type="time" name="satTo_\${rowCounter}" value="\${data.satTo || ''}" \${data.satOff ? 'disabled' : ''}></td>
+                            <td class="day-off-cell"><input type="checkbox" name="sunOff_\${rowCounter}" \${data.sunOff ? 'checked' : ''} onchange="toggleDayOff(this, 'sun', \${rowCounter})"></td>
+                            <td><input type="time" name="sunFrom_\${rowCounter}" value="\${data.sunFrom || ''}" \${data.sunOff ? 'disabled' : ''}></td>
+                            <td><input type="time" name="sunTo_\${rowCounter}" value="\${data.sunTo || ''}" \${data.sunOff ? 'disabled' : ''}></td>
                             <td><button type="button" class="remove-btn" onclick="removeRow(\${rowCounter})">✕</button></td>
                         \`;
                         
                         tbody.appendChild(row);
+                    }
+                    
+                    function toggleDayOff(checkbox, day, rowId) {
+                        const fromInput = document.querySelector(\`input[name="\${day}From_\${rowId}"]\`);
+                        const toInput = document.querySelector(\`input[name="\${day}To_\${rowId}"]\`);
+                        if (checkbox.checked) {
+                            fromInput.disabled = true;
+                            toInput.disabled = true;
+                            fromInput.value = '';
+                            toInput.value = '';
+                        } else {
+                            fromInput.disabled = false;
+                            toInput.disabled = false;
+                        }
+                    }
+                    
+                    function handleCSVUpload(input) {
+                        const file = input.files[0];
+                        if (!file) return;
+                        
+                        document.getElementById('csvFileName').textContent = '✓ ' + file.name;
+                        
+                        const reader = new FileReader();
+                        reader.onload = function(e) {
+                            const text = e.target.result;
+                            const lines = text.split('\\n');
+                            
+                            // Clear existing rows
+                            document.getElementById('employeeRows').innerHTML = '';
+                            rowCounter = 0;
+                            
+                            // Skip header row
+                            for (let i = 1; i < lines.length; i++) {
+                                const line = lines[i].trim();
+                                if (!line) continue;
+                                
+                                const cols = parseCSVLine(line);
+                                if (cols.length >= 4) {
+                                    addEmployeeRow({
+                                        company: cols[0] || '',
+                                        empId: cols[1] || '',
+                                        name: cols[2] || '',
+                                        position: cols[3] || '',
+                                        monOff: (cols[4] || '').toLowerCase() === 'yes',
+                                        monFrom: cols[5] || '',
+                                        monTo: cols[6] || '',
+                                        tueOff: (cols[7] || '').toLowerCase() === 'yes',
+                                        tueFrom: cols[8] || '',
+                                        tueTo: cols[9] || '',
+                                        wedOff: (cols[10] || '').toLowerCase() === 'yes',
+                                        wedFrom: cols[11] || '',
+                                        wedTo: cols[12] || '',
+                                        thuOff: (cols[13] || '').toLowerCase() === 'yes',
+                                        thuFrom: cols[14] || '',
+                                        thuTo: cols[15] || '',
+                                        friOff: (cols[16] || '').toLowerCase() === 'yes',
+                                        friFrom: cols[17] || '',
+                                        friTo: cols[18] || '',
+                                        satOff: (cols[19] || '').toLowerCase() === 'yes',
+                                        satFrom: cols[20] || '',
+                                        satTo: cols[21] || '',
+                                        sunOff: (cols[22] || '').toLowerCase() === 'yes',
+                                        sunFrom: cols[23] || '',
+                                        sunTo: cols[24] || ''
+                                    });
+                                }
+                            }
+                            
+                            // Show employee section
+                            document.getElementById('employeeSection').style.display = 'block';
+                        };
+                        reader.readAsText(file);
+                    }
+                    
+                    function parseCSVLine(line) {
+                        const result = [];
+                        let current = '';
+                        let inQuotes = false;
+                        
+                        for (let i = 0; i < line.length; i++) {
+                            const char = line[i];
+                            if (char === '"') {
+                                inQuotes = !inQuotes;
+                            } else if (char === ',' && !inQuotes) {
+                                result.push(current.trim());
+                                current = '';
+                            } else {
+                                current += char;
+                            }
+                        }
+                        result.push(current.trim());
+                        return result;
                     }
                     
                     function removeRow(id) {
@@ -470,6 +644,9 @@ router.get('/new', async (req, res) => {
                     
                     // Form submission
                     document.getElementById('scheduleForm').addEventListener('submit', function(e) {
+                        // Ensure store name is set
+                        updateStoreName();
+                        
                         const rows = document.querySelectorAll('#employeeRows tr');
                         if (rows.length === 0) {
                             e.preventDefault();
@@ -480,26 +657,36 @@ router.get('/new', async (req, res) => {
                         // Collect employee data
                         const employees = [];
                         rows.forEach(row => {
-                            const inputs = row.querySelectorAll('input');
+                            const textInputs = row.querySelectorAll('input[type="text"]');
+                            const checkboxes = row.querySelectorAll('input[type="checkbox"]');
+                            const timeInputs = row.querySelectorAll('input[type="time"]');
+                            
                             const emp = {
-                                company: inputs[0].value,
-                                empId: inputs[1].value,
-                                name: inputs[2].value,
-                                position: inputs[3].value,
-                                monFrom: inputs[4].value,
-                                monTo: inputs[5].value,
-                                tueFrom: inputs[6].value,
-                                tueTo: inputs[7].value,
-                                wedFrom: inputs[8].value,
-                                wedTo: inputs[9].value,
-                                thuFrom: inputs[10].value,
-                                thuTo: inputs[11].value,
-                                friFrom: inputs[12].value,
-                                friTo: inputs[13].value,
-                                satFrom: inputs[14].value,
-                                satTo: inputs[15].value,
-                                sunFrom: inputs[16].value,
-                                sunTo: inputs[17].value
+                                company: textInputs[0].value,
+                                empId: textInputs[1].value,
+                                name: textInputs[2].value,
+                                position: textInputs[3].value,
+                                monOff: checkboxes[0].checked,
+                                monFrom: timeInputs[0].value,
+                                monTo: timeInputs[1].value,
+                                tueOff: checkboxes[1].checked,
+                                tueFrom: timeInputs[2].value,
+                                tueTo: timeInputs[3].value,
+                                wedOff: checkboxes[2].checked,
+                                wedFrom: timeInputs[4].value,
+                                wedTo: timeInputs[5].value,
+                                thuOff: checkboxes[3].checked,
+                                thuFrom: timeInputs[6].value,
+                                thuTo: timeInputs[7].value,
+                                friOff: checkboxes[4].checked,
+                                friFrom: timeInputs[8].value,
+                                friTo: timeInputs[9].value,
+                                satOff: checkboxes[5].checked,
+                                satFrom: timeInputs[10].value,
+                                satTo: timeInputs[11].value,
+                                sunOff: checkboxes[6].checked,
+                                sunFrom: timeInputs[12].value,
+                                sunTo: timeInputs[13].value
                             };
                             employees.push(emp);
                         });
@@ -553,29 +740,38 @@ router.post('/submit', async (req, res) => {
                 .input('employeeId', sql.NVarChar, emp.empId)
                 .input('employeeName', sql.NVarChar, emp.name)
                 .input('employeePosition', sql.NVarChar, emp.position)
+                .input('monOff', sql.Bit, emp.monOff ? 1 : 0)
                 .input('monFrom', sql.NVarChar, emp.monFrom)
                 .input('monTo', sql.NVarChar, emp.monTo)
+                .input('tueOff', sql.Bit, emp.tueOff ? 1 : 0)
                 .input('tueFrom', sql.NVarChar, emp.tueFrom)
                 .input('tueTo', sql.NVarChar, emp.tueTo)
+                .input('wedOff', sql.Bit, emp.wedOff ? 1 : 0)
                 .input('wedFrom', sql.NVarChar, emp.wedFrom)
                 .input('wedTo', sql.NVarChar, emp.wedTo)
+                .input('thuOff', sql.Bit, emp.thuOff ? 1 : 0)
                 .input('thuFrom', sql.NVarChar, emp.thuFrom)
                 .input('thuTo', sql.NVarChar, emp.thuTo)
+                .input('friOff', sql.Bit, emp.friOff ? 1 : 0)
                 .input('friFrom', sql.NVarChar, emp.friFrom)
                 .input('friTo', sql.NVarChar, emp.friTo)
+                .input('satOff', sql.Bit, emp.satOff ? 1 : 0)
                 .input('satFrom', sql.NVarChar, emp.satFrom)
                 .input('satTo', sql.NVarChar, emp.satTo)
+                .input('sunOff', sql.Bit, emp.sunOff ? 1 : 0)
                 .input('sunFrom', sql.NVarChar, emp.sunFrom)
                 .input('sunTo', sql.NVarChar, emp.sunTo)
                 .query(`
                     INSERT INTO ThirdpartyScheduleEmployees 
                     (ScheduleId, CompanyName, EmployeeId, EmployeeName, EmployeePosition,
-                     MonFrom, MonTo, TueFrom, TueTo, WedFrom, WedTo, ThuFrom, ThuTo,
-                     FriFrom, FriTo, SatFrom, SatTo, SunFrom, SunTo)
+                     MonOff, MonFrom, MonTo, TueOff, TueFrom, TueTo, WedOff, WedFrom, WedTo, 
+                     ThuOff, ThuFrom, ThuTo, FriOff, FriFrom, FriTo, SatOff, SatFrom, SatTo, 
+                     SunOff, SunFrom, SunTo)
                     VALUES 
                     (@scheduleId, @companyName, @employeeId, @employeeName, @employeePosition,
-                     @monFrom, @monTo, @tueFrom, @tueTo, @wedFrom, @wedTo, @thuFrom, @thuTo,
-                     @friFrom, @friTo, @satFrom, @satTo, @sunFrom, @sunTo)
+                     @monOff, @monFrom, @monTo, @tueOff, @tueFrom, @tueTo, @wedOff, @wedFrom, @wedTo,
+                     @thuOff, @thuFrom, @thuTo, @friOff, @friFrom, @friTo, @satOff, @satFrom, @satTo,
+                     @sunOff, @sunFrom, @sunTo)
                 `);
         }
         
@@ -626,6 +822,12 @@ router.get('/view/:id', async (req, res) => {
         const toDate = new Date(schedule.ToDate).toLocaleDateString('en-GB');
         const createdAt = new Date(schedule.CreatedAt).toLocaleDateString('en-GB');
         
+        // Helper function to format day display with 2 cells (From and To)
+        const formatDayCells = (from, to, isOff) => {
+            if (isOff) return '<td colspan="2" style="color:#dc3545; font-weight:600; text-align:center;">Off</td>';
+            return `<td>${from || '-'}</td><td>${to || '-'}</td>`;
+        };
+        
         const employeeRows = employeesResult.recordset.map((emp, idx) => `
             <tr>
                 <td>${idx + 1}</td>
@@ -633,13 +835,13 @@ router.get('/view/:id', async (req, res) => {
                 <td>${emp.EmployeeId || '-'}</td>
                 <td>${emp.EmployeeName || '-'}</td>
                 <td>${emp.EmployeePosition || '-'}</td>
-                <td>${emp.MonFrom || '-'} - ${emp.MonTo || '-'}</td>
-                <td>${emp.TueFrom || '-'} - ${emp.TueTo || '-'}</td>
-                <td>${emp.WedFrom || '-'} - ${emp.WedTo || '-'}</td>
-                <td>${emp.ThuFrom || '-'} - ${emp.ThuTo || '-'}</td>
-                <td>${emp.FriFrom || '-'} - ${emp.FriTo || '-'}</td>
-                <td>${emp.SatFrom || '-'} - ${emp.SatTo || '-'}</td>
-                <td>${emp.SunFrom || '-'} - ${emp.SunTo || '-'}</td>
+                ${formatDayCells(emp.MonFrom, emp.MonTo, emp.MonOff)}
+                ${formatDayCells(emp.TueFrom, emp.TueTo, emp.TueOff)}
+                ${formatDayCells(emp.WedFrom, emp.WedTo, emp.WedOff)}
+                ${formatDayCells(emp.ThuFrom, emp.ThuTo, emp.ThuOff)}
+                ${formatDayCells(emp.FriFrom, emp.FriTo, emp.FriOff)}
+                ${formatDayCells(emp.SatFrom, emp.SatTo, emp.SatOff)}
+                ${formatDayCells(emp.SunFrom, emp.SunTo, emp.SunOff)}
             </tr>
         `).join('');
         
@@ -762,18 +964,27 @@ router.get('/view/:id', async (req, res) => {
                             <table>
                                 <thead>
                                     <tr>
-                                        <th>#</th>
-                                        <th>Company</th>
-                                        <th>Emp ID</th>
-                                        <th>Name</th>
-                                        <th>Position</th>
-                                        <th>Monday</th>
-                                        <th>Tuesday</th>
-                                        <th>Wednesday</th>
-                                        <th>Thursday</th>
-                                        <th>Friday</th>
-                                        <th>Saturday</th>
-                                        <th>Sunday</th>
+                                        <th rowspan="2">#</th>
+                                        <th rowspan="2">Company</th>
+                                        <th rowspan="2">Emp ID</th>
+                                        <th rowspan="2">Name</th>
+                                        <th rowspan="2">Position</th>
+                                        <th colspan="2">Monday</th>
+                                        <th colspan="2">Tuesday</th>
+                                        <th colspan="2">Wednesday</th>
+                                        <th colspan="2">Thursday</th>
+                                        <th colspan="2">Friday</th>
+                                        <th colspan="2">Saturday</th>
+                                        <th colspan="2">Sunday</th>
+                                    </tr>
+                                    <tr>
+                                        <th>From</th><th>To</th>
+                                        <th>From</th><th>To</th>
+                                        <th>From</th><th>To</th>
+                                        <th>From</th><th>To</th>
+                                        <th>From</th><th>To</th>
+                                        <th>From</th><th>To</th>
+                                        <th>From</th><th>To</th>
                                     </tr>
                                 </thead>
                                 <tbody>

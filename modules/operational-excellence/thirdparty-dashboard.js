@@ -394,6 +394,12 @@ router.get('/view/:id', async (req, res) => {
         const toDate = new Date(s.ToDate).toLocaleDateString('en-GB');
         const createdAt = new Date(s.CreatedAt).toLocaleDateString('en-GB');
         
+        // Helper function to format day display with 2 cells (From and To)
+        const formatDayCells = (from, to, isOff) => {
+            if (isOff) return '<td colspan="2" style="color:#dc3545; font-weight:600; text-align:center;">Off</td>';
+            return `<td>${from || '-'}</td><td>${to || '-'}</td>`;
+        };
+        
         const employeeRows = employees.recordset.map((emp, idx) => `
             <tr>
                 <td>${idx + 1}</td>
@@ -401,13 +407,13 @@ router.get('/view/:id', async (req, res) => {
                 <td>${emp.EmployeeId || '-'}</td>
                 <td>${emp.EmployeeName || '-'}</td>
                 <td>${emp.EmployeePosition || '-'}</td>
-                <td>${emp.MonFrom || '-'} - ${emp.MonTo || '-'}</td>
-                <td>${emp.TueFrom || '-'} - ${emp.TueTo || '-'}</td>
-                <td>${emp.WedFrom || '-'} - ${emp.WedTo || '-'}</td>
-                <td>${emp.ThuFrom || '-'} - ${emp.ThuTo || '-'}</td>
-                <td>${emp.FriFrom || '-'} - ${emp.FriTo || '-'}</td>
-                <td>${emp.SatFrom || '-'} - ${emp.SatTo || '-'}</td>
-                <td>${emp.SunFrom || '-'} - ${emp.SunTo || '-'}</td>
+                ${formatDayCells(emp.MonFrom, emp.MonTo, emp.MonOff)}
+                ${formatDayCells(emp.TueFrom, emp.TueTo, emp.TueOff)}
+                ${formatDayCells(emp.WedFrom, emp.WedTo, emp.WedOff)}
+                ${formatDayCells(emp.ThuFrom, emp.ThuTo, emp.ThuOff)}
+                ${formatDayCells(emp.FriFrom, emp.FriTo, emp.FriOff)}
+                ${formatDayCells(emp.SatFrom, emp.SatTo, emp.SatOff)}
+                ${formatDayCells(emp.SunFrom, emp.SunTo, emp.SunOff)}
             </tr>
         `).join('');
         

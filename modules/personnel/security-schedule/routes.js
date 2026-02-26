@@ -6,6 +6,20 @@
 const express = require('express');
 const router = express.Router();
 const sql = require('mssql');
+const multer = require('multer');
+
+// Configure multer for CSV upload
+const upload = multer({ 
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype === 'text/csv' || file.originalname.endsWith('.csv')) {
+            cb(null, true);
+        } else {
+            cb(new Error('Only CSV files are allowed'));
+        }
+    }
+});
 
 // Database configuration
 const dbConfig = {
@@ -188,6 +202,17 @@ router.get('/', async (req, res) => {
     }
 });
 
+// Download CSV template
+router.get('/template', (req, res) => {
+    const headers = 'Company,Employee ID,Name,Position,Location,Phone,Mon Off,Monday From,Monday To,Tue Off,Tuesday From,Tuesday To,Wed Off,Wednesday From,Wednesday To,Thu Off,Thursday From,Thursday To,Fri Off,Friday From,Friday To,Sat Off,Saturday From,Saturday To,Sun Off,Sunday From,Sunday To';
+    const sampleRow = 'Protectron,SEC001,John Doe,Security Guard,Main Entrance,03123456,,08:00,20:00,,08:00,20:00,,08:00,20:00,,08:00,20:00,,08:00,20:00,Yes,,,Yes,,';
+    const csvContent = headers + '\n' + sampleRow;
+    
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="security-schedule-template.csv"');
+    res.send(csvContent);
+});
+
 // New schedule form - Step 1: Select date range
 router.get('/new', async (req, res) => {
     try {
@@ -293,6 +318,12 @@ router.get('/new', async (req, res) => {
                     }
                     .schedule-table input[type="time"] { width: 85px; }
                     .schedule-table .employee-info input { text-align: left; }
+                    .schedule-table .day-off-cell { background: #f8f9fa; }
+                    .schedule-table .day-off-cell input[type="checkbox"] {
+                        width: 18px;
+                        height: 18px;
+                        cursor: pointer;
+                    }
                     .schedule-table .remove-btn {
                         background: #dc3545;
                         color: white;
@@ -325,6 +356,33 @@ router.get('/new', async (req, res) => {
                     
                     #employeeSection { display: none; }
                     #employeeSection.active { display: block; }
+                    
+                    .csv-upload-section {
+                        background: #e8f4fd;
+                        border: 2px dashed #3498db;
+                        border-radius: 10px;
+                        padding: 20px;
+                        margin-bottom: 20px;
+                        text-align: center;
+                    }
+                    .csv-upload-section:hover {
+                        background: #d4ecfb;
+                        border-color: #2980b9;
+                    }
+                    .csv-upload-section h4 { margin: 0 0 10px 0; color: #2c3e50; }
+                    .csv-upload-section p { color: #666; font-size: 13px; margin-bottom: 15px; }
+                    .csv-upload-section input[type="file"] { display: none; }
+                    .btn-outline {
+                        background: white;
+                        border: 2px solid #3498db;
+                        color: #3498db;
+                        padding: 8px 16px;
+                        border-radius: 6px;
+                        cursor: pointer;
+                        font-weight: 600;
+                        margin: 0 5px;
+                    }
+                    .btn-outline:hover { background: #3498db; color: white; }
                 </style>
             </head>
             <body>
@@ -362,12 +420,22 @@ router.get('/new', async (req, res) => {
                                     </div>
                                 </div>
                             </div>
+                            
+                            <!-- CSV Import Section -->
+                            <div class="csv-upload-section" id="csvUploadZone">
+                                <h4>📥 Or Import from CSV</h4>
+                                <p>Download the template, fill in employee schedules, then upload.</p>
+                                <a href="/personnel/security-schedule/template" class="btn-outline">⬇ Download Template</a>
+                                <button type="button" class="btn-outline" onclick="document.getElementById('csvFile').click();">📁 Upload CSV</button>
+                                <input type="file" id="csvFile" accept=".csv" onchange="handleCSVUpload(this)">
+                                <div id="csvFileName" style="margin-top:10px; color:#28a745; font-weight:600;"></div>
+                            </div>
                         </div>
                         
                         <!-- Step 2: Employee List -->
                         <div class="card" id="employeeSection">
                             <div class="card-title">👥 Security Employees Schedule</div>
-                            <p style="color:#666; margin-bottom:15px;">Add security employees and their weekly schedule below.</p>
+                            <p style="color:#666; margin-bottom:15px;">Add security employees and their weekly schedule below. Check "Off" to mark a day off.</p>
                             
                             <div style="overflow-x: auto;">
                                 <table class="schedule-table" id="scheduleTable">
@@ -379,23 +447,23 @@ router.get('/new', async (req, res) => {
                                             <th rowspan="2" style="min-width:100px;">Position</th>
                                             <th rowspan="2" style="min-width:120px;">Location</th>
                                             <th rowspan="2" style="min-width:100px;">Phone</th>
-                                            <th colspan="2" class="day-header">Monday</th>
-                                            <th colspan="2" class="day-header">Tuesday</th>
-                                            <th colspan="2" class="day-header">Wednesday</th>
-                                            <th colspan="2" class="day-header">Thursday</th>
-                                            <th colspan="2" class="day-header">Friday</th>
-                                            <th colspan="2" class="day-header">Saturday</th>
-                                            <th colspan="2" class="day-header">Sunday</th>
+                                            <th colspan="3" class="day-header">Monday</th>
+                                            <th colspan="3" class="day-header">Tuesday</th>
+                                            <th colspan="3" class="day-header">Wednesday</th>
+                                            <th colspan="3" class="day-header">Thursday</th>
+                                            <th colspan="3" class="day-header">Friday</th>
+                                            <th colspan="3" class="day-header">Saturday</th>
+                                            <th colspan="3" class="day-header">Sunday</th>
                                             <th rowspan="2">Action</th>
                                         </tr>
                                         <tr>
-                                            <th class="day-header">From</th><th class="day-header">To</th>
-                                            <th class="day-header">From</th><th class="day-header">To</th>
-                                            <th class="day-header">From</th><th class="day-header">To</th>
-                                            <th class="day-header">From</th><th class="day-header">To</th>
-                                            <th class="day-header">From</th><th class="day-header">To</th>
-                                            <th class="day-header">From</th><th class="day-header">To</th>
-                                            <th class="day-header">From</th><th class="day-header">To</th>
+                                            <th class="day-header">Off</th><th class="day-header">From</th><th class="day-header">To</th>
+                                            <th class="day-header">Off</th><th class="day-header">From</th><th class="day-header">To</th>
+                                            <th class="day-header">Off</th><th class="day-header">From</th><th class="day-header">To</th>
+                                            <th class="day-header">Off</th><th class="day-header">From</th><th class="day-header">To</th>
+                                            <th class="day-header">Off</th><th class="day-header">From</th><th class="day-header">To</th>
+                                            <th class="day-header">Off</th><th class="day-header">From</th><th class="day-header">To</th>
+                                            <th class="day-header">Off</th><th class="day-header">From</th><th class="day-header">To</th>
                                         </tr>
                                     </thead>
                                     <tbody id="employeeRows">
@@ -467,24 +535,49 @@ router.get('/new', async (req, res) => {
                             <td class="employee-info"><input type="text" name="employees[\${rowCount}][employeePosition]" placeholder="Position"></td>
                             <td class="employee-info"><input type="text" name="employees[\${rowCount}][locationCovered]" placeholder="Location"></td>
                             <td class="employee-info"><input type="text" name="employees[\${rowCount}][phoneNumber]" placeholder="Phone"></td>
-                            <td><input type="time" name="employees[\${rowCount}][mondayFrom]"></td>
-                            <td><input type="time" name="employees[\${rowCount}][mondayTo]"></td>
-                            <td><input type="time" name="employees[\${rowCount}][tuesdayFrom]"></td>
-                            <td><input type="time" name="employees[\${rowCount}][tuesdayTo]"></td>
-                            <td><input type="time" name="employees[\${rowCount}][wednesdayFrom]"></td>
-                            <td><input type="time" name="employees[\${rowCount}][wednesdayTo]"></td>
-                            <td><input type="time" name="employees[\${rowCount}][thursdayFrom]"></td>
-                            <td><input type="time" name="employees[\${rowCount}][thursdayTo]"></td>
-                            <td><input type="time" name="employees[\${rowCount}][fridayFrom]"></td>
-                            <td><input type="time" name="employees[\${rowCount}][fridayTo]"></td>
-                            <td><input type="time" name="employees[\${rowCount}][saturdayFrom]"></td>
-                            <td><input type="time" name="employees[\${rowCount}][saturdayTo]"></td>
-                            <td><input type="time" name="employees[\${rowCount}][sundayFrom]"></td>
-                            <td><input type="time" name="employees[\${rowCount}][sundayTo]"></td>
+                            <td class="day-off-cell"><input type="checkbox" name="employees[\${rowCount}][mondayOff]" onchange="toggleDayOff(this, \${rowCount}, 'monday')"></td>
+                            <td><input type="time" name="employees[\${rowCount}][mondayFrom]" id="monday_from_\${rowCount}"></td>
+                            <td><input type="time" name="employees[\${rowCount}][mondayTo]" id="monday_to_\${rowCount}"></td>
+                            <td class="day-off-cell"><input type="checkbox" name="employees[\${rowCount}][tuesdayOff]" onchange="toggleDayOff(this, \${rowCount}, 'tuesday')"></td>
+                            <td><input type="time" name="employees[\${rowCount}][tuesdayFrom]" id="tuesday_from_\${rowCount}"></td>
+                            <td><input type="time" name="employees[\${rowCount}][tuesdayTo]" id="tuesday_to_\${rowCount}"></td>
+                            <td class="day-off-cell"><input type="checkbox" name="employees[\${rowCount}][wednesdayOff]" onchange="toggleDayOff(this, \${rowCount}, 'wednesday')"></td>
+                            <td><input type="time" name="employees[\${rowCount}][wednesdayFrom]" id="wednesday_from_\${rowCount}"></td>
+                            <td><input type="time" name="employees[\${rowCount}][wednesdayTo]" id="wednesday_to_\${rowCount}"></td>
+                            <td class="day-off-cell"><input type="checkbox" name="employees[\${rowCount}][thursdayOff]" onchange="toggleDayOff(this, \${rowCount}, 'thursday')"></td>
+                            <td><input type="time" name="employees[\${rowCount}][thursdayFrom]" id="thursday_from_\${rowCount}"></td>
+                            <td><input type="time" name="employees[\${rowCount}][thursdayTo]" id="thursday_to_\${rowCount}"></td>
+                            <td class="day-off-cell"><input type="checkbox" name="employees[\${rowCount}][fridayOff]" onchange="toggleDayOff(this, \${rowCount}, 'friday')"></td>
+                            <td><input type="time" name="employees[\${rowCount}][fridayFrom]" id="friday_from_\${rowCount}"></td>
+                            <td><input type="time" name="employees[\${rowCount}][fridayTo]" id="friday_to_\${rowCount}"></td>
+                            <td class="day-off-cell"><input type="checkbox" name="employees[\${rowCount}][saturdayOff]" onchange="toggleDayOff(this, \${rowCount}, 'saturday')"></td>
+                            <td><input type="time" name="employees[\${rowCount}][saturdayFrom]" id="saturday_from_\${rowCount}"></td>
+                            <td><input type="time" name="employees[\${rowCount}][saturdayTo]" id="saturday_to_\${rowCount}"></td>
+                            <td class="day-off-cell"><input type="checkbox" name="employees[\${rowCount}][sundayOff]" onchange="toggleDayOff(this, \${rowCount}, 'sunday')"></td>
+                            <td><input type="time" name="employees[\${rowCount}][sundayFrom]" id="sunday_from_\${rowCount}"></td>
+                            <td><input type="time" name="employees[\${rowCount}][sundayTo]" id="sunday_to_\${rowCount}"></td>
                             <td><button type="button" class="remove-btn" onclick="removeRow(\${rowCount})">✕</button></td>
                         \`;
                         
                         tbody.appendChild(row);
+                    }
+                    
+                    function toggleDayOff(checkbox, rowId, day) {
+                        const fromInput = document.getElementById(day + '_from_' + rowId);
+                        const toInput = document.getElementById(day + '_to_' + rowId);
+                        if (checkbox.checked) {
+                            fromInput.value = '';
+                            toInput.value = '';
+                            fromInput.disabled = true;
+                            toInput.disabled = true;
+                            fromInput.style.background = '#f0f0f0';
+                            toInput.style.background = '#f0f0f0';
+                        } else {
+                            fromInput.disabled = false;
+                            toInput.disabled = false;
+                            fromInput.style.background = '';
+                            toInput.style.background = '';
+                        }
                     }
                     
                     function removeRow(id) {
@@ -492,6 +585,150 @@ router.get('/new', async (req, res) => {
                         if (row) {
                             row.remove();
                         }
+                    }
+                    
+                    // CSV Upload Handler
+                    function handleCSVUpload(input) {
+                        if (!input.files || input.files.length === 0) return;
+                        
+                        const file = input.files[0];
+                        document.getElementById('csvFileName').textContent = '✓ ' + file.name;
+                        
+                        const reader = new FileReader();
+                        reader.onload = function(e) {
+                            const csvContent = e.target.result;
+                            parseCSV(csvContent);
+                        };
+                        reader.readAsText(file);
+                    }
+                    
+                    function parseCSV(csvContent) {
+                        const lines = csvContent.split('\\n').filter(line => line.trim());
+                        if (lines.length < 2) {
+                            alert('CSV file is empty or has no data rows');
+                            return;
+                        }
+                        
+                        // Clear existing rows
+                        document.getElementById('employeeRows').innerHTML = '';
+                        rowCount = 0;
+                        
+                        // Skip header row, process data rows
+                        for (let i = 1; i < lines.length; i++) {
+                            const columns = parseCSVRow(lines[i]);
+                            if (columns.length >= 6 && columns[2]) { // At least has name
+                                addEmployeeRowWithData({
+                                    companyName: columns[0] || '',
+                                    employeeId: columns[1] || '',
+                                    employeeName: columns[2] || '',
+                                    employeePosition: columns[3] || '',
+                                    locationCovered: columns[4] || '',
+                                    phoneNumber: columns[5] || '',
+                                    mondayOff: isOff(columns[6]),
+                                    mondayFrom: formatTime(columns[7]),
+                                    mondayTo: formatTime(columns[8]),
+                                    tuesdayOff: isOff(columns[9]),
+                                    tuesdayFrom: formatTime(columns[10]),
+                                    tuesdayTo: formatTime(columns[11]),
+                                    wednesdayOff: isOff(columns[12]),
+                                    wednesdayFrom: formatTime(columns[13]),
+                                    wednesdayTo: formatTime(columns[14]),
+                                    thursdayOff: isOff(columns[15]),
+                                    thursdayFrom: formatTime(columns[16]),
+                                    thursdayTo: formatTime(columns[17]),
+                                    fridayOff: isOff(columns[18]),
+                                    fridayFrom: formatTime(columns[19]),
+                                    fridayTo: formatTime(columns[20]),
+                                    saturdayOff: isOff(columns[21]),
+                                    saturdayFrom: formatTime(columns[22]),
+                                    saturdayTo: formatTime(columns[23]),
+                                    sundayOff: isOff(columns[24]),
+                                    sundayFrom: formatTime(columns[25]),
+                                    sundayTo: formatTime(columns[26])
+                                });
+                            }
+                        }
+                        
+                        // Show employee section
+                        document.getElementById('employeeSection').classList.add('active');
+                        document.getElementById('employeeSection').scrollIntoView({ behavior: 'smooth' });
+                    }
+                    
+                    function isOff(val) {
+                        if (!val) return false;
+                        val = val.trim().toLowerCase();
+                        return val === 'yes' || val === 'y' || val === '1' || val === 'true' || val === 'off';
+                    }
+                    
+                    function parseCSVRow(row) {
+                        const result = [];
+                        let current = '';
+                        let inQuotes = false;
+                        
+                        for (let i = 0; i < row.length; i++) {
+                            const char = row[i];
+                            if (char === '"') {
+                                inQuotes = !inQuotes;
+                            } else if (char === ',' && !inQuotes) {
+                                result.push(current.trim());
+                                current = '';
+                            } else {
+                                current += char;
+                            }
+                        }
+                        result.push(current.trim());
+                        return result;
+                    }
+                    
+                    function formatTime(val) {
+                        if (!val) return '';
+                        val = val.trim();
+                        // If already in HH:MM format
+                        if (/^\\d{1,2}:\\d{2}$/.test(val)) {
+                            const parts = val.split(':');
+                            return parts[0].padStart(2, '0') + ':' + parts[1];
+                        }
+                        return val;
+                    }
+                    
+                    function addEmployeeRowWithData(data) {
+                        rowCount++;
+                        const tbody = document.getElementById('employeeRows');
+                        const row = document.createElement('tr');
+                        row.id = 'row_' + rowCount;
+                        
+                        row.innerHTML = \`
+                            <td class="employee-info"><input type="text" name="employees[\${rowCount}][companyName]" value="\${data.companyName}" placeholder="Company" required></td>
+                            <td class="employee-info"><input type="text" name="employees[\${rowCount}][employeeId]" value="\${data.employeeId}" placeholder="ID"></td>
+                            <td class="employee-info"><input type="text" name="employees[\${rowCount}][employeeName]" value="\${data.employeeName}" placeholder="Name" required></td>
+                            <td class="employee-info"><input type="text" name="employees[\${rowCount}][employeePosition]" value="\${data.employeePosition}" placeholder="Position"></td>
+                            <td class="employee-info"><input type="text" name="employees[\${rowCount}][locationCovered]" value="\${data.locationCovered}" placeholder="Location"></td>
+                            <td class="employee-info"><input type="text" name="employees[\${rowCount}][phoneNumber]" value="\${data.phoneNumber}" placeholder="Phone"></td>
+                            <td class="day-off-cell"><input type="checkbox" name="employees[\${rowCount}][mondayOff]" \${data.mondayOff ? 'checked' : ''} onchange="toggleDayOff(this, \${rowCount}, 'monday')"></td>
+                            <td><input type="time" name="employees[\${rowCount}][mondayFrom]" id="monday_from_\${rowCount}" value="\${data.mondayFrom}" \${data.mondayOff ? 'disabled style="background:#f0f0f0"' : ''}></td>
+                            <td><input type="time" name="employees[\${rowCount}][mondayTo]" id="monday_to_\${rowCount}" value="\${data.mondayTo}" \${data.mondayOff ? 'disabled style="background:#f0f0f0"' : ''}></td>
+                            <td class="day-off-cell"><input type="checkbox" name="employees[\${rowCount}][tuesdayOff]" \${data.tuesdayOff ? 'checked' : ''} onchange="toggleDayOff(this, \${rowCount}, 'tuesday')"></td>
+                            <td><input type="time" name="employees[\${rowCount}][tuesdayFrom]" id="tuesday_from_\${rowCount}" value="\${data.tuesdayFrom}" \${data.tuesdayOff ? 'disabled style="background:#f0f0f0"' : ''}></td>
+                            <td><input type="time" name="employees[\${rowCount}][tuesdayTo]" id="tuesday_to_\${rowCount}" value="\${data.tuesdayTo}" \${data.tuesdayOff ? 'disabled style="background:#f0f0f0"' : ''}></td>
+                            <td class="day-off-cell"><input type="checkbox" name="employees[\${rowCount}][wednesdayOff]" \${data.wednesdayOff ? 'checked' : ''} onchange="toggleDayOff(this, \${rowCount}, 'wednesday')"></td>
+                            <td><input type="time" name="employees[\${rowCount}][wednesdayFrom]" id="wednesday_from_\${rowCount}" value="\${data.wednesdayFrom}" \${data.wednesdayOff ? 'disabled style="background:#f0f0f0"' : ''}></td>
+                            <td><input type="time" name="employees[\${rowCount}][wednesdayTo]" id="wednesday_to_\${rowCount}" value="\${data.wednesdayTo}" \${data.wednesdayOff ? 'disabled style="background:#f0f0f0"' : ''}></td>
+                            <td class="day-off-cell"><input type="checkbox" name="employees[\${rowCount}][thursdayOff]" \${data.thursdayOff ? 'checked' : ''} onchange="toggleDayOff(this, \${rowCount}, 'thursday')"></td>
+                            <td><input type="time" name="employees[\${rowCount}][thursdayFrom]" id="thursday_from_\${rowCount}" value="\${data.thursdayFrom}" \${data.thursdayOff ? 'disabled style="background:#f0f0f0"' : ''}></td>
+                            <td><input type="time" name="employees[\${rowCount}][thursdayTo]" id="thursday_to_\${rowCount}" value="\${data.thursdayTo}" \${data.thursdayOff ? 'disabled style="background:#f0f0f0"' : ''}></td>
+                            <td class="day-off-cell"><input type="checkbox" name="employees[\${rowCount}][fridayOff]" \${data.fridayOff ? 'checked' : ''} onchange="toggleDayOff(this, \${rowCount}, 'friday')"></td>
+                            <td><input type="time" name="employees[\${rowCount}][fridayFrom]" id="friday_from_\${rowCount}" value="\${data.fridayFrom}" \${data.fridayOff ? 'disabled style="background:#f0f0f0"' : ''}></td>
+                            <td><input type="time" name="employees[\${rowCount}][fridayTo]" id="friday_to_\${rowCount}" value="\${data.fridayTo}" \${data.fridayOff ? 'disabled style="background:#f0f0f0"' : ''}></td>
+                            <td class="day-off-cell"><input type="checkbox" name="employees[\${rowCount}][saturdayOff]" \${data.saturdayOff ? 'checked' : ''} onchange="toggleDayOff(this, \${rowCount}, 'saturday')"></td>
+                            <td><input type="time" name="employees[\${rowCount}][saturdayFrom]" id="saturday_from_\${rowCount}" value="\${data.saturdayFrom}" \${data.saturdayOff ? 'disabled style="background:#f0f0f0"' : ''}></td>
+                            <td><input type="time" name="employees[\${rowCount}][saturdayTo]" id="saturday_to_\${rowCount}" value="\${data.saturdayTo}" \${data.saturdayOff ? 'disabled style="background:#f0f0f0"' : ''}></td>
+                            <td class="day-off-cell"><input type="checkbox" name="employees[\${rowCount}][sundayOff]" \${data.sundayOff ? 'checked' : ''} onchange="toggleDayOff(this, \${rowCount}, 'sunday')"></td>
+                            <td><input type="time" name="employees[\${rowCount}][sundayFrom]" id="sunday_from_\${rowCount}" value="\${data.sundayFrom}" \${data.sundayOff ? 'disabled style="background:#f0f0f0"' : ''}></td>
+                            <td><input type="time" name="employees[\${rowCount}][sundayTo]" id="sunday_to_\${rowCount}" value="\${data.sundayTo}" \${data.sundayOff ? 'disabled style="background:#f0f0f0"' : ''}></td>
+                            <td><button type="button" class="remove-btn" onclick="removeRow(\${rowCount})">✕</button></td>
+                        \`;
+                        
+                        tbody.appendChild(row);
                     }
                 </script>
             </body>
@@ -540,29 +777,36 @@ router.post('/submit', async (req, res) => {
                     .input('employeePosition', sql.NVarChar, emp.employeePosition || null)
                     .input('locationCovered', sql.NVarChar, emp.locationCovered || null)
                     .input('phoneNumber', sql.NVarChar, emp.phoneNumber || null)
-                    .input('mondayFrom', sql.NVarChar, emp.mondayFrom || null)
-                    .input('mondayTo', sql.NVarChar, emp.mondayTo || null)
-                    .input('tuesdayFrom', sql.NVarChar, emp.tuesdayFrom || null)
-                    .input('tuesdayTo', sql.NVarChar, emp.tuesdayTo || null)
-                    .input('wednesdayFrom', sql.NVarChar, emp.wednesdayFrom || null)
-                    .input('wednesdayTo', sql.NVarChar, emp.wednesdayTo || null)
-                    .input('thursdayFrom', sql.NVarChar, emp.thursdayFrom || null)
-                    .input('thursdayTo', sql.NVarChar, emp.thursdayTo || null)
-                    .input('fridayFrom', sql.NVarChar, emp.fridayFrom || null)
-                    .input('fridayTo', sql.NVarChar, emp.fridayTo || null)
-                    .input('saturdayFrom', sql.NVarChar, emp.saturdayFrom || null)
-                    .input('saturdayTo', sql.NVarChar, emp.saturdayTo || null)
-                    .input('sundayFrom', sql.NVarChar, emp.sundayFrom || null)
-                    .input('sundayTo', sql.NVarChar, emp.sundayTo || null)
+                    .input('mondayOff', sql.Bit, emp.mondayOff === 'on' ? 1 : 0)
+                    .input('mondayFrom', sql.NVarChar, emp.mondayOff === 'on' ? null : (emp.mondayFrom || null))
+                    .input('mondayTo', sql.NVarChar, emp.mondayOff === 'on' ? null : (emp.mondayTo || null))
+                    .input('tuesdayOff', sql.Bit, emp.tuesdayOff === 'on' ? 1 : 0)
+                    .input('tuesdayFrom', sql.NVarChar, emp.tuesdayOff === 'on' ? null : (emp.tuesdayFrom || null))
+                    .input('tuesdayTo', sql.NVarChar, emp.tuesdayOff === 'on' ? null : (emp.tuesdayTo || null))
+                    .input('wednesdayOff', sql.Bit, emp.wednesdayOff === 'on' ? 1 : 0)
+                    .input('wednesdayFrom', sql.NVarChar, emp.wednesdayOff === 'on' ? null : (emp.wednesdayFrom || null))
+                    .input('wednesdayTo', sql.NVarChar, emp.wednesdayOff === 'on' ? null : (emp.wednesdayTo || null))
+                    .input('thursdayOff', sql.Bit, emp.thursdayOff === 'on' ? 1 : 0)
+                    .input('thursdayFrom', sql.NVarChar, emp.thursdayOff === 'on' ? null : (emp.thursdayFrom || null))
+                    .input('thursdayTo', sql.NVarChar, emp.thursdayOff === 'on' ? null : (emp.thursdayTo || null))
+                    .input('fridayOff', sql.Bit, emp.fridayOff === 'on' ? 1 : 0)
+                    .input('fridayFrom', sql.NVarChar, emp.fridayOff === 'on' ? null : (emp.fridayFrom || null))
+                    .input('fridayTo', sql.NVarChar, emp.fridayOff === 'on' ? null : (emp.fridayTo || null))
+                    .input('saturdayOff', sql.Bit, emp.saturdayOff === 'on' ? 1 : 0)
+                    .input('saturdayFrom', sql.NVarChar, emp.saturdayOff === 'on' ? null : (emp.saturdayFrom || null))
+                    .input('saturdayTo', sql.NVarChar, emp.saturdayOff === 'on' ? null : (emp.saturdayTo || null))
+                    .input('sundayOff', sql.Bit, emp.sundayOff === 'on' ? 1 : 0)
+                    .input('sundayFrom', sql.NVarChar, emp.sundayOff === 'on' ? null : (emp.sundayFrom || null))
+                    .input('sundayTo', sql.NVarChar, emp.sundayOff === 'on' ? null : (emp.sundayTo || null))
                     .query(`
                         INSERT INTO SecurityScheduleEmployees 
                         (ScheduleId, CompanyName, EmployeeId, EmployeeName, EmployeePosition, LocationCovered, PhoneNumber,
-                         MondayFrom, MondayTo, TuesdayFrom, TuesdayTo, WednesdayFrom, WednesdayTo,
-                         ThursdayFrom, ThursdayTo, FridayFrom, FridayTo, SaturdayFrom, SaturdayTo, SundayFrom, SundayTo)
+                         MondayOff, MondayFrom, MondayTo, TuesdayOff, TuesdayFrom, TuesdayTo, WednesdayOff, WednesdayFrom, WednesdayTo,
+                         ThursdayOff, ThursdayFrom, ThursdayTo, FridayOff, FridayFrom, FridayTo, SaturdayOff, SaturdayFrom, SaturdayTo, SundayOff, SundayFrom, SundayTo)
                         VALUES 
                         (@scheduleId, @companyName, @employeeId, @employeeName, @employeePosition, @locationCovered, @phoneNumber,
-                         @mondayFrom, @mondayTo, @tuesdayFrom, @tuesdayTo, @wednesdayFrom, @wednesdayTo,
-                         @thursdayFrom, @thursdayTo, @fridayFrom, @fridayTo, @saturdayFrom, @saturdayTo, @sundayFrom, @sundayTo)
+                         @mondayOff, @mondayFrom, @mondayTo, @tuesdayOff, @tuesdayFrom, @tuesdayTo, @wednesdayOff, @wednesdayFrom, @wednesdayTo,
+                         @thursdayOff, @thursdayFrom, @thursdayTo, @fridayOff, @fridayFrom, @fridayTo, @saturdayOff, @saturdayFrom, @saturdayTo, @sundayOff, @sundayFrom, @sundayTo)
                     `);
             }
         }
@@ -617,6 +861,15 @@ router.get('/view/:id', async (req, res) => {
         const fromDate = new Date(schedule.FromDate).toLocaleDateString('en-GB');
         const toDate = new Date(schedule.ToDate).toLocaleDateString('en-GB');
         
+        // Helper function to display day schedule
+        const formatDay = (isOff, from, to) => {
+            if (isOff) return '<span style="color:#dc3545;font-weight:600;">Off</span>';
+            if (from && to) return from + ' - ' + to;
+            if (from) return from + ' - ?';
+            if (to) return '? - ' + to;
+            return '-';
+        };
+        
         const employeeRows = employees.recordset.map(e => `
             <tr>
                 <td>${e.CompanyName}</td>
@@ -625,20 +878,13 @@ router.get('/view/:id', async (req, res) => {
                 <td>${e.EmployeePosition || '-'}</td>
                 <td>${e.LocationCovered || '-'}</td>
                 <td>${e.PhoneNumber || '-'}</td>
-                <td>${e.MondayFrom || '-'}</td>
-                <td>${e.MondayTo || '-'}</td>
-                <td>${e.TuesdayFrom || '-'}</td>
-                <td>${e.TuesdayTo || '-'}</td>
-                <td>${e.WednesdayFrom || '-'}</td>
-                <td>${e.WednesdayTo || '-'}</td>
-                <td>${e.ThursdayFrom || '-'}</td>
-                <td>${e.ThursdayTo || '-'}</td>
-                <td>${e.FridayFrom || '-'}</td>
-                <td>${e.FridayTo || '-'}</td>
-                <td>${e.SaturdayFrom || '-'}</td>
-                <td>${e.SaturdayTo || '-'}</td>
-                <td>${e.SundayFrom || '-'}</td>
-                <td>${e.SundayTo || '-'}</td>
+                <td>${formatDay(e.MondayOff, e.MondayFrom, e.MondayTo)}</td>
+                <td>${formatDay(e.TuesdayOff, e.TuesdayFrom, e.TuesdayTo)}</td>
+                <td>${formatDay(e.WednesdayOff, e.WednesdayFrom, e.WednesdayTo)}</td>
+                <td>${formatDay(e.ThursdayOff, e.ThursdayFrom, e.ThursdayTo)}</td>
+                <td>${formatDay(e.FridayOff, e.FridayFrom, e.FridayTo)}</td>
+                <td>${formatDay(e.SaturdayOff, e.SaturdayFrom, e.SaturdayTo)}</td>
+                <td>${formatDay(e.SundayOff, e.SundayFrom, e.SundayTo)}</td>
             </tr>
         `).join('');
         
@@ -758,36 +1004,28 @@ router.get('/view/:id', async (req, res) => {
                     
                     <div class="card">
                         <h3 style="margin-top:0;">Employee Schedule</h3>
+                        <p style="color:#666; font-size:13px; margin-bottom:15px;">Days marked <span style="color:#dc3545;font-weight:600;">Off</span> indicate day off.</p>
                         <div style="overflow-x: auto;">
                             <table class="schedule-table">
                                 <thead>
                                     <tr>
-                                        <th rowspan="2">Company</th>
-                                        <th rowspan="2">Emp ID</th>
-                                        <th rowspan="2">Name</th>
-                                        <th rowspan="2">Position</th>
-                                        <th rowspan="2">Location</th>
-                                        <th rowspan="2">Phone</th>
-                                        <th colspan="2">Monday</th>
-                                        <th colspan="2">Tuesday</th>
-                                        <th colspan="2">Wednesday</th>
-                                        <th colspan="2">Thursday</th>
-                                        <th colspan="2">Friday</th>
-                                        <th colspan="2">Saturday</th>
-                                        <th colspan="2">Sunday</th>
-                                    </tr>
-                                    <tr>
-                                        <th>From</th><th>To</th>
-                                        <th>From</th><th>To</th>
-                                        <th>From</th><th>To</th>
-                                        <th>From</th><th>To</th>
-                                        <th>From</th><th>To</th>
-                                        <th>From</th><th>To</th>
-                                        <th>From</th><th>To</th>
+                                        <th>Company</th>
+                                        <th>Emp ID</th>
+                                        <th>Name</th>
+                                        <th>Position</th>
+                                        <th>Location</th>
+                                        <th>Phone</th>
+                                        <th>Monday</th>
+                                        <th>Tuesday</th>
+                                        <th>Wednesday</th>
+                                        <th>Thursday</th>
+                                        <th>Friday</th>
+                                        <th>Saturday</th>
+                                        <th>Sunday</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    ${employeeRows || '<tr><td colspan="20" style="text-align:center;color:#666;">No employees added</td></tr>'}
+                                    ${employeeRows || '<tr><td colspan="13" style="text-align:center;color:#666;">No employees added</td></tr>'}
                                 </tbody>
                             </table>
                         </div>
