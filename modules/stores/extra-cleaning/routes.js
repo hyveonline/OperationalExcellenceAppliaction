@@ -161,7 +161,7 @@ router.get('/', async (req, res) => {
             <html>
             <head>
                 <meta charset="UTF-8">
-            <title>Extra Cleaning Agents Request - ${process.env.APP_NAME}</title>
+            <title>Extra Third-Party Support - ${process.env.APP_NAME}</title>
                 <style>
                     * { box-sizing: border-box; margin: 0; padding: 0; }
                     body { 
@@ -355,7 +355,7 @@ router.get('/', async (req, res) => {
             </head>
             <body>
                 <div class="header">
-                    <h1>🧹 Extra Cleaning Agents Request</h1>
+                    <h1>👥 Extra Third-Party Support</h1>
                     <div class="header-nav">
                         <a href="/stores/extra-cleaning/my-requests">📋 My Requests</a>
                         <a href="/stores">← Back to Stores</a>
@@ -368,7 +368,7 @@ router.get('/', async (req, res) => {
                     </div>
                     
                     <div class="form-container">
-                        <h2 class="form-title">🧹 Extra Cleaning Agents Request Form</h2>
+                        <h2 class="form-title">👥 Extra Third-Party Support Request Form</h2>
                         
                         <form id="cleaningRequestForm" action="/stores/extra-cleaning/submit" method="POST">
                             
@@ -447,8 +447,8 @@ router.get('/', async (req, res) => {
                                         <input type="time" id="startTimeFrom" name="startTimeFrom" required>
                                     </div>
                                     <div class="form-group">
-                                        <label class="required" for="startTimeTo">To Time</label>
-                                        <input type="time" id="startTimeTo" name="startTimeTo" required>
+                                        <label class="required" for="startTimeTo">To Time <small style="color:#17a2b8;">(auto-calculated)</small></label>
+                                        <input type="time" id="startTimeTo" name="startTimeTo" required readonly style="background:#f0f0f0;">
                                     </div>
                                 </div>
                             </div>
@@ -466,8 +466,8 @@ router.get('/', async (req, res) => {
                                         <input type="time" id="endTimeFrom" name="endTimeFrom" required>
                                     </div>
                                     <div class="form-group">
-                                        <label class="required" for="endTimeTo">To Time</label>
-                                        <input type="time" id="endTimeTo" name="endTimeTo" required>
+                                        <label class="required" for="endTimeTo">To Time <small style="color:#17a2b8;">(auto-calculated)</small></label>
+                                        <input type="time" id="endTimeTo" name="endTimeTo" required readonly style="background:#f0f0f0;">
                                     </div>
                                 </div>
                             </div>
@@ -478,7 +478,7 @@ router.get('/', async (req, res) => {
                                 <div class="form-row single">
                                     <div class="form-group">
                                         <label for="description">Description / Reason for Request</label>
-                                        <textarea id="description" name="description" placeholder="Explain why extra cleaning agents are needed..."></textarea>
+                                        <textarea id="description" name="description" placeholder="Explain why extra third-party support is needed..."></textarea>
                                     </div>
                                 </div>
                             </div>
@@ -703,7 +703,44 @@ router.get('/', async (req, res) => {
                         document.querySelectorAll('.shift-option').forEach(opt => opt.classList.remove('selected'));
                         element.classList.add('selected');
                         element.querySelector('input').checked = true;
+                        
+                        // Auto-calculate end times based on shift hours
+                        calculateEndTime('start');
+                        calculateEndTime('end');
                     }
+                    
+                    // Calculate end time based on start time and shift hours
+                    function calculateEndTime(prefix) {
+                        const fromTimeInput = document.getElementById(prefix + 'TimeFrom');
+                        const toTimeInput = document.getElementById(prefix + 'TimeTo');
+                        const shiftHours = parseInt(document.querySelector('input[name="shiftHours"]:checked')?.value || 9);
+                        
+                        if (fromTimeInput && fromTimeInput.value && toTimeInput) {
+                            const [hours, minutes] = fromTimeInput.value.split(':').map(Number);
+                            let endHours = hours + shiftHours;
+                            
+                            // Handle overflow past midnight
+                            if (endHours >= 24) {
+                                endHours = endHours - 24;
+                            }
+                            
+                            // Format as HH:MM
+                            const endTime = String(endHours).padStart(2, '0') + ':' + String(minutes).padStart(2, '0');
+                            toTimeInput.value = endTime;
+                        }
+                    }
+                    
+                    // Add event listeners for auto-calculation when page loads
+                    document.addEventListener('DOMContentLoaded', function() {
+                        // Auto-calculate when start time changes
+                        document.getElementById('startTimeFrom').addEventListener('change', function() {
+                            calculateEndTime('start');
+                        });
+                        
+                        document.getElementById('endTimeFrom').addEventListener('change', function() {
+                            calculateEndTime('end');
+                        });
+                    });
                 </script>
             </body>
             </html>
@@ -991,7 +1028,7 @@ router.get('/success/:id', async (req, res) => {
                     <div class="success-icon">✅</div>
                     <h2>Request Submitted Successfully!</h2>
                     <div class="request-id">Request #ECR-${req.params.id}</div>
-                    <p>Your extra cleaning agents request has been submitted and is pending approval.</p>
+                    <p>Your extra third-party support request has been submitted and is pending approval.</p>
                     <div class="approval-chain">
                         <div class="label">📋 Approval Workflow:</div>
                         <div class="flow">${approvalChainHtml}</div>

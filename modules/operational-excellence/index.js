@@ -193,7 +193,7 @@ router.get('/', (req, res) => {
                         <div class="card-icon">🧹</div>
                         <div class="card-title">Extra Cleaning Review</div>
                         <div class="card-desc">
-                            Review and approve extra cleaning agent requests from stores. 
+                            Review and approve extra third-party support requests from stores. 
                             Track approvals and manage third-party cleaning services.
                         </div>
                         <div class="card-stats">
