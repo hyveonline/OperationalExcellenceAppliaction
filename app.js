@@ -271,7 +271,7 @@ app.get('/dashboard', requireAuth, (req, res) => {
             ]
         },
         {
-            category: 'Maknezi F&B',
+            category: 'Mackenzie F&B and GMRL',
             icon: '🍽️',
             color: '#dc3545',
             items: [

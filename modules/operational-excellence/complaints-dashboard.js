@@ -80,8 +80,48 @@ router.get('/', async (req, res) => {
     try {
         const pool = await getPool();
         
-        // Get all complaints with store and user info
-        const complaints = await pool.request().query(`
+        // Get filter parameters from query string
+        const { store, category, status, dateFrom, dateTo } = req.query;
+        
+        // Build dynamic WHERE clause
+        let whereConditions = [];
+        let request = pool.request();
+        
+        if (store) {
+            whereConditions.push('c.StoreId = @storeId');
+            request.input('storeId', sql.Int, store);
+        }
+        if (category) {
+            whereConditions.push('c.CategoryId = @categoryId');
+            request.input('categoryId', sql.Int, category);
+        }
+        if (status) {
+            whereConditions.push('c.Status = @status');
+            request.input('status', sql.NVarChar, status);
+        }
+        if (dateFrom) {
+            whereConditions.push('CAST(c.CreatedAt AS DATE) >= @dateFrom');
+            request.input('dateFrom', sql.Date, dateFrom);
+        }
+        if (dateTo) {
+            whereConditions.push('CAST(c.CreatedAt AS DATE) <= @dateTo');
+            request.input('dateTo', sql.Date, dateTo);
+        }
+        
+        const whereClause = whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : '';
+        
+        // Get stores for filter dropdown
+        const stores = await pool.request().query(`
+            SELECT Id, StoreName FROM Stores WHERE IsActive = 1 ORDER BY StoreName
+        `);
+        
+        // Get categories for filter dropdown
+        const categories = await pool.request().query(`
+            SELECT Id, Name, Icon FROM ComplaintCategories WHERE IsActive = 1 ORDER BY SortOrder, Name
+        `);
+        
+        // Get all complaints with store and user info (filtered)
+        const complaints = await request.query(`
             SELECT c.*, s.StoreName, u.DisplayName as CreatedByName,
                    cc.Name as CategoryName, cc.Icon as CategoryIcon,
                    ct.Name as TypeName, cs.Name as CaseName
@@ -91,11 +131,25 @@ router.get('/', async (req, res) => {
             LEFT JOIN ComplaintCategories cc ON c.CategoryId = cc.Id
             LEFT JOIN ComplaintTypes ct ON c.ComplaintTypeId = ct.Id
             LEFT JOIN ComplaintCases cs ON c.CaseId = cs.Id
+            ${whereClause}
             ORDER BY 
                 CASE WHEN c.SnoozeUntil IS NOT NULL AND CAST(c.SnoozeUntil as DATE) <= CAST(GETDATE() as DATE) AND c.Status NOT IN ('Resolved', 'Closed') THEN 0 ELSE 1 END,
                 CASE c.Status WHEN 'Open' THEN 0 WHEN 'In Progress' THEN 1 ELSE 2 END,
                 c.CreatedAt DESC
         `);
+        
+        // Build filter dropdown options
+        const storeOptions = stores.recordset.map(s => 
+            `<option value="${s.Id}" ${store == s.Id ? 'selected' : ''}>${s.StoreName}</option>`
+        ).join('');
+        
+        const categoryOptions = categories.recordset.map(c => 
+            `<option value="${c.Id}" ${category == c.Id ? 'selected' : ''}>${c.Icon || '📁'} ${c.Name}</option>`
+        ).join('');
+        
+        const statusOptions = ['Open', 'In Progress', 'Resolved', 'Closed'].map(s =>
+            `<option value="${s}" ${status === s ? 'selected' : ''}>${s}</option>`
+        ).join('');
         
         const rows = complaints.recordset.map(c => {
             // Compare dates as strings (YYYY-MM-DD) to avoid timezone issues
@@ -230,6 +284,77 @@ router.get('/', async (req, res) => {
                     
                     .snooze-row { display: flex; gap: 10px; align-items: end; }
                     .snooze-row .form-group { flex: 1; margin-bottom: 0; }
+                    
+                    /* Filter Section */
+                    .filter-section {
+                        background: white;
+                        border-radius: 12px;
+                        padding: 20px;
+                        margin-bottom: 20px;
+                        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+                    }
+                    .filter-section h3 {
+                        font-size: 16px;
+                        margin-bottom: 15px;
+                        color: #333;
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                    }
+                    .filter-row {
+                        display: grid;
+                        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+                        gap: 15px;
+                        align-items: end;
+                    }
+                    .filter-group { display: flex; flex-direction: column; }
+                    .filter-group label {
+                        font-size: 12px;
+                        font-weight: 600;
+                        color: #666;
+                        margin-bottom: 6px;
+                        text-transform: uppercase;
+                    }
+                    .filter-group select, .filter-group input {
+                        padding: 10px 12px;
+                        border: 2px solid #e0e0e0;
+                        border-radius: 8px;
+                        font-size: 14px;
+                        transition: border-color 0.3s;
+                    }
+                    .filter-group select:focus, .filter-group input:focus {
+                        outline: none;
+                        border-color: #e17055;
+                    }
+                    .filter-buttons {
+                        display: flex;
+                        gap: 10px;
+                    }
+                    .btn-filter { background: #e17055; color: white; padding: 10px 20px; }
+                    .btn-clear { background: #6c757d; color: white; padding: 10px 20px; }
+                    .active-filters {
+                        margin-top: 15px;
+                        padding-top: 15px;
+                        border-top: 1px solid #eee;
+                        display: flex;
+                        gap: 10px;
+                        flex-wrap: wrap;
+                        align-items: center;
+                    }
+                    .filter-tag {
+                        background: #e17055;
+                        color: white;
+                        padding: 5px 12px;
+                        border-radius: 20px;
+                        font-size: 13px;
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                    }
+                    .filter-tag .remove {
+                        cursor: pointer;
+                        font-weight: bold;
+                    }
                 </style>
             </head>
             <body>
@@ -241,6 +366,58 @@ router.get('/', async (req, res) => {
                 </div>
                 
                 <div class="container">
+                    <!-- Filter Section -->
+                    <div class="filter-section">
+                        <h3>🔍 Filter Complaints</h3>
+                        <form id="filterForm" method="GET" action="/operational-excellence/complaints-dashboard">
+                            <div class="filter-row">
+                                <div class="filter-group">
+                                    <label>Store</label>
+                                    <select name="store">
+                                        <option value="">All Stores</option>
+                                        ${storeOptions}
+                                    </select>
+                                </div>
+                                <div class="filter-group">
+                                    <label>Category</label>
+                                    <select name="category">
+                                        <option value="">All Categories</option>
+                                        ${categoryOptions}
+                                    </select>
+                                </div>
+                                <div class="filter-group">
+                                    <label>Status</label>
+                                    <select name="status">
+                                        <option value="">All Statuses</option>
+                                        ${statusOptions}
+                                    </select>
+                                </div>
+                                <div class="filter-group">
+                                    <label>Date From</label>
+                                    <input type="date" name="dateFrom" value="${dateFrom || ''}">
+                                </div>
+                                <div class="filter-group">
+                                    <label>Date To</label>
+                                    <input type="date" name="dateTo" value="${dateTo || ''}">
+                                </div>
+                                <div class="filter-buttons">
+                                    <button type="submit" class="btn btn-filter">🔍 Apply</button>
+                                    <a href="/operational-excellence/complaints-dashboard" class="btn btn-clear">✕ Clear</a>
+                                </div>
+                            </div>
+                        </form>
+                        ${(store || category || status || dateFrom || dateTo) ? `
+                        <div class="active-filters">
+                            <span style="color:#666;font-size:13px;">Active filters:</span>
+                            ${store ? `<span class="filter-tag">Store <span class="remove" onclick="removeFilter('store')">×</span></span>` : ''}
+                            ${category ? `<span class="filter-tag">Category <span class="remove" onclick="removeFilter('category')">×</span></span>` : ''}
+                            ${status ? `<span class="filter-tag">${status} <span class="remove" onclick="removeFilter('status')">×</span></span>` : ''}
+                            ${dateFrom ? `<span class="filter-tag">From: ${dateFrom} <span class="remove" onclick="removeFilter('dateFrom')">×</span></span>` : ''}
+                            ${dateTo ? `<span class="filter-tag">To: ${dateTo} <span class="remove" onclick="removeFilter('dateTo')">×</span></span>` : ''}
+                        </div>
+                        ` : ''}
+                    </div>
+                    
                     <div class="stats-row">
                         <div class="stat-card followup" onclick="filterFollowUp()" style="cursor:pointer;" title="Click to filter">
                             <div class="number" id="statFollowUp">-</div>
@@ -300,6 +477,13 @@ router.get('/', async (req, res) => {
                 </div>
                 
                 <script>
+                    // Remove individual filter
+                    function removeFilter(filterName) {
+                        const url = new URL(window.location.href);
+                        url.searchParams.delete(filterName);
+                        window.location.href = url.toString();
+                    }
+                    
                     // Load stats
                     fetch('/operational-excellence/complaints-dashboard/api/stats')
                         .then(r => r.json())

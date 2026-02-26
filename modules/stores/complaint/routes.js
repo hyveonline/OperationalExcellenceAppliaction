@@ -80,7 +80,7 @@ router.get('/', async (req, res) => {
             `<option value="${c.Id}">${c.Icon || '📁'} ${c.Name}</option>`
         ).join('');
         
-        const userName = req.session?.user?.displayName || req.session?.user?.email || 'User';
+        const userName = req.currentUser?.displayName || req.currentUser?.email || 'User';
         
         res.send(`
             <!DOCTYPE html>
@@ -365,7 +365,7 @@ router.get('/', async (req, res) => {
 router.post('/submit', upload.single('attachment'), async (req, res) => {
     try {
         const { storeId, categoryId, complaintTypeId, caseId, description } = req.body;
-        const userId = req.session?.user?.id || 1;
+        const userId = req.currentUser?.userId || 1;
         
         const attachmentUrl = req.file ? '/uploads/complaints/' + req.file.filename : null;
         const attachmentName = req.file ? req.file.originalname : null;
@@ -474,7 +474,7 @@ router.get('/success', (req, res) => {
 // My submissions history
 router.get('/history', async (req, res) => {
     try {
-        const userId = req.session?.user?.id || 1;
+        const userId = req.currentUser?.userId || 1;
         const pool = await sql.connect(dbConfig);
         
         const complaints = await pool.request()
@@ -771,7 +771,7 @@ router.post('/:id/update', async (req, res) => {
     try {
         const complaintId = req.params.id;
         const { updateNote } = req.body;
-        const userId = req.session?.user?.id || 1;
+        const userId = req.currentUser?.userId || 1;
         
         if (!updateNote?.trim()) {
             return res.redirect('/stores/complaint/view/' + complaintId);
