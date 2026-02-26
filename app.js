@@ -33,6 +33,7 @@ const ohsModule = require('./modules/ohs');
 const ohsInspectionModule = require('./modules/ohs-inspection');
 const securityServicesModule = require('./modules/security-services');
 const securityModule = require('./modules/security');
+const securityEmpModule = require('./modules/security-emp');
 const escalationModule = require('./modules/escalation');
 
 // Import escalation service for scheduled tasks
@@ -84,6 +85,7 @@ app.use('/ohs', requireAuth, formAccessMiddleware, ohsModule);
 app.use('/ohs-inspection', requireAuth, formAccessMiddleware, ohsInspectionModule);
 app.use('/security-services', requireAuth, formAccessMiddleware, securityServicesModule);
 app.use('/security', requireAuth, formAccessMiddleware, securityModule);
+app.use('/security-emp', requireAuth, formAccessMiddleware, securityEmpModule);
 app.use('/escalation', requireAuth, formAccessMiddleware, escalationModule);
 
 // ==========================================
@@ -192,6 +194,7 @@ app.get('/dashboard', requireAuth, (req, res) => {
         
         // Security / Facility Management module
         'SECURITY_CLEANING': 'security',
+        'LEGAL_CASES': 'legal-cases',
         
         // HR module (HR_DASHBOARD is required for HR access)
         'HR_DASHBOARD': 'hr',
@@ -219,7 +222,7 @@ app.get('/dashboard', requireAuth, (req, res) => {
     
     // System Administrator always has full access (no SQL check needed)
     if (roleNames.includes('System Administrator')) {
-        ['stores', 'security-services', 'ohs', 'ohs-inspection', 'oe', 'oe-inspection', 'thirdparty', 'security', 'hr', 'personnel', 'escalation', 'broadcast', 'maknezi-fnb'].forEach(m => accessibleMenus.add(m));
+        ['stores', 'security-services', 'ohs', 'ohs-inspection', 'oe', 'oe-inspection', 'thirdparty', 'security', 'hr', 'personnel', 'escalation', 'broadcast', 'maknezi-fnb', 'legal-cases'].forEach(m => accessibleMenus.add(m));
     }
     
     // Build menu items based on permissions - organized by department/category
@@ -257,7 +260,7 @@ app.get('/dashboard', requireAuth, (req, res) => {
             icon: '🔒',
             color: '#343a40',
             items: [
-                // Add security department apps here when available
+                { id: 'legal-cases', icon: '⚖️', title: 'Legal Cases', href: '/security-emp/legal-cases', desc: 'Track and manage security legal cases' }
             ]
         },
         {
