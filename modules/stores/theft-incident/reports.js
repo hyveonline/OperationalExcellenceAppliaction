@@ -114,9 +114,11 @@ router.get('/', async (req, res) => {
                 <td><strong>TI-${r.Id}</strong></td>
                 <td>${formatDate(r.IncidentDate)}</td>
                 <td>${r.Store || '-'}</td>
-                <td>${r.ThiefName || ''} ${r.ThiefSurname || ''}</td>
+                <td>
+                    ${r.ThiefCaught === 'Yes' ? `${r.ThiefName || ''} ${r.ThiefSurname || ''}` : '<span style="color: #888;">Not Caught</span>'}
+                </td>
                 <td>${r.StolenItems ? (r.StolenItems.length > 40 ? r.StolenItems.substring(0, 40) + '...' : r.StolenItems) : '-'}</td>
-                <td>${formatCurrency(r.StolenValue, r.Currency || 'USD')}</td>
+                <td>${formatCurrency(r.StolenValue, r.StolenValueCurrency || r.Currency || 'USD')}</td>
                 <td><span class="badge badge-info">${r.CaptureMethod || '-'}</span></td>
                 <td>${r.PhotoCount > 0 ? '📷 ' + r.PhotoCount : '-'}</td>
                 <td>
@@ -330,34 +332,7 @@ router.get('/', async (req, res) => {
                             ? r.photos.map(p => \`<img src="\${p.FilePath}" class="photo-thumb" onclick="window.open('\${p.FilePath}', '_blank')">\`).join('')
                             : '<p style="color:#888;">No photos attached</p>';
                         
-                        return \`
-                            <div class="detail-grid">
-                                <div class="detail-group">
-                                    <div class="detail-label">Reference Number</div>
-                                    <div class="detail-value">TI-\${r.Id}</div>
-                                </div>
-                                <div class="detail-group">
-                                    <div class="detail-label">Incident Date</div>
-                                    <div class="detail-value">\${formatDate(r.IncidentDate)}</div>
-                                </div>
-                                <div class="detail-group">
-                                    <div class="detail-label">Store</div>
-                                    <div class="detail-value">\${r.Store || '-'}</div>
-                                </div>
-                                <div class="detail-group">
-                                    <div class="detail-label">Store Manager</div>
-                                    <div class="detail-value">\${r.StoreManager || '-'}</div>
-                                </div>
-                                <div class="detail-group">
-                                    <div class="detail-label">Staff Name</div>
-                                    <div class="detail-value">\${r.StaffName || '-'}</div>
-                                </div>
-                                <div class="detail-group">
-                                    <div class="detail-label">Capture Method</div>
-                                    <div class="detail-value">\${r.CaptureMethod || '-'}</div>
-                                </div>
-                            </div>
-                            
+                        const thiefInfoSection = r.ThiefCaught === 'Yes' ? \`
                             <h4 style="margin: 25px 0 15px; color: #dc3545;">🕵️ Suspect Information</h4>
                             <div class="detail-grid">
                                 <div class="detail-group">
@@ -385,6 +360,52 @@ router.get('/', async (req, res) => {
                                     <div class="detail-value">\${r.MaritalStatus || '-'}</div>
                                 </div>
                             </div>
+                        \` : \`
+                            <h4 style="margin: 25px 0 15px; color: #888;">🕵️ Suspect Information</h4>
+                            <p style="color: #888; font-style: italic;">Thief was not caught</p>
+                        \`;
+                        
+                        return \`
+                            <div class="detail-grid">
+                                <div class="detail-group">
+                                    <div class="detail-label">Reference Number</div>
+                                    <div class="detail-value">TI-\${r.Id}</div>
+                                </div>
+                                <div class="detail-group">
+                                    <div class="detail-label">Incident Date</div>
+                                    <div class="detail-value">\${formatDate(r.IncidentDate)}</div>
+                                </div>
+                                <div class="detail-group">
+                                    <div class="detail-label">Store</div>
+                                    <div class="detail-value">\${r.Store || '-'}</div>
+                                </div>
+                                <div class="detail-group">
+                                    <div class="detail-label">Store Manager</div>
+                                    <div class="detail-value">\${r.StoreManager || '-'}</div>
+                                </div>
+                                <div class="detail-group">
+                                    <div class="detail-label">Staff Name</div>
+                                    <div class="detail-value">\${r.StaffName || '-'}</div>
+                                </div>
+                                <div class="detail-group">
+                                    <div class="detail-label">Capture Method</div>
+                                    <div class="detail-value">\${r.CaptureMethod || '-'}</div>
+                                </div>
+                                <div class="detail-group">
+                                    <div class="detail-label">Thief Caught</div>
+                                    <div class="detail-value">
+                                        <span style="color: \${r.ThiefCaught === 'Yes' ? '#28a745' : '#dc3545'}; font-weight: bold;">
+                                            \${r.ThiefCaught || 'Unknown'}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="detail-group">
+                                    <div class="detail-label">Offense</div>
+                                    <div class="detail-value">\${r.Offense || '-'}</div>
+                                </div>
+                            </div>
+                            
+                            \${thiefInfoSection}
                             
                             <h4 style="margin: 25px 0 15px; color: #dc3545;">💰 Financial Details</h4>
                             <div class="detail-grid">
@@ -394,15 +415,15 @@ router.get('/', async (req, res) => {
                                 </div>
                                 <div class="detail-group">
                                     <div class="detail-label">Stolen Value</div>
-                                    <div class="detail-value" style="color: #dc3545; font-size: 18px;">\${formatCurrency(r.StolenValue, r.Currency)}</div>
+                                    <div class="detail-value" style="color: #dc3545; font-size: 18px;">\${formatCurrency(r.StolenValue, r.StolenValueCurrency || r.Currency)}</div>
                                 </div>
                                 <div class="detail-group">
                                     <div class="detail-label">Value Collected</div>
-                                    <div class="detail-value" style="color: #28a745; font-size: 18px;">\${formatCurrency(r.ValueCollected, r.Currency)}</div>
+                                    <div class="detail-value" style="color: #28a745; font-size: 18px;">\${formatCurrency(r.ValueCollected, r.ValueCollectedCurrency || r.Currency)}</div>
                                 </div>
                                 <div class="detail-group">
                                     <div class="detail-label">Amount to HO</div>
-                                    <div class="detail-value">\${formatCurrency(r.AmountToHO, r.Currency)}</div>
+                                    <div class="detail-value">\${formatCurrency(r.AmountToHO, r.AmountToHOCurrency || r.Currency)}</div>
                                 </div>
                                 <div class="detail-group">
                                     <div class="detail-label">Security Type</div>
@@ -488,13 +509,53 @@ router.get('/:id', async (req, res) => {
         
         await pool.close();
         
-        // Format values
+        // Format values with their currencies
+        const stolenValueCurrency = report.StolenValueCurrency || report.Currency || 'USD';
+        const valueCollectedCurrency = report.ValueCollectedCurrency || report.Currency || 'USD';
+        const amountToHOCurrency = report.AmountToHOCurrency || report.Currency || 'USD';
+        
         const stolenValue = parseFloat(report.StolenValue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         const valueCollected = parseFloat(report.ValueCollected || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         const amountToHO = parseFloat(report.AmountToHO || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         const incidentDate = report.IncidentDate ? new Date(report.IncidentDate).toLocaleDateString('en-GB') : '-';
         const dateOfBirth = report.DateOfBirth ? new Date(report.DateOfBirth).toLocaleDateString('en-GB') : '-';
         const createdAt = report.CreatedAt ? new Date(report.CreatedAt).toLocaleString('en-GB') : '-';
+        
+        // Thief info section - only shown if thief was caught
+        const thiefInfoContent = report.ThiefCaught === 'Yes' ? `
+                            <div class="details-grid">
+                                <div class="detail-item">
+                                    <div class="label">Name</div>
+                                    <div class="value">${report.ThiefName || '-'} ${report.ThiefSurname || ''}</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="label">ID Card</div>
+                                    <div class="value">${report.IDCard || '-'}</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="label">Date of Birth</div>
+                                    <div class="value">${dateOfBirth}</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="label">Place of Birth</div>
+                                    <div class="value">${report.PlaceOfBirth || '-'}</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="label">Father's Name</div>
+                                    <div class="value">${report.FatherName || '-'}</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="label">Mother's Name</div>
+                                    <div class="value">${report.MotherName || '-'}</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="label">Marital Status</div>
+                                    <div class="value">${report.MaritalStatus || '-'}</div>
+                                </div>
+                            </div>
+        ` : `
+                            <p style="color: #888; font-style: italic; padding: 15px;">Thief was not caught - no personal information available</p>
+        `;
         
         res.send(`
             <!DOCTYPE html>
@@ -559,15 +620,15 @@ router.get('/:id', async (req, res) => {
                     <!-- Value Summary -->
                     <div class="value-boxes">
                         <div class="value-box stolen">
-                            <div class="amount">${report.Currency} ${stolenValue}</div>
+                            <div class="amount">${stolenValueCurrency} ${stolenValue}</div>
                             <div class="label">STOLEN VALUE</div>
                         </div>
                         <div class="value-box collected">
-                            <div class="amount">${report.Currency} ${valueCollected}</div>
+                            <div class="amount">${valueCollectedCurrency} ${valueCollected}</div>
                             <div class="label">VALUE COLLECTED</div>
                         </div>
                         <div class="value-box ho">
-                            <div class="amount">${report.Currency} ${amountToHO}</div>
+                            <div class="amount">${amountToHOCurrency} ${amountToHO}</div>
                             <div class="label">AMOUNT TO HO</div>
                         </div>
                     </div>
@@ -610,37 +671,20 @@ router.get('/:id', async (req, res) => {
                     <!-- Thief Information -->
                     <div class="card">
                         <h2>👤 Thief Information</h2>
-                        <div class="thief-info">
-                            <div class="details-grid">
-                                <div class="detail-item">
-                                    <div class="label">Name</div>
-                                    <div class="value">${report.ThiefName || '-'} ${report.ThiefSurname || ''}</div>
-                                </div>
-                                <div class="detail-item">
-                                    <div class="label">ID Card</div>
-                                    <div class="value">${report.IDCard || '-'}</div>
-                                </div>
-                                <div class="detail-item">
-                                    <div class="label">Date of Birth</div>
-                                    <div class="value">${dateOfBirth}</div>
-                                </div>
-                                <div class="detail-item">
-                                    <div class="label">Place of Birth</div>
-                                    <div class="value">${report.PlaceOfBirth || '-'}</div>
-                                </div>
-                                <div class="detail-item">
-                                    <div class="label">Father's Name</div>
-                                    <div class="value">${report.FatherName || '-'}</div>
-                                </div>
-                                <div class="detail-item">
-                                    <div class="label">Mother's Name</div>
-                                    <div class="value">${report.MotherName || '-'}</div>
-                                </div>
-                                <div class="detail-item">
-                                    <div class="label">Marital Status</div>
-                                    <div class="value">${report.MaritalStatus || '-'}</div>
+                        <div class="details-grid" style="margin-bottom: 15px;">
+                            <div class="detail-item">
+                                <div class="label">Thief Caught</div>
+                                <div class="value" style="color: ${report.ThiefCaught === 'Yes' ? '#28a745' : '#dc3545'}; font-weight: bold;">
+                                    ${report.ThiefCaught || 'Unknown'}
                                 </div>
                             </div>
+                            <div class="detail-item">
+                                <div class="label">Offense</div>
+                                <div class="value">${report.Offense || '-'}</div>
+                            </div>
+                        </div>
+                        <div class="thief-info">
+                            ${thiefInfoContent}
                         </div>
                     </div>
                     

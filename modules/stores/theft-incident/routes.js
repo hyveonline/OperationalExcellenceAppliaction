@@ -399,17 +399,54 @@ router.get('/', async (req, res) => {
                             <div class="form-row">
                                 <div class="form-group">
                                     <label class="required" for="stolenValue">Value of Stolen Items</label>
-                                    <input type="number" id="stolenValue" name="stolenValue" step="0.01" placeholder="0.00" required>
+                                    <div style="display: flex; gap: 10px;">
+                                        <input type="number" id="stolenValue" name="stolenValue" step="0.01" placeholder="0.00" required style="flex: 1;">
+                                        <select id="stolenValueCurrency" name="stolenValueCurrency" style="width: 100px;">
+                                            <option value="USD">USD</option>
+                                            <option value="LBP">LBP</option>
+                                            <option value="EUR">EUR</option>
+                                        </select>
+                                    </div>
                                 </div>
                                 <div class="form-group">
                                     <label for="valueCollected">Value Collected</label>
-                                    <input type="number" id="valueCollected" name="valueCollected" step="0.01" placeholder="0.00">
+                                    <div style="display: flex; gap: 10px;">
+                                        <input type="number" id="valueCollected" name="valueCollected" step="0.01" placeholder="0.00" style="flex: 1;">
+                                        <select id="valueCollectedCurrency" name="valueCollectedCurrency" style="width: 100px;">
+                                            <option value="USD">USD</option>
+                                            <option value="LBP">LBP</option>
+                                            <option value="EUR">EUR</option>
+                                        </select>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                         
-                        <!-- Thief Information -->
+                        <!-- Thief Caught Section -->
                         <div class="form-section">
+                            <div class="section-title">🚔 Thief Status</div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="required" for="thiefCaught">Thief Caught?</label>
+                                    <select id="thiefCaught" name="thiefCaught" required onchange="toggleThiefInfo()">
+                                        <option value="">Select...</option>
+                                        <option value="Yes">Yes</option>
+                                        <option value="No">No</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="offense">Offense</label>
+                                    <select id="offense" name="offense">
+                                        <option value="">Select...</option>
+                                        <option value="First offense">First offense</option>
+                                        <option value="Repeated">Repeated</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Thief Information (shown only when thief is caught) -->
+                        <div class="form-section" id="thiefInfoSection" style="display: none;">
                             <div class="section-title">👤 Thief Information</div>
                             <div class="form-row">
                                 <div class="form-group">
@@ -496,28 +533,27 @@ router.get('/', async (req, res) => {
                             <div class="form-row">
                                 <div class="form-group">
                                     <label for="amountToHO">Amount to HO</label>
-                                    <input type="number" id="amountToHO" name="amountToHO" step="0.01" placeholder="0.00">
-                                </div>
-                                <div class="form-group">
-                                    <label for="currency">Currency</label>
-                                    <select id="currency" name="currency">
-                                        <option value="LBP">LBP - Lebanese Pound</option>
-                                        <option value="USD">USD - US Dollar</option>
-                                        <option value="EUR">EUR - Euro</option>
-                                    </select>
+                                    <div style="display: flex; gap: 10px;">
+                                        <input type="number" id="amountToHO" name="amountToHO" step="0.01" placeholder="0.00" style="flex: 1;">
+                                        <select id="amountToHOCurrency" name="amountToHOCurrency" style="width: 100px;">
+                                            <option value="USD">USD</option>
+                                            <option value="LBP">LBP</option>
+                                            <option value="EUR">EUR</option>
+                                        </select>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                         
                         <!-- Photo Upload -->
                         <div class="form-section">
-                            <div class="section-title">📷 Evidence Photos</div>
+                            <div class="section-title">📷 Evidence Photos <span style="color: #dc3545; font-weight: normal;">(Required)</span></div>
                             <div class="form-row single">
                                 <div class="form-group">
-                                    <label for="photos">Upload Photos</label>
-                                    <input type="file" id="photos" name="photos" multiple accept="image/*" onchange="previewPhotos(this)">
+                                    <label class="required" for="photos">Upload Photos</label>
+                                    <input type="file" id="photos" name="photos" multiple accept="image/*" onchange="previewPhotos(this)" required>
                                     <small style="color: #666; margin-top: 5px; display: block;">
-                                        Upload up to 5 photos (JPEG, PNG, GIF, WebP). Max 10MB each.
+                                        Upload at least 1 photo (max 5). Supported: JPEG, PNG, GIF, WebP. Max 10MB each.
                                     </small>
                                 </div>
                             </div>
@@ -547,6 +583,37 @@ router.get('/', async (req, res) => {
                         outsourceOptions.classList.remove('show');
                     }
                 }
+                
+                // Toggle thief information section based on "Thief Caught" selection
+                function toggleThiefInfo() {
+                    const thiefCaught = document.getElementById('thiefCaught').value;
+                    const thiefInfoSection = document.getElementById('thiefInfoSection');
+                    if (thiefCaught === 'Yes') {
+                        thiefInfoSection.style.display = 'block';
+                    } else {
+                        thiefInfoSection.style.display = 'none';
+                        // Clear thief info fields when not caught
+                        document.getElementById('thiefName').value = '';
+                        document.getElementById('thiefSurname').value = '';
+                        document.getElementById('fatherName').value = '';
+                        document.getElementById('motherName').value = '';
+                        document.getElementById('idCard').value = '';
+                        document.getElementById('placeOfBirth').value = '';
+                        document.getElementById('dateOfBirth').value = '';
+                        document.getElementById('maritalStatus').value = '';
+                    }
+                }
+                
+                // Form validation
+                document.getElementById('theftIncidentForm').addEventListener('submit', function(e) {
+                    const photos = document.getElementById('photos');
+                    if (!photos.files || photos.files.length === 0) {
+                        e.preventDefault();
+                        alert('Please upload at least one evidence photo.');
+                        photos.focus();
+                        return false;
+                    }
+                });
                 
                 // Photo preview function
                 function previewPhotos(input) {
@@ -599,6 +666,16 @@ router.get('/', async (req, res) => {
 // Submit Theft Incident
 router.post('/submit', upload.array('photos', 5), async (req, res) => {
     try {
+        // Validate required evidence photos
+        if (!req.files || req.files.length === 0) {
+            return res.status(400).send(`
+                <script>
+                    alert('Evidence photos are required. Please upload at least one photo.');
+                    window.history.back();
+                </script>
+            `);
+        }
+        
         const pool = await sql.connect(dbConfig);
         
         const result = await pool.request()
@@ -608,7 +685,11 @@ router.post('/submit', upload.array('photos', 5), async (req, res) => {
             .input('staffName', sql.NVarChar, req.body.staffName)
             .input('stolenItems', sql.NVarChar, req.body.stolenItems)
             .input('stolenValue', sql.Decimal(18, 2), req.body.stolenValue || 0)
+            .input('stolenValueCurrency', sql.NVarChar, req.body.stolenValueCurrency || 'USD')
             .input('valueCollected', sql.Decimal(18, 2), req.body.valueCollected || 0)
+            .input('valueCollectedCurrency', sql.NVarChar, req.body.valueCollectedCurrency || 'USD')
+            .input('thiefCaught', sql.NVarChar, req.body.thiefCaught)
+            .input('offense', sql.NVarChar, req.body.offense)
             .input('idCard', sql.NVarChar, req.body.idCard)
             .input('thiefName', sql.NVarChar, req.body.thiefName)
             .input('thiefSurname', sql.NVarChar, req.body.thiefSurname)
@@ -621,21 +702,21 @@ router.post('/submit', upload.array('photos', 5), async (req, res) => {
             .input('securityType', sql.NVarChar, req.body.securityType)
             .input('outsourceCompany', sql.NVarChar, req.body.outsourceCompany)
             .input('amountToHO', sql.Decimal(18, 2), req.body.amountToHO || 0)
-            .input('currency', sql.NVarChar, req.body.currency)
+            .input('amountToHOCurrency', sql.NVarChar, req.body.amountToHOCurrency || 'USD')
             .input('createdBy', sql.Int, req.currentUser.userId)
             .query(`
                 INSERT INTO TheftIncidents (
-                    Store, IncidentDate, StoreManager, StaffName, StolenItems, StolenValue,
-                    ValueCollected, IDCard, ThiefName, ThiefSurname, FatherName, MotherName,
-                    PlaceOfBirth, DateOfBirth, MaritalStatus, CaptureMethod, SecurityType,
-                    OutsourceCompany, AmountToHO, Currency, CreatedBy, CreatedAt
+                    Store, IncidentDate, StoreManager, StaffName, StolenItems, StolenValue, StolenValueCurrency,
+                    ValueCollected, ValueCollectedCurrency, ThiefCaught, Offense, IDCard, ThiefName, ThiefSurname, 
+                    FatherName, MotherName, PlaceOfBirth, DateOfBirth, MaritalStatus, CaptureMethod, SecurityType,
+                    OutsourceCompany, AmountToHO, AmountToHOCurrency, CreatedBy, CreatedAt
                 )
                 OUTPUT INSERTED.Id
                 VALUES (
-                    @store, @incidentDate, @storeManager, @staffName, @stolenItems, @stolenValue,
-                    @valueCollected, @idCard, @thiefName, @thiefSurname, @fatherName, @motherName,
-                    @placeOfBirth, @dateOfBirth, @maritalStatus, @captureMethod, @securityType,
-                    @outsourceCompany, @amountToHO, @currency, @createdBy, GETDATE()
+                    @store, @incidentDate, @storeManager, @staffName, @stolenItems, @stolenValue, @stolenValueCurrency,
+                    @valueCollected, @valueCollectedCurrency, @thiefCaught, @offense, @idCard, @thiefName, @thiefSurname, 
+                    @fatherName, @motherName, @placeOfBirth, @dateOfBirth, @maritalStatus, @captureMethod, @securityType,
+                    @outsourceCompany, @amountToHO, @amountToHOCurrency, @createdBy, GETDATE()
                 )
             `);
         
@@ -673,10 +754,14 @@ router.post('/submit', upload.array('photos', 5), async (req, res) => {
                 const template = templateResult.recordset[0];
                 const baseUrl = process.env.APP_URL || 'https://oeapp-uat.gmrlapps.com';
                 
-                // Format values
-                const stolenValue = parseFloat(req.body.stolenValue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                const valueCollected = parseFloat(req.body.valueCollected || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                const amountToHO = parseFloat(req.body.amountToHO || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                // Format values with their respective currencies
+                const stolenValueCurrency = req.body.stolenValueCurrency || 'USD';
+                const valueCollectedCurrency = req.body.valueCollectedCurrency || 'USD';
+                const amountToHOCurrency = req.body.amountToHOCurrency || 'USD';
+                
+                const stolenValue = parseFloat(req.body.stolenValue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + stolenValueCurrency;
+                const valueCollected = parseFloat(req.body.valueCollected || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + valueCollectedCurrency;
+                const amountToHO = parseFloat(req.body.amountToHO || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + amountToHOCurrency;
                 const incidentDate = req.body.incidentDate ? new Date(req.body.incidentDate).toLocaleDateString('en-GB') : '';
                 const dateOfBirth = req.body.dateOfBirth ? new Date(req.body.dateOfBirth).toLocaleDateString('en-GB') : 'Not Available';
                 
@@ -690,19 +775,20 @@ router.post('/submit', upload.array('photos', 5), async (req, res) => {
                     stolenItems: req.body.stolenItems || '',
                     stolenValue: stolenValue,
                     valueCollected: valueCollected,
-                    thiefName: req.body.thiefName || 'Unknown',
-                    thiefSurname: req.body.thiefSurname || '',
-                    idCard: req.body.idCard || 'Not Available',
-                    dateOfBirth: dateOfBirth,
-                    placeOfBirth: req.body.placeOfBirth || 'Not Available',
-                    fatherName: req.body.fatherName || 'Not Available',
-                    motherName: req.body.motherName || 'Not Available',
-                    maritalStatus: req.body.maritalStatus || 'Unknown',
+                    thiefCaught: req.body.thiefCaught || 'Unknown',
+                    offense: req.body.offense || 'N/A',
+                    thiefName: req.body.thiefCaught === 'Yes' ? (req.body.thiefName || 'Unknown') : 'N/A (Not Caught)',
+                    thiefSurname: req.body.thiefCaught === 'Yes' ? (req.body.thiefSurname || '') : '',
+                    idCard: req.body.thiefCaught === 'Yes' ? (req.body.idCard || 'Not Available') : 'N/A',
+                    dateOfBirth: req.body.thiefCaught === 'Yes' ? dateOfBirth : 'N/A',
+                    placeOfBirth: req.body.thiefCaught === 'Yes' ? (req.body.placeOfBirth || 'Not Available') : 'N/A',
+                    fatherName: req.body.thiefCaught === 'Yes' ? (req.body.fatherName || 'Not Available') : 'N/A',
+                    motherName: req.body.thiefCaught === 'Yes' ? (req.body.motherName || 'Not Available') : 'N/A',
+                    maritalStatus: req.body.thiefCaught === 'Yes' ? (req.body.maritalStatus || 'Unknown') : 'N/A',
                     captureMethod: req.body.captureMethod || '',
                     securityType: req.body.securityType || '',
                     outsourceCompany: req.body.outsourceCompany || 'N/A',
                     amountToHO: amountToHO,
-                    currency: req.body.currency || 'USD',
                     reportUrl: `${baseUrl}/stores/theft-incident/reports/${incidentId}`,
                     recipientName: 'Team',
                     submittedAt: new Date().toLocaleDateString('en-GB') + ' ' + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
