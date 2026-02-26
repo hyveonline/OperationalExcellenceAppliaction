@@ -1755,7 +1755,8 @@ router.get('/api/audits/:auditId', async (req, res) => {
                         HasPicture as hasPicture,
                         Escalate as escalate,
                         Department as department,
-                        Criteria as criteria
+                        Criteria as criteria,
+                        IsRepetitive as isRepetitive
                     FROM OHS_InspectionItems
                     WHERE InspectionId = @inspectionId 
                         AND SectionName = @sectionName
@@ -1885,13 +1886,13 @@ router.put('/api/audits/:auditId/departments/:departmentId/toggle-na', async (re
 router.put('/api/audits/response/:responseId', async (req, res) => {
     try {
         const { responseId } = req.params;
-        const { selectedChoice, coeff, finding, comment, cr, priority, escalate, department } = req.body;
+        const { selectedChoice, coeff, finding, comment, cr, priority, escalate, department, isRepetitive } = req.body;
         
         const pool = await sql.connect(dbConfig);
         
         const currentResult = await pool.request()
             .input('id', sql.Int, responseId)
-            .query(`SELECT Answer, Score, Finding, Comment, CorrectedAction, Priority, Escalate, Department FROM OHS_InspectionItems WHERE Id = @id`);
+            .query(`SELECT Answer, Score, Finding, Comment, CorrectedAction, Priority, Escalate, Department, IsRepetitive FROM OHS_InspectionItems WHERE Id = @id`);
         
         const current = currentResult.recordset[0] || {};
         
@@ -1909,6 +1910,7 @@ router.put('/api/audits/response/:responseId', async (req, res) => {
         const finalComment = comment !== undefined ? (comment || null) : current.Comment;
         const finalCr = cr !== undefined ? (cr || null) : current.CorrectedAction;
         const finalPriority = priority !== undefined ? (priority || null) : current.Priority;
+        const finalIsRepetitive = isRepetitive !== undefined ? (isRepetitive ? 1 : 0) : current.IsRepetitive;
         
         await pool.request()
             .input('id', sql.Int, responseId)
@@ -1920,6 +1922,7 @@ router.put('/api/audits/response/:responseId', async (req, res) => {
             .input('priority', sql.NVarChar, finalPriority)
             .input('escalate', sql.Bit, finalEscalate)
             .input('department', sql.NVarChar, finalDepartment)
+            .input('isRepetitive', sql.Bit, finalIsRepetitive)
             .query(`
                 UPDATE OHS_InspectionItems 
                 SET Answer = @selectedChoice,
@@ -1929,7 +1932,8 @@ router.put('/api/audits/response/:responseId', async (req, res) => {
                     CorrectedAction = @cr,
                     Priority = @priority,
                     Escalate = @escalate,
-                    Department = @department
+                    Department = @department,
+                    IsRepetitive = @isRepetitive
                 WHERE Id = @id
             `);
         

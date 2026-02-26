@@ -382,6 +382,37 @@
         .priority-btn.selected-medium { background: #f59e0b; border-color: #f59e0b; color: white; }
         .priority-btn.selected-low { background: #3b82f6; border-color: #3b82f6; color: white; }
 
+        /* Repetitive Options */
+        .repetitive-options { display: flex; gap: 0.5rem; }
+
+        .repetitive-btn {
+            padding: 0.5rem 1rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            background: transparent;
+            color: #64748b;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+            flex: 1;
+        }
+
+        .repetitive-btn:hover {
+            border-color: #94a3b8;
+        }
+
+        .repetitive-btn.selected-yes {
+            background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+            border-color: #f97316;
+            color: white;
+        }
+
+        .repetitive-btn.selected-no {
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+            border-color: #22c55e;
+            color: white;
+        }
+
         /* Escalate Section */
         .escalate-section {
             margin-top: 1rem;
@@ -1174,6 +1205,18 @@
                                         onclick="updateFinding(${item.responseId}, 'priority', 'Low')">🔵 Low</button>
                             </div>
                         </div>
+                        
+                        <!-- Repetitive Issue Toggle -->
+                        <div class="finding-group">
+                            <div class="finding-label">Is this a Repetitive Issue?</div>
+                            <div class="repetitive-options">
+                                <button class="repetitive-btn ${item.isRepetitive === true || item.isRepetitive === 1 ? 'selected-yes' : ''}" 
+                                        onclick="toggleRepetitive(${item.responseId}, true)">🔄 Yes - Repetitive</button>
+                                <button class="repetitive-btn ${item.isRepetitive === false || item.isRepetitive === 0 || !item.isRepetitive ? 'selected-no' : ''}" 
+                                        onclick="toggleRepetitive(${item.responseId}, false)">✓ No - First Time</button>
+                            </div>
+                        </div>
+                        
                         <button class="picture-btn ${hasPicture ? 'has-picture' : ''}" onclick="openImageModal(${item.responseId})">
                             📷 ${hasPicture ? 'View/Add Pictures' : 'Add Picture'}
                         </button>
@@ -1328,6 +1371,35 @@
             } catch (error) {
                 console.error('Error setting department:', error);
                 alert('Failed to save department');
+            }
+        }
+
+        // Toggle repetitive status
+        async function toggleRepetitive(responseId, isRepetitive) {
+            try {
+                const item = findItem(responseId);
+                const response = await fetch(`/ohs-inspection/api/audits/response/${responseId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        selectedChoice: item.selectedChoice,
+                        coeff: item.coeff,
+                        isRepetitive: isRepetitive
+                    })
+                });
+
+                const result = await response.json();
+                if (!result.success) throw new Error(result.error);
+
+                // Update local data
+                if (item) item.isRepetitive = isRepetitive;
+                
+                // Re-render to update button states
+                renderCurrentSection();
+
+            } catch (error) {
+                console.error('Error setting repetitive status:', error);
+                alert('Failed to save repetitive status');
             }
         }
 
