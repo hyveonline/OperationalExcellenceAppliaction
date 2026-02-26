@@ -181,6 +181,7 @@ app.get('/dashboard', requireAuth, (req, res) => {
         'THEFT_DASHBOARD': 'oe', 'COMPLAINTS_DASHBOARD': 'oe', 'EXTRA_CLEANING_REVIEW': 'oe',
         'FEEDBACK_DASHBOARD': 'oe', 'PRODUCTION_DASHBOARD': 'oe', 'FIVE_DAYS_DASHBOARD': 'oe',
         'ATTENDANCE_DASHBOARD': 'oe', 'THIRDPARTY_DASHBOARD': 'oe', 'SECURITY_DASHBOARD': 'oe',
+        'MASTER_TABLE': 'master-table',
         
         // OE Inspection module
         'OE_INSPECTION': 'oe-inspection', 'OE_INSPECTION_START': 'oe-inspection', 
@@ -224,7 +225,7 @@ app.get('/dashboard', requireAuth, (req, res) => {
     
     // System Administrator always has full access (no SQL check needed)
     if (roleNames.includes('System Administrator')) {
-        ['stores', 'security-services', 'ohs', 'ohs-inspection', 'oe', 'oe-inspection', 'thirdparty', 'security', 'hr', 'personnel', 'escalation', 'broadcast', 'maknezi-fnb', 'legal-cases', 'thirdparty-blacklist', 'security-daily-reporting'].forEach(m => accessibleMenus.add(m));
+        ['stores', 'security-services', 'ohs', 'ohs-inspection', 'oe', 'oe-inspection', 'thirdparty', 'security', 'hr', 'personnel', 'escalation', 'broadcast', 'maknezi-fnb', 'legal-cases', 'thirdparty-blacklist', 'security-daily-reporting', 'master-table'].forEach(m => accessibleMenus.add(m));
     }
     
     // Build menu items based on permissions - organized by department/category
@@ -236,7 +237,8 @@ app.get('/dashboard', requireAuth, (req, res) => {
             items: [
                 { id: 'oe', icon: '📋', title: 'OE Dashboard', href: '/operational-excellence', desc: 'Audits, action plans & reports' },
                 { id: 'oe-inspection', icon: '🔍', title: 'OE Inspection', href: '/oe-inspection', desc: 'OE inspections, reports & action plans' },
-                { id: 'escalation', icon: '🔴', title: 'Escalation', href: '/escalation', desc: 'Escalate & track overdue action items' }
+                { id: 'escalation', icon: '🔴', title: 'Escalation', href: '/escalation', desc: 'Escalate & track overdue action items' },
+                { id: 'master-table', icon: '📊', title: 'Master Table', href: '/operational-excellence/master-table', desc: 'Third-party staff master data' }
             ]
         },
         {
