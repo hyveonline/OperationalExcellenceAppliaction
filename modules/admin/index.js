@@ -301,6 +301,65 @@ router.get('/api/job-monitor/five-days/history', async (req, res) => {
     }
 });
 
+// Get active or latest cycle data (for step tracker)
+router.get('/api/job-monitor/five-days/active-cycle', async (req, res) => {
+    let pool;
+    try {
+        pool = await sql.connect(dbConfig);
+        
+        // Get the most recent cycle that has data
+        const latestCycleResult = await pool.request().query(`
+            SELECT TOP 1 CycleKey, MAX(SentAt) as LastSentAt
+            FROM FiveDaysReminderLog
+            GROUP BY CycleKey
+            ORDER BY MAX(SentAt) DESC
+        `);
+        
+        const cycleKey = latestCycleResult.recordset[0]?.CycleKey || null;
+        
+        if (!cycleKey) {
+            return res.json({ success: true, cycleKey: null, sentSteps: [], message: 'No cycle data found' });
+        }
+        
+        // Get all reminder types sent for this cycle
+        const sentStepsResult = await pool.request()
+            .input('cycleKey', sql.NVarChar, cycleKey)
+            .query(`
+                SELECT DISTINCT ReminderType, MIN(SentAt) as FirstSentAt, COUNT(*) as StoreCount
+                FROM FiveDaysReminderLog
+                WHERE CycleKey = @cycleKey
+                GROUP BY ReminderType
+                ORDER BY MIN(SentAt)
+            `);
+        
+        // Get summary by reminder type
+        const summaryResult = await pool.request()
+            .input('cycleKey', sql.NVarChar, cycleKey)
+            .query(`
+                SELECT 
+                    ReminderType,
+                    COUNT(*) as EmailCount,
+                    COUNT(DISTINCT StoreId) as StoreCount,
+                    MAX(SentAt) as LastSentAt
+                FROM FiveDaysReminderLog
+                WHERE CycleKey = @cycleKey
+                GROUP BY ReminderType
+            `);
+        
+        res.json({ 
+            success: true, 
+            cycleKey: cycleKey,
+            sentSteps: sentStepsResult.recordset.map(r => r.ReminderType),
+            summary: summaryResult.recordset
+        });
+    } catch (err) {
+        console.error('Error getting active cycle:', err);
+        res.json({ success: true, cycleKey: null, sentSteps: [] });
+    } finally {
+        if (pool) await pool.close();
+    }
+});
+
 // Dry run all - preview all pending notifications
 router.get('/api/job-monitor/dry-run-all', async (req, res) => {
     let pool;
@@ -4819,10 +4878,19 @@ router.get('/broadcast', requireSysAdmin, async (req, res) => {
                         
                         <div class="quick-templates">
                             <span style="color:#666;margin-right:10px;">Quick Templates:</span>
-                            <button type="button" class="template-btn" data-template="5days" onclick="useTemplate('5days')">📅 5 Days Check</button>
                             <button type="button" class="template-btn" data-template="inspection" onclick="useTemplate('inspection')">🔍 Inspection</button>
                             <button type="button" class="template-btn" data-template="cleaning" onclick="useTemplate('cleaning')">🧹 Cleaning</button>
                             <button type="button" class="template-btn" data-template="safety" onclick="useTemplate('safety')">⚠️ Safety</button>
+                        </div>
+                        
+                        <!-- 5 Days Workflow Templates -->
+                        <div class="quick-templates" style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #ddd;">
+                            <span style="color:#667eea;margin-right:10px;font-weight:600;">📅 5 Days Workflow:</span>
+                            <button type="button" class="template-btn" data-template="5days_initiate" onclick="useTemplate('5days_initiate')" style="background:#e8f5e9;border-color:#4caf50;">📢 Initiate</button>
+                            <button type="button" class="template-btn" data-template="5days" onclick="useTemplate('5days')" style="background:#e3f2fd;border-color:#2196f3;">📋 Daily</button>
+                            <button type="button" class="template-btn" data-template="5days_48h" onclick="useTemplate('5days_48h')" style="background:#fff3e0;border-color:#ff9800;">⏰ 48H</button>
+                            <button type="button" class="template-btn" data-template="5days_final" onclick="useTemplate('5days_final')" style="background:#ffebee;border-color:#f44336;">⚠️ Final</button>
+                            <button type="button" class="template-btn" data-template="5days_overdue" onclick="useTemplate('5days_overdue')" style="background:#d32f2f;border-color:#b71c1c;color:white;">🚨 Overdue</button>
                         </div>
                         
                         <form id="broadcastForm" onsubmit="sendBroadcast(event)">
@@ -4883,6 +4951,22 @@ router.get('/broadcast', requireSysAdmin, async (req, res) => {
                                 <p style="font-size: 12px; color: #666; margin-top: 5px;">Check this to send the broadcast via email using the Broadcast Message template</p>
                             </div>
                             
+                            <!-- 5 Days Tracking -->
+                            <div class="form-group" id="fiveDaysTracking" style="margin-top: 15px; display: none; background: #f0f4ff; padding: 15px; border-radius: 8px; border: 1px solid #667eea;">
+                                <label style="font-weight: 600; color: #667eea; margin-bottom: 10px; display: block;">📅 5 Days Job Monitor Tracking</label>
+                                <p style="font-size: 12px; color: #666; margin-bottom: 10px;">This broadcast will be tracked in Job Monitor. Select the reminder step:</p>
+                                <select id="fiveDaysReminderType" style="padding: 8px 12px; border-radius: 6px; border: 1px solid #667eea; width: 100%;">
+                                    <option value="">-- Auto-detect from title --</option>
+                                    <option value="INITIATE">📢 INITIATE - Cycle Started (Day 1)</option>
+                                    <option value="DAY_2">📋 DAY 2 - Continue Recording</option>
+                                    <option value="REMINDER_48H">⏰ 48H REMINDER - 48 Hours Left (Day 3)</option>
+                                    <option value="DAY_4">📋 DAY 4 - Almost Done</option>
+                                    <option value="DAY_5">📋 DAY 5 - Final Day of Cycle</option>
+                                    <option value="FINAL_REMINDER">⚠️ FINAL REMINDER - Present Findings (Day 6)</option>
+                                    <option value="OVERDUE_WARNING">🚨 OVERDUE WARNING - Affects Audit (Day 7+)</option>
+                                </select>
+                            </div>
+                            
                             <button type="submit" class="btn btn-primary">📢 Send Broadcast</button>
                         </form>
                     </div>
@@ -4917,7 +5001,36 @@ router.get('/broadcast', requireSysAdmin, async (req, res) => {
                         '5days': {
                             title: '📅 5 Days Expired Items Check Reminder',
                             message: 'Dear Team,\\n\\nThis is a friendly reminder to complete the 5 Days Expired Items Check for your store.\\n\\nPlease ensure all products within 5 days of expiry are properly identified and managed.\\n\\nThank you for your cooperation!',
-                            templateKey: 'BROADCAST_5DAYS'
+                            templateKey: 'BROADCAST_5DAYS',
+                            is5Days: true
+                        },
+                        '5days_initiate': {
+                            title: '📅 5 Days INITIATE - Cycle Started',
+                            message: 'Dear Team,\\n\\nThe 5 Days Expired Items Check cycle has started today.\\n\\nPlease begin recording all products within 5 days of expiry in your store.\\n\\nYou have 5 days to complete this check.\\n\\nThank you!',
+                            templateKey: 'BROADCAST_5DAYS',
+                            is5Days: true,
+                            reminderType: 'INITIATE'
+                        },
+                        '5days_48h': {
+                            title: '⏰ 5 Days 48H REMINDER - 2 Days Left',
+                            message: 'Dear Team,\\n\\n⏰ REMINDER: You have 48 hours left to complete the 5 Days Expired Items Check.\\n\\nPlease ensure all items are recorded before the deadline.\\n\\nThank you!',
+                            templateKey: 'BROADCAST_5DAYS',
+                            is5Days: true,
+                            reminderType: 'REMINDER_48H'
+                        },
+                        '5days_final': {
+                            title: '⚠️ 5 Days FINAL REMINDER - Present Findings',
+                            message: 'Dear Team,\\n\\n⚠️ FINAL REMINDER: The 5 Days cycle has ended.\\n\\nPlease present your findings to the Area Manager today.\\n\\nEnsure all documentation is complete.\\n\\nThank you!',
+                            templateKey: 'BROADCAST_5DAYS',
+                            is5Days: true,
+                            reminderType: 'FINAL_REMINDER'
+                        },
+                        '5days_overdue': {
+                            title: '🚨 5 Days OVERDUE - Action Required',
+                            message: 'Dear Team,\\n\\n🚨 OVERDUE WARNING: The 5 Days Expired Items Check for this cycle is overdue.\\n\\nFailure to complete will affect your audit score.\\n\\nPlease complete immediately and present to your Area Manager.\\n\\nThank you!',
+                            templateKey: 'BROADCAST_5DAYS',
+                            is5Days: true,
+                            reminderType: 'OVERDUE_WARNING'
                         },
                         'inspection': {
                             title: '🔍 Inspection Due Reminder',
@@ -4943,6 +5056,23 @@ router.get('/broadcast', requireSysAdmin, async (req, res) => {
                             document.getElementById('message').value = template.message;
                             selectedTemplate = key;
                             updateTemplateButtons(key);
+                            
+                            // Show/hide 5 Days tracking section
+                            const fiveDaysTracking = document.getElementById('fiveDaysTracking');
+                            const reminderTypeSelect = document.getElementById('fiveDaysReminderType');
+                            
+                            if (template.is5Days) {
+                                fiveDaysTracking.style.display = 'block';
+                                // Pre-select the reminder type if specified
+                                if (template.reminderType) {
+                                    reminderTypeSelect.value = template.reminderType;
+                                } else {
+                                    reminderTypeSelect.value = '';
+                                }
+                            } else {
+                                fiveDaysTracking.style.display = 'none';
+                                reminderTypeSelect.value = '';
+                            }
                         }
                     }
                     
@@ -4992,7 +5122,8 @@ router.get('/broadcast', requireSysAdmin, async (req, res) => {
                             priority: document.getElementById('priority').value,
                             expiresAt: document.getElementById('expiresAt').value || null,
                             sendEmail: sendEmailChecked,
-                            emailTemplateKey: emailTemplateKey
+                            emailTemplateKey: emailTemplateKey,
+                            fiveDaysReminderType: document.getElementById('fiveDaysReminderType').value || null
                         };
                         
                         try {
@@ -5054,12 +5185,12 @@ router.get('/broadcast', requireSysAdmin, async (req, res) => {
 // Send broadcast API
 router.post('/api/broadcast', requireSysAdmin, async (req, res) => {
     try {
-        const { title, message, targetRoles, priority, expiresAt, sendEmail, emailTemplateKey } = req.body;
+        const { title, message, targetRoles, priority, expiresAt, sendEmail, emailTemplateKey, fiveDaysReminderType } = req.body;
         
         const pool = await sql.connect(dbConfig);
         
         // Insert the broadcast
-        await pool.request()
+        const broadcastResult = await pool.request()
             .input('title', sql.NVarChar, title)
             .input('message', sql.NVarChar, message)
             .input('targetRoles', sql.NVarChar, targetRoles)
@@ -5068,8 +5199,17 @@ router.post('/api/broadcast', requireSysAdmin, async (req, res) => {
             .input('createdBy', sql.Int, req.currentUser.userId)
             .query(`
                 INSERT INTO Broadcasts (Title, Message, TargetRoles, Priority, ExpiresAt, CreatedBy)
+                OUTPUT INSERTED.Id
                 VALUES (@title, @message, @targetRoles, @priority, @expiresAt, @createdBy)
             `);
+        
+        const broadcastId = broadcastResult.recordset[0]?.Id;
+        
+        // Only track as 5 Days broadcast when user explicitly selects a reminder type
+        const is5DaysBroadcast = fiveDaysReminderType && fiveDaysReminderType.trim() !== '';
+        
+        let emailsSentCount = 0;
+        const recipientEmails = [];
         
         // If sendEmail is enabled, send emails to target users using the template
         if (sendEmail) {
@@ -5134,6 +5274,9 @@ router.post('/api/broadcast', requireSysAdmin, async (req, res) => {
                             subject: subject,
                             html: body
                         });
+                        
+                        emailsSentCount++;
+                        recipientEmails.push(user.Email);
                     }
                     
                     console.log(`Broadcast email sent to ${usersResult.recordset.length} users`);
@@ -5144,9 +5287,54 @@ router.post('/api/broadcast', requireSysAdmin, async (req, res) => {
             }
         }
         
+        // If this is a 5 Days broadcast, log it to FiveDaysReminderLog for tracking
+        if (is5DaysBroadcast) {
+            try {
+                // Generate cycle key (current month and cycle number)
+                const today = new Date();
+                const day = today.getDate();
+                const month = today.getMonth() + 1;
+                const year = today.getFullYear();
+                
+                // Determine cycle number based on day
+                let cycleNumber = 0;
+                if (day >= 1 && day <= 10) cycleNumber = 1;
+                else if (day >= 15 && day <= 24) cycleNumber = 2;
+                else cycleNumber = day < 15 ? 1 : 2; // Default to nearest cycle
+                
+                const cycleKey = `${year}-${month}-C${cycleNumber}`;
+                
+                // Use the explicitly selected reminder type
+                const reminderType = fiveDaysReminderType;
+                
+                // Get all stores to log
+                const storesResult = await pool.request().query(`
+                    SELECT Id, StoreName FROM Stores WHERE IsActive = 1
+                `);
+                
+                // Log for all stores (broadcast was sent to all)
+                for (const store of storesResult.recordset) {
+                    await pool.request()
+                        .input('cycleKey', sql.NVarChar, cycleKey)
+                        .input('reminderType', sql.NVarChar, reminderType)
+                        .input('storeId', sql.Int, store.Id)
+                        .input('recipientEmail', sql.NVarChar, 'broadcast-all')
+                        .query(`
+                            INSERT INTO FiveDaysReminderLog (CycleKey, ReminderType, StoreId, RecipientEmail, SentAt)
+                            VALUES (@cycleKey, @reminderType, @storeId, @recipientEmail, GETDATE())
+                        `);
+                }
+                
+                console.log(`[5 Days] Broadcast logged: ${reminderType} for cycle ${cycleKey}, ${storesResult.recordset.length} stores`);
+            } catch (logErr) {
+                console.error('Error logging 5 Days broadcast:', logErr);
+                // Don't fail the request if logging fails
+            }
+        }
+        
         await pool.close();
         
-        res.json({ success: true });
+        res.json({ success: true, emailsSent: emailsSentCount });
     } catch (err) {
         console.error('Error sending broadcast:', err);
         res.status(500).json({ success: false, error: err.message });
@@ -6888,17 +7076,12 @@ router.get('/job-monitor', async (req, res) => {
                         try {
                             const res = await fetch('/admin/api/job-monitor/five-days/status');
                             const data = await res.json();
-                            let currentReminderType = null;
-                            let cycleKey = null;
-                            let daysIntoCycle = 0;
                             
                             if (data.success) {
                                 const cycle = data.currentCycle;
                                 
                                 // Update cycle info
                                 if (cycle && cycle.cycleKey) {
-                                    cycleKey = cycle.cycleKey;
-                                    daysIntoCycle = cycle.daysIntoCycle || 0;
                                     document.getElementById('fiveDaysCycleInfo').textContent = 
                                         'Cycle ' + cycle.cycleNumber + ' (' + (cycle.isInCycle ? 'Day ' + cycle.daysIntoCycle : 'Day ' + (5 + cycle.daysAfterCycle)) + ')';
                                     document.getElementById('fiveDaysCycleCard').className = 'scheduler-card ' + (cycle.isInCycle ? 'ok' : 'idle');
@@ -6912,21 +7095,30 @@ router.get('/job-monitor', async (req, res) => {
                                 document.getElementById('fiveDaysEmailsSent').textContent = data.stats?.emailsSent || 0;
                             }
                             
-                            // Get reminder type
+                            // Get reminder type from current cycle info
                             const cycleRes = await fetch('/admin/api/job-monitor/five-days/cycle-info');
                             const cycleData = await cycleRes.json();
                             if (cycleData.success && cycleData.reminderType) {
-                                currentReminderType = cycleData.reminderType;
                                 document.getElementById('fiveDaysReminderType').textContent = cycleData.reminderType.replace(/_/g, ' ');
                             } else {
                                 document.getElementById('fiveDaysReminderType').textContent = 'None scheduled';
                             }
                             
-                            // Update step tracker
-                            updateStepTracker(cycleData.cycleInfo, currentReminderType, cycleKey);
+                            // Load ACTUAL sent data from database (this is the key change!)
+                            const activeCycleRes = await fetch('/admin/api/job-monitor/five-days/active-cycle');
+                            const activeCycleData = await activeCycleRes.json();
                             
-                            // Load sent reminders for current cycle
-                            loadFiveDaysSentReminders(cycleKey);
+                            if (activeCycleData.success && activeCycleData.cycleKey) {
+                                // Update step tracker based on what was ACTUALLY sent
+                                updateStepTrackerFromSentData(activeCycleData.sentSteps);
+                                
+                                // Load sent reminders for this cycle
+                                loadFiveDaysSentReminders(activeCycleData.cycleKey, activeCycleData.summary);
+                            } else {
+                                // No data yet
+                                updateStepTrackerFromSentData([]);
+                                loadFiveDaysSentReminders(null, []);
+                            }
                             
                             // Load history
                             loadFiveDaysHistory();
@@ -6935,12 +7127,15 @@ router.get('/job-monitor', async (req, res) => {
                         }
                     }
                     
-                    function updateStepTracker(cycleInfo, currentReminderType, cycleKey) {
+                    function updateStepTrackerFromSentData(sentSteps) {
                         const steps = ['INITIATE', 'DAY_2', 'REMINDER_48H', 'DAY_4', 'DAY_5', 'FINAL_REMINDER', 'OVERDUE_WARNING'];
-                        const stepOrder = { 'INITIATE': 1, 'DAY_1': 1, 'DAY_2': 2, 'REMINDER_48H': 3, 'DAY_3': 3, 'DAY_4': 4, 'DAY_5': 5, 'FINAL_REMINDER': 6, 'OVERDUE_WARNING': 7 };
                         
-                        const currentStepNum = stepOrder[currentReminderType] || 0;
-                        const progressPercent = currentStepNum > 0 ? Math.min(100, ((currentStepNum - 1) / (steps.length - 1)) * 100) : 0;
+                        // Normalize sent steps (DAY_1 = INITIATE)
+                        const normalizedSentSteps = sentSteps.map(s => s === 'DAY_1' ? 'INITIATE' : s);
+                        
+                        // Calculate progress percentage based on completed steps
+                        const completedCount = steps.filter(s => normalizedSentSteps.includes(s)).length;
+                        const progressPercent = completedCount > 0 ? ((completedCount) / steps.length) * 100 : 0;
                         
                         // Update progress line
                         const progressLine = document.getElementById('fiveDaysProgressLine');
@@ -6949,23 +7144,17 @@ router.get('/job-monitor', async (req, res) => {
                         }
                         
                         // Update each step circle
-                        steps.forEach((step, idx) => {
-                            const stepNum = idx + 1;
+                        steps.forEach((step) => {
                             const circle = document.getElementById('step-' + step);
                             if (circle) {
-                                if (stepNum < currentStepNum) {
-                                    // Completed
+                                if (normalizedSentSteps.includes(step)) {
+                                    // Completed - this step was sent
                                     circle.style.background = '#28a745';
                                     circle.style.color = 'white';
                                     circle.style.boxShadow = '0 2px 8px rgba(40, 167, 69, 0.4)';
-                                } else if (stepNum === currentStepNum) {
-                                    // Current
-                                    circle.style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
-                                    circle.style.color = 'white';
-                                    circle.style.boxShadow = '0 4px 15px rgba(102, 126, 234, 0.5)';
-                                    circle.style.transform = 'scale(1.15)';
+                                    circle.style.transform = 'scale(1.1)';
                                 } else {
-                                    // Upcoming
+                                    // Not sent yet
                                     circle.style.background = '#e0e0e0';
                                     circle.style.color = '#666';
                                     circle.style.boxShadow = 'none';
@@ -6975,68 +7164,42 @@ router.get('/job-monitor', async (req, res) => {
                         });
                     }
                     
-                    async function loadFiveDaysSentReminders(cycleKey) {
+                    function updateStepTracker(cycleInfo, currentReminderType, cycleKey) {
+                        // This function is now secondary - updateStepTrackerFromSentData is primary
+                        // Keep for backward compatibility
+                    }
+                    
+                    async function loadFiveDaysSentReminders(cycleKey, summary) {
                         const container = document.getElementById('fiveDaysSentReminders');
-                        if (!cycleKey) {
-                            container.innerHTML = '<div style="padding: 15px; background: #f8f9fa; border-radius: 8px; color: #666;">No active cycle - no reminders to show</div>';
+                        
+                        if (!cycleKey || !summary || summary.length === 0) {
+                            container.innerHTML = '<div style="padding: 15px; background: #f8f9fa; border-radius: 8px; color: #666;">No reminders sent yet. Use the Broadcast page to send 5 Days reminders.</div>';
                             return;
                         }
                         
-                        try {
-                            const res = await fetch('/admin/api/job-monitor/five-days/history');
-                            const data = await res.json();
-                            
-                            if (data.success && data.history) {
-                                // Filter for current cycle
-                                const cycleReminders = data.history.filter(h => h.CycleKey === cycleKey);
-                                
-                                // Group by reminder type
-                                const byType = {};
-                                cycleReminders.forEach(r => {
-                                    if (!byType[r.ReminderType]) {
-                                        byType[r.ReminderType] = { count: 0, stores: [], lastSent: null };
-                                    }
-                                    byType[r.ReminderType].count++;
-                                    if (!byType[r.ReminderType].stores.includes(r.StoreName)) {
-                                        byType[r.ReminderType].stores.push(r.StoreName);
-                                    }
-                                    if (!byType[r.ReminderType].lastSent || new Date(r.SentAt) > new Date(byType[r.ReminderType].lastSent)) {
-                                        byType[r.ReminderType].lastSent = r.SentAt;
-                                    }
-                                });
-                                
-                                if (Object.keys(byType).length > 0) {
-                                    const typeColors = {
-                                        'INITIATE': '#28a745',
-                                        'DAY_1': '#667eea', 'DAY_2': '#667eea', 'DAY_3': '#667eea', 'DAY_4': '#667eea', 'DAY_5': '#667eea',
-                                        'REMINDER_48H': '#ffc107',
-                                        'FINAL_REMINDER': '#fd7e14',
-                                        'OVERDUE_WARNING': '#dc3545'
-                                    };
-                                    
-                                    container.innerHTML = \`
-                                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
-                                            \${Object.entries(byType).map(([type, info]) => \`
-                                                <div style="background: #fff; border-left: 4px solid \${typeColors[type] || '#667eea'}; padding: 12px 15px; border-radius: 0 8px 8px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                                                    <div style="font-weight: 600; color: #333; margin-bottom: 5px;">\${type.replace(/_/g, ' ')}</div>
-                                                    <div style="font-size: 12px; color: #666;">
-                                                        <div>✅ <strong>\${info.count}</strong> emails sent</div>
-                                                        <div>📍 \${info.stores.length} stores</div>
-                                                        <div>🕐 \${new Date(info.lastSent).toLocaleString()}</div>
-                                                    </div>
-                                                </div>
-                                            \`).join('')}
+                        const typeColors = {
+                            'INITIATE': '#28a745', 'DAY_1': '#28a745',
+                            'DAY_2': '#667eea', 'DAY_3': '#667eea', 'DAY_4': '#667eea', 'DAY_5': '#667eea',
+                            'REMINDER_48H': '#ffc107',
+                            'FINAL_REMINDER': '#fd7e14',
+                            'OVERDUE_WARNING': '#dc3545'
+                        };
+                        
+                        container.innerHTML = \`
+                            <div style="margin-bottom: 10px; font-size: 12px; color: #666;">Cycle: <strong>\${cycleKey}</strong></div>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
+                                \${summary.map(item => \`
+                                    <div style="background: #fff; border-left: 4px solid \${typeColors[item.ReminderType] || '#667eea'}; padding: 12px 15px; border-radius: 0 8px 8px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                                        <div style="font-weight: 600; color: #333; margin-bottom: 5px;">\${item.ReminderType.replace(/_/g, ' ')}</div>
+                                        <div style="font-size: 12px; color: #666;">
+                                            <div>✅ <strong>\${item.EmailCount}</strong> emails sent</div>
+                                            <div>📍 \${item.StoreCount} stores</div>
+                                            <div>🕐 \${new Date(item.LastSentAt).toLocaleString()}</div>
                                         </div>
-                                    \`;
-                                } else {
-                                    container.innerHTML = '<div style="padding: 15px; background: #f8f9fa; border-radius: 8px; color: #666;">No reminders sent yet for this cycle</div>';
-                                }
-                            } else {
-                                container.innerHTML = '<div style="padding: 15px; background: #f8f9fa; border-radius: 8px; color: #666;">No reminders sent yet for this cycle</div>';
-                            }
-                        } catch (e) {
-                            container.innerHTML = '<div style="padding: 15px; background: #fff3cd; border-radius: 8px; color: #856404;">Error loading sent reminders</div>';
-                        }
+                                    </div>
+                                \`).join('')}
+                            </div>
+                        \`;
                     }
                     
                     async function loadFiveDaysHistory() {
