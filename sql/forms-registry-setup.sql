@@ -39,6 +39,8 @@ USING (VALUES
     ('OHS_DASHBOARD', 'OHS Dashboard', 'OHS', '/ohs', 'Main OHS landing page'),
     ('OHS_SETTINGS', 'OHS Settings', 'OHS', '/ohs/settings', 'OHS configuration and settings'),
     ('OHS_INCIDENT', 'OHS Incident Reporting', 'OHS', '/stores/ohs-incident', 'Report and manage OHS incidents'),
+    ('OHS_FIRE_EQUIPMENT', 'Fire Equipment Register', 'OHS', '/ohs/fire-equipment', 'Fire fighting equipment inspections'),
+    ('OHS_FIRE_EQUIPMENT_ADMIN', 'Fire Equipment Admin', 'OHS', '/ohs/fire-equipment/admin', 'Configure fire equipment types and store registry'),
     
     -- OHS Inspection Module
     ('OHS_INSPECTION', 'OHS Inspection', 'OHS Inspection', '/ohs-inspection', 'OHS inspection forms and checklists'),

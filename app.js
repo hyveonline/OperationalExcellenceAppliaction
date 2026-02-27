@@ -165,6 +165,7 @@ app.get('/dashboard', requireAuth, (req, res) => {
         
         // OHS module (main OHS incidents)
         'OHS_DASHBOARD': 'ohs', 'OHS_INCIDENT': 'ohs', 'OHS_SETTINGS': 'ohs',
+        'OHS_FIRE_EQUIPMENT': 'fire-equipment', 'OHS_FIRE_EQUIPMENT_ADMIN': 'fire-equipment',
         
         // OHS Inspection module
         'OHS_INSPECTION': 'ohs-inspection', 'OHS_INSPECTION_START': 'ohs-inspection', 
@@ -228,7 +229,7 @@ app.get('/dashboard', requireAuth, (req, res) => {
     
     // System Administrator always has full access (no SQL check needed)
     if (roleNames.includes('System Administrator')) {
-        ['stores', 'security-services', 'ohs', 'ohs-inspection', 'oe', 'oe-inspection', 'thirdparty', 'security', 'hr', 'personnel', 'escalation', 'broadcast', 'maknezi-fnb', 'legal-cases', 'thirdparty-blacklist', 'security-daily-reporting', 'master-table', 'store-visit-calendar', 'sec-visit-calendar', 'camera-request'].forEach(m => accessibleMenus.add(m));
+        ['stores', 'security-services', 'ohs', 'ohs-inspection', 'fire-equipment', 'oe', 'oe-inspection', 'thirdparty', 'security', 'hr', 'personnel', 'escalation', 'broadcast', 'maknezi-fnb', 'legal-cases', 'thirdparty-blacklist', 'security-daily-reporting', 'master-table', 'store-visit-calendar', 'sec-visit-calendar', 'camera-request'].forEach(m => accessibleMenus.add(m));
     }
     
     // Build menu items based on permissions - organized by department/category
@@ -251,7 +252,8 @@ app.get('/dashboard', requireAuth, (req, res) => {
             color: '#28a745',
             items: [
                 { id: 'ohs', icon: '🦺', title: 'OHS Incidents', href: '/ohs', desc: 'OHS incidents & reports' },
-                { id: 'ohs-inspection', icon: '🛡️', title: 'OHS Inspection', href: '/ohs-inspection', desc: 'OHS safety inspections & audits' }
+                { id: 'ohs-inspection', icon: '🛡️', title: 'OHS Inspection', href: '/ohs-inspection', desc: 'OHS safety inspections & audits' },
+                { id: 'fire-equipment', icon: '🧯', title: 'Fire Equipment', href: '/ohs/fire-equipment', desc: 'Fire fighting equipment register' }
             ]
         },
         {

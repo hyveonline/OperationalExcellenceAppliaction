@@ -8,9 +8,13 @@ const router = express.Router();
 
 // Import sub-modules
 const ohsSettings = require('./settings');
+const fireEquipment = require('./fire-equipment');
+const fireEquipmentAdmin = require('./fire-equipment-admin');
 
 // Mount sub-routes
 router.use('/settings', ohsSettings);
+router.use('/fire-equipment', fireEquipment);
+router.use('/fire-equipment/admin', fireEquipmentAdmin);
 
 // OHS Landing Page
 router.get('/', (req, res) => {
@@ -23,10 +27,12 @@ router.get('/', (req, res) => {
         { id: 'categories', icon: '📁', title: 'Event Categories', href: '/ohs/settings/categories', desc: 'Manage categories and sub-categories', color: '#00b894' },
         { id: 'injury-types', icon: '🩹', title: 'Injury Types', href: '/ohs/settings/injury-types', desc: 'Configure injury types for reporting', color: '#e17055' },
         { id: 'body-parts', icon: '🦴', title: 'Body Parts', href: '/ohs/settings/body-parts', desc: 'Manage body part options for injuries', color: '#fdcb6e' },
+        { id: 'fire-equipment-setup', icon: '⚙️', title: 'Fire Equipment Setup', href: '/ohs/fire-equipment/admin', desc: 'Configure fire equipment types and store registry', color: '#d63031' },
     ];
     
     // Dashboard cards
     const dashboardCards = [
+        { id: 'fire-equipment', icon: '🧯', title: 'Fire Equipment Register', href: '/ohs/fire-equipment', desc: 'Manage fire fighting equipment inspections', color: '#d63031' },
         { id: 'all-incidents', icon: '📊', title: 'All Incidents', href: '/stores/ohs-incident/history', desc: 'View and manage all reported incidents', color: '#e17055' },
         { id: 'pending-review', icon: '⏳', title: 'Pending Review', href: '/stores/ohs-incident/history?status=pending', desc: 'Incidents awaiting review', color: '#fdcb6e' },
         { id: 'reports', icon: '📈', title: 'Reports & Analytics', href: '/ohs/reports', desc: 'Generate OHS reports and statistics', color: '#00cec9' },
