@@ -390,18 +390,18 @@ router.get('/', async (req, res) => {
                     
                     <!-- Filters -->
                     <div class="filters">
-                        <select id="filterStatus">
+                        <input type="text" id="searchInput" placeholder="🔍 Search ID, Store, Provider..." style="min-width: 250px;" oninput="applyFilters()">
+                        <select id="filterStatus" onchange="applyFilters()">
                             <option value="">All Statuses</option>
                             <option value="Pending">Pending</option>
                             <option value="Approved">Approved</option>
                             <option value="Rejected">Rejected</option>
                         </select>
-                        <select id="filterStore">
+                        <select id="filterStore" onchange="applyFilters()">
                             <option value="">All Stores</option>
                         </select>
-                        <input type="date" id="filterFrom" placeholder="From Date">
-                        <input type="date" id="filterTo" placeholder="To Date">
-                        <button onclick="applyFilters()">🔍 Filter</button>
+                        <input type="date" id="filterFrom" placeholder="From Date" onchange="applyFilters()">
+                        <input type="date" id="filterTo" placeholder="To Date" onchange="applyFilters()">
                         <button onclick="clearFilters()" style="background:#6c757d;">Clear</button>
                     </div>
                     
@@ -580,24 +580,71 @@ router.get('/', async (req, res) => {
                     }
                     
                     function applyFilters() {
-                        // Client-side filtering for simplicity
-                        const status = document.getElementById('filterStatus').value;
-                        const store = document.getElementById('filterStore').value;
+                        const search = document.getElementById('searchInput').value.toLowerCase();
+                        const status = document.getElementById('filterStatus').value.toLowerCase();
+                        const store = document.getElementById('filterStore').value.toLowerCase();
+                        const fromDate = document.getElementById('filterFrom').value;
+                        const toDate = document.getElementById('filterTo').value;
                         const rows = document.querySelectorAll('#requestsTable tr');
                         
                         rows.forEach(row => {
+                            const cells = row.querySelectorAll('td');
+                            if (cells.length === 0) return;
+                            
+                            const rowId = cells[0].textContent.toLowerCase();
+                            const rowStore = cells[1].textContent.toLowerCase();
+                            const rowCategory = cells[2].textContent.toLowerCase();
+                            const rowProvider = cells[3].textContent.toLowerCase();
+                            const rowStatus = cells[11].textContent.toLowerCase();
+                            const rowStartDate = cells[5].textContent;
+                            
                             let show = true;
-                            // Add filter logic here
+                            
+                            // Search filter
+                            if (search) {
+                                const searchMatch = rowId.includes(search) || rowStore.includes(search) || 
+                                                   rowProvider.includes(search) || rowCategory.includes(search);
+                                if (!searchMatch) show = false;
+                            }
+                            
+                            // Status filter
+                            if (status && !rowStatus.includes(status)) show = false;
+                            
+                            // Store filter
+                            if (store && !rowStore.includes(store)) show = false;
+                            
                             row.style.display = show ? '' : 'none';
                         });
+                        
+                        updateCounts();
+                    }
+                    
+                    function updateCounts() {
+                        const rows = document.querySelectorAll('#requestsTable tr');
+                        let visible = 0, pending = 0, approved = 0, rejected = 0;
+                        rows.forEach(row => {
+                            if (row.style.display !== 'none') {
+                                visible++;
+                                const status = row.querySelectorAll('td')[11]?.textContent?.toLowerCase() || '';
+                                if (status.includes('pending')) pending++;
+                                else if (status.includes('approved')) approved++;
+                                else if (status.includes('rejected')) rejected++;
+                            }
+                        });
+                        document.getElementById('totalCount').textContent = visible;
+                        document.getElementById('pendingCount').textContent = pending;
+                        document.getElementById('approvedCount').textContent = approved;
+                        document.getElementById('rejectedCount').textContent = rejected;
                     }
                     
                     function clearFilters() {
+                        document.getElementById('searchInput').value = '';
                         document.getElementById('filterStatus').value = '';
                         document.getElementById('filterStore').value = '';
                         document.getElementById('filterFrom').value = '';
                         document.getElementById('filterTo').value = '';
                         document.querySelectorAll('#requestsTable tr').forEach(row => row.style.display = '');
+                        updateCounts();
                     }
                     
                     // Close modal on outside click

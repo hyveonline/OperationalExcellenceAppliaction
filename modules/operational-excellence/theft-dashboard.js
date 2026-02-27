@@ -118,6 +118,7 @@ router.get('/', async (req, res) => {
         const store = req.query.store || '';
         const dateFrom = req.query.dateFrom || '';
         const dateTo = req.query.dateTo || '';
+        const search = req.query.search || '';
         
         // Build query
         let whereClause = '1=1';
@@ -138,6 +139,17 @@ router.get('/', async (req, res) => {
         if (dateTo) {
             whereClause += ' AND t.IncidentDate <= @dateTo';
             request.input('dateTo', sql.Date, dateTo);
+        }
+        if (search) {
+            whereClause += ` AND (
+                CAST(t.Id AS NVARCHAR) LIKE @search
+                OR t.ThiefName LIKE @search
+                OR t.ThiefSurname LIKE @search
+                OR t.ThiefIdNumber LIKE @search
+                OR t.StolenItems LIKE @search
+                OR t.Store LIKE @search
+            )`;
+            request.input('search', sql.NVarChar, '%' + search + '%');
         }
         
         // Get incidents
@@ -527,6 +539,10 @@ router.get('/', async (req, res) => {
                     
                     <!-- Filters -->
                     <form class="filters" method="GET">
+                        <div class="filter-group">
+                            <label>Search (ID, Name, Items)</label>
+                            <input type="text" name="search" value="${search}" placeholder="Search..." style="min-width: 200px;">
+                        </div>
                         <div class="filter-group">
                             <label>Status</label>
                             <select name="status">
