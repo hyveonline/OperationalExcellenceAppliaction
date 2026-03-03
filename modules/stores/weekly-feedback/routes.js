@@ -1,5 +1,5 @@
-﻿/**
- * Weekly Third Party Feedback Routes
+/**
+ * Weekly Third Party Feedback Routes - Updated Form
  * Store managers submit weekly feedback about third party services
  */
 
@@ -112,27 +112,28 @@ router.get('/', async (req, res) => {
             <html>
             <head>
                 <meta charset="UTF-8">
-            <title>Weekly Third Party Feedback - ${process.env.APP_NAME}</title>
+                <title>Weekly Third Party Feedback - ${process.env.APP_NAME}</title>
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <style>
                     * { box-sizing: border-box; margin: 0; padding: 0; }
                     body { font-family: 'Segoe UI', Arial, sans-serif; background: #f5f6fa; min-height: 100vh; }
-                    .header { background: linear-gradient(135deg, #6c5ce7 0%, #a29bfe 100%); color: white; padding: 20px 30px; display: flex; justify-content: space-between; align-items: center; }
+                    .header { background: linear-gradient(135deg, #6c5ce7 0%, #a29bfe 100%); color: white; padding: 20px 30px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
                     .header h1 { font-size: 24px; display: flex; align-items: center; gap: 10px; }
-                    .header-nav { display: flex; gap: 15px; }
+                    .header-nav { display: flex; gap: 15px; flex-wrap: wrap; }
                     .header-nav a { color: white; text-decoration: none; padding: 8px 16px; border-radius: 5px; background: rgba(255,255,255,0.15); transition: all 0.2s; }
                     .header-nav a:hover { background: rgba(255,255,255,0.25); }
-                    .container { max-width: 800px; margin: 30px auto; padding: 0 20px; }
+                    .container { max-width: 900px; margin: 30px auto; padding: 0 20px; }
                     .form-card { background: white; border-radius: 12px; box-shadow: 0 2px 15px rgba(0,0,0,0.08); overflow: hidden; }
                     .form-header { background: linear-gradient(135deg, #6c5ce7 0%, #a29bfe 100%); color: white; padding: 25px; text-align: center; }
                     .form-header h2 { margin: 0; font-size: 22px; }
                     .form-header p { margin: 10px 0 0 0; opacity: 0.9; font-size: 14px; }
                     .form-body { padding: 30px; }
-                    .form-section { margin-bottom: 25px; }
-                    .form-section h3 { color: #6c5ce7; font-size: 16px; margin-bottom: 15px; padding-bottom: 8px; border-bottom: 2px solid #f0f0f0; }
+                    .form-section { margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+                    .form-section:last-child { border-bottom: none; }
+                    .form-section h3 { color: #6c5ce7; font-size: 16px; margin-bottom: 20px; padding-bottom: 8px; border-bottom: 2px solid #6c5ce7; display: inline-block; }
                     .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 20px; }
-                    .form-group { margin-bottom: 15px; }
-                    .form-group label { display: block; margin-bottom: 6px; font-weight: 600; color: #333; font-size: 14px; }
+                    .form-group { margin-bottom: 20px; }
+                    .form-group label { display: block; margin-bottom: 8px; font-weight: 600; color: #333; font-size: 14px; }
                     .form-group label span.required { color: #e74c3c; }
                     .form-group input, .form-group select, .form-group textarea { 
                         width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; 
@@ -141,20 +142,55 @@ router.get('/', async (req, res) => {
                     .form-group input:focus, .form-group select:focus, .form-group textarea:focus { 
                         outline: none; border-color: #6c5ce7; box-shadow: 0 0 0 3px rgba(108,92,231,0.1); 
                     }
-                    .form-group textarea { min-height: 100px; resize: vertical; }
-                    .rating-group { display: flex; gap: 10px; flex-wrap: wrap; }
-                    .rating-item { flex: 1; min-width: 150px; background: #f8f9fa; border-radius: 10px; padding: 15px; text-align: center; }
-                    .rating-item label { display: block; margin-bottom: 10px; font-weight: 600; color: #333; font-size: 13px; }
-                    .stars { display: flex; justify-content: center; gap: 5px; }
+                    .form-group textarea { min-height: 80px; resize: vertical; }
+                    .form-group input[type="number"] { max-width: 150px; }
+                    
+                    /* Radio Button Styles */
+                    .radio-group { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 8px; }
+                    .radio-group.vertical { flex-direction: column; gap: 10px; }
+                    .radio-item { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+                    .radio-item input[type="radio"] { width: 18px; height: 18px; cursor: pointer; accent-color: #6c5ce7; }
+                    .radio-item label { cursor: pointer; font-weight: normal; margin: 0; }
+                    
+                    /* Company Selection Styled */
+                    .company-radio-group { display: flex; gap: 15px; flex-wrap: wrap; }
+                    .company-radio { 
+                        flex: 1; min-width: 120px; padding: 15px; border: 2px solid #ddd; border-radius: 10px; 
+                        text-align: center; cursor: pointer; transition: all 0.2s;
+                    }
+                    .company-radio:hover { border-color: #6c5ce7; background: #f8f5ff; }
+                    .company-radio input { display: none; }
+                    .company-radio.selected { border-color: #6c5ce7; background: #6c5ce7; color: white; }
+                    .company-radio span { font-weight: 600; }
+                    
+                    /* Star Rating */
+                    .rating-container { margin-bottom: 20px; }
+                    .rating-label { font-weight: 600; color: #333; margin-bottom: 10px; display: block; }
+                    .stars { display: flex; gap: 5px; direction: rtl; justify-content: flex-end; }
                     .stars input { display: none; }
-                    .stars label { cursor: pointer; font-size: 28px; color: #ddd; transition: color 0.2s; }
-                    .stars label:hover, .stars label:hover ~ label, .stars input:checked ~ label { color: #f1c40f; }
-                    .stars:hover label { color: #ddd; }
-                    .stars label:hover, .stars label:hover ~ label { color: #f1c40f; }
+                    .stars label { cursor: pointer; font-size: 32px; color: #ddd; transition: color 0.2s; }
+                    .stars input:checked ~ label, .stars label:hover, .stars label:hover ~ label { color: #f1c40f; }
+                    
+                    /* Yes/No Toggle */
+                    .yes-no-toggle { display: flex; gap: 10px; }
+                    .yes-no-btn { 
+                        padding: 10px 25px; border: 2px solid #ddd; border-radius: 8px; 
+                        cursor: pointer; font-weight: 600; transition: all 0.2s; background: white;
+                    }
+                    .yes-no-btn:hover { border-color: #6c5ce7; }
+                    .yes-no-btn.yes.selected { background: #00b894; border-color: #00b894; color: white; }
+                    .yes-no-btn.no.selected { background: #d63031; border-color: #d63031; color: white; }
+                    .yes-no-btn input { display: none; }
+                    
+                    /* Conditional Sections */
+                    .conditional-section { display: none; margin-top: 20px; padding: 20px; background: #f8f9fa; border-radius: 10px; border-left: 4px solid #6c5ce7; }
+                    .conditional-section.visible { display: block; }
+                    
                     .week-info { background: #e8f4fd; border-radius: 8px; padding: 15px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
                     .week-info .icon { font-size: 24px; }
                     .week-info .text { flex: 1; }
                     .week-info .dates { font-weight: 600; color: #0078d4; }
+                    
                     .btn-submit { 
                         width: 100%; padding: 16px; background: linear-gradient(135deg, #6c5ce7 0%, #a29bfe 100%); 
                         color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; 
@@ -162,22 +198,26 @@ router.get('/', async (req, res) => {
                     }
                     .btn-submit:hover { transform: translateY(-2px); box-shadow: 0 5px 20px rgba(108,92,231,0.3); }
                     .btn-submit:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+                    
                     .user-info { background: #f8f9fa; border-radius: 8px; padding: 15px; margin-bottom: 20px; }
                     .user-info p { margin: 5px 0; font-size: 14px; }
                     .user-info strong { color: #6c5ce7; }
+                    
                     .toast { position: fixed; top: 20px; right: 20px; padding: 15px 25px; border-radius: 8px; color: white; font-weight: 600; display: none; z-index: 1000; }
                     .toast-success { background: #00b894; }
                     .toast-error { background: #d63031; }
-                    .image-upload-area { 
-                        border: 2px dashed #ddd; border-radius: 12px; padding: 30px; text-align: center; 
-                        cursor: pointer; transition: all 0.2s; position: relative; min-height: 150px;
-                        display: flex; flex-direction: column; align-items: center; justify-content: center;
+                    
+                    .question-number { 
+                        display: inline-flex; align-items: center; justify-content: center;
+                        width: 24px; height: 24px; background: #6c5ce7; color: white; 
+                        border-radius: 50%; font-size: 12px; font-weight: 600; margin-right: 8px;
                     }
-                    .image-upload-area:hover { border-color: #6c5ce7; background: #f8f5ff; }
-                    .image-upload-area p { margin: 10px 0 5px 0; color: #666; font-size: 14px; }
+                    
                     @media (max-width: 600px) {
                         .form-row { grid-template-columns: 1fr; }
-                        .rating-group { flex-direction: column; }
+                        .company-radio-group { flex-direction: column; }
+                        .header { padding: 15px; }
+                        .header h1 { font-size: 18px; }
                     }
                 </style>
             </head>
@@ -210,124 +250,305 @@ router.get('/', async (req, res) => {
                                 <input type="hidden" name="weekStart" value="${currentWeek.start}">
                                 <input type="hidden" name="weekEnd" value="${currentWeek.end}">
                                 
+                                <!-- SECTION 1: Store Information -->
                                 <div class="form-section">
                                     <h3>📍 Store Information</h3>
-                                    <div class="form-row">
+                                    
+                                    <div class="form-group">
+                                        <label><span class="question-number">1</span>Head of Operations <span class="required">*</span></label>
+                                        <select name="headOfOpsId" id="headOfOpsId" required>
+                                            <option value="">Select Head of Operations</option>
+                                            ${hoOptions}
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <label><span class="question-number">2</span>Area Manager <span class="required">*</span></label>
+                                        <select name="areaManagerId" id="areaManagerId" required>
+                                            <option value="">Select Area Manager</option>
+                                            ${amOptions}
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <label><span class="question-number">3</span>Store Name <span class="required">*</span></label>
+                                        <select name="storeId" id="storeId" required>
+                                            <option value="">Select Store</option>
+                                            ${storeOptions}
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="user-info">
+                                        <p><strong>Submitted By:</strong> ${currentUser.displayName || currentUser.email || 'Unknown'}</p>
+                                        <p><strong>Email:</strong> ${currentUser.email || 'N/A'}</p>
+                                    </div>
+                                </div>
+                                
+                                <!-- SECTION 2: Cleaning Company -->
+                                <div class="form-section">
+                                    <h3>🧹 Cleaning Services</h3>
+                                    
+                                    <div class="form-group">
+                                        <label><span class="question-number">4</span>Cleaning Company <span class="required">*</span></label>
+                                        <div class="company-radio-group">
+                                            <div class="company-radio" onclick="selectCompany(this, 'Assiyana')">
+                                                <input type="radio" name="cleaningCompany" value="Assiyana" required>
+                                                <span>Assiyana</span>
+                                            </div>
+                                            <div class="company-radio" onclick="selectCompany(this, 'Bright')">
+                                                <input type="radio" name="cleaningCompany" value="Bright">
+                                                <span>Bright</span>
+                                            </div>
+                                            <div class="company-radio" onclick="selectCompany(this, 'C-Plus')">
+                                                <input type="radio" name="cleaningCompany" value="C-Plus">
+                                                <span>C-Plus</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <label><span class="question-number">5</span>Number of Cleaners assigned to the store</label>
+                                        <input type="number" name="numberOfCleaners" min="0" placeholder="Enter number">
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <label><span class="question-number">6</span>Cleaners adherence to the schedule <span class="required">*</span></label>
+                                        <div class="yes-no-toggle">
+                                            <div class="yes-no-btn yes" onclick="selectYesNo(this, 'cleanersAdherence', 'yes')">
+                                                <input type="radio" name="cleanersAdherence" value="yes" required>Yes
+                                            </div>
+                                            <div class="yes-no-btn no" onclick="selectYesNo(this, 'cleanersAdherence', 'no')">
+                                                <input type="radio" name="cleanersAdherence" value="no">No
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <label><span class="question-number">7</span>Comments (Adherence to Schedule)</label>
+                                        <textarea name="cleanersAdherenceComments" placeholder="Enter comments about schedule adherence..."></textarea>
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <label><span class="question-number">8</span>Are the cleaners attending with company uniforms? <span class="required">*</span></label>
+                                        <div class="yes-no-toggle">
+                                            <div class="yes-no-btn yes" onclick="selectYesNo(this, 'cleanersUniforms', 'yes')">
+                                                <input type="radio" name="cleanersUniforms" value="yes" required>Yes
+                                            </div>
+                                            <div class="yes-no-btn no" onclick="selectYesNo(this, 'cleanersUniforms', 'no')">
+                                                <input type="radio" name="cleanersUniforms" value="no">No
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <label><span class="question-number">9</span>Comments (Uniforms)</label>
+                                        <textarea name="cleanersUniformComments" placeholder="Enter comments about uniforms..."></textarea>
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <label><span class="question-number">10</span>Do cleaners respect personal Hygiene? <span class="required">*</span></label>
+                                        <div class="yes-no-toggle">
+                                            <div class="yes-no-btn yes" onclick="selectYesNo(this, 'cleanersHygiene', 'yes')">
+                                                <input type="radio" name="cleanersHygiene" value="yes" required>Yes
+                                            </div>
+                                            <div class="yes-no-btn no" onclick="selectYesNo(this, 'cleanersHygiene', 'no')">
+                                                <input type="radio" name="cleanersHygiene" value="no">No
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <label><span class="question-number">11</span>Comments (Personal Hygiene)</label>
+                                        <textarea name="cleanersHygieneComments" placeholder="Enter comments about personal hygiene..."></textarea>
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <label><span class="question-number">12</span>Was a deep cleaning performed at the store for this month? <span class="required">*</span></label>
+                                        <div class="yes-no-toggle">
+                                            <div class="yes-no-btn yes" onclick="selectYesNo(this, 'deepCleaning', 'yes')">
+                                                <input type="radio" name="deepCleaning" value="yes" required>Yes
+                                            </div>
+                                            <div class="yes-no-btn no" onclick="selectYesNo(this, 'deepCleaning', 'no')">
+                                                <input type="radio" name="deepCleaning" value="no">No
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <label><span class="question-number">13</span>Is the cleaning team abiding by the cleaning checklist of the store manager? <span class="required">*</span></label>
+                                        <div class="yes-no-toggle">
+                                            <div class="yes-no-btn yes" onclick="selectYesNo(this, 'abidingChecklist', 'yes')">
+                                                <input type="radio" name="abidingChecklist" value="yes" required>Yes
+                                            </div>
+                                            <div class="yes-no-btn no" onclick="selectYesNo(this, 'abidingChecklist', 'no')">
+                                                <input type="radio" name="abidingChecklist" value="no">No
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <label><span class="question-number">14</span>Comments (Checklist)</label>
+                                        <textarea name="cleaningChecklistComments" placeholder="Enter comments about checklist compliance..."></textarea>
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <label><span class="question-number">15</span>Cleaning Machine Available at the store? <span class="required">*</span></label>
+                                        <div class="yes-no-toggle">
+                                            <div class="yes-no-btn yes" onclick="selectYesNo(this, 'machineAvailable', 'yes'); toggleMachineSection(true);">
+                                                <input type="radio" name="machineAvailable" value="yes" required>Yes
+                                            </div>
+                                            <div class="yes-no-btn no" onclick="selectYesNo(this, 'machineAvailable', 'no'); toggleMachineSection(false);">
+                                                <input type="radio" name="machineAvailable" value="no">No
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Conditional Section: Machine Available = YES -->
+                                    <div class="conditional-section" id="machineYesSection">
                                         <div class="form-group">
-                                            <label>Store Name <span class="required">*</span></label>
-                                            <select name="storeId" id="storeId" required>
-                                                <option value="">Select Store</option>
-                                                ${storeOptions}
-                                            </select>
+                                            <label><span class="question-number">16</span>Number of Cleaning machines available at the store</label>
+                                            <input type="number" name="numberOfMachines" min="0" placeholder="Enter number">
                                         </div>
-                                    </div>
-                                </div>
-                                
-                                <div class="form-section">
-                                    <h3>👥 Management</h3>
-                                    <div class="form-row">
+                                        
                                         <div class="form-group">
-                                            <label>Head of Operations <span class="required">*</span></label>
-                                            <select name="headOfOpsId" id="headOfOpsId" required>
-                                                <option value="">Select Head of Operations</option>
-                                                ${hoOptions}
-                                            </select>
-                                        </div>
-                                        <div class="form-group">
-                                            <label>Area Manager <span class="required">*</span></label>
-                                            <select name="areaManagerId" id="areaManagerId" required>
-                                                <option value="">Select Area Manager</option>
-                                                ${amOptions}
-                                            </select>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <div class="user-info">
-                                    <p><strong>Submitted By:</strong> ${currentUser.displayName || currentUser.email || 'Unknown'}</p>
-                                    <p><strong>Email:</strong> ${currentUser.email || 'N/A'}</p>
-                                </div>
-                                
-                                <div class="form-section">
-                                    <h3>⭐ Ratings</h3>
-                                    <p style="color: #666; font-size: 13px; margin-bottom: 15px;">Rate the third party service for this week (1 = Poor, 5 = Excellent)</p>
-                                    <div class="rating-group">
-                                        <div class="rating-item">
-                                            <label>Overall Performance</label>
-                                            <div class="stars" data-rating="overallRating">
-                                                <input type="radio" name="overallRating" value="5" id="overall5"><label for="overall5">★</label>
-                                                <input type="radio" name="overallRating" value="4" id="overall4"><label for="overall4">★</label>
-                                                <input type="radio" name="overallRating" value="3" id="overall3"><label for="overall3">★</label>
-                                                <input type="radio" name="overallRating" value="2" id="overall2"><label for="overall2">★</label>
-                                                <input type="radio" name="overallRating" value="1" id="overall1"><label for="overall1">★</label>
-                                            </div>
-                                        </div>
-                                        <div class="rating-item">
-                                            <label>Cleanliness</label>
-                                            <div class="stars" data-rating="cleanlinessRating">
-                                                <input type="radio" name="cleanlinessRating" value="5" id="clean5"><label for="clean5">★</label>
-                                                <input type="radio" name="cleanlinessRating" value="4" id="clean4"><label for="clean4">★</label>
-                                                <input type="radio" name="cleanlinessRating" value="3" id="clean3"><label for="clean3">★</label>
-                                                <input type="radio" name="cleanlinessRating" value="2" id="clean2"><label for="clean2">★</label>
-                                                <input type="radio" name="cleanlinessRating" value="1" id="clean1"><label for="clean1">★</label>
-                                            </div>
-                                        </div>
-                                        <div class="rating-item">
-                                            <label>Punctuality</label>
-                                            <div class="stars" data-rating="punctualityRating">
-                                                <input type="radio" name="punctualityRating" value="5" id="punct5"><label for="punct5">★</label>
-                                                <input type="radio" name="punctualityRating" value="4" id="punct4"><label for="punct4">★</label>
-                                                <input type="radio" name="punctualityRating" value="3" id="punct3"><label for="punct3">★</label>
-                                                <input type="radio" name="punctualityRating" value="2" id="punct2"><label for="punct2">★</label>
-                                                <input type="radio" name="punctualityRating" value="1" id="punct1"><label for="punct1">★</label>
-                                            </div>
-                                        </div>
-                                        <div class="rating-item">
-                                            <label>Communication</label>
-                                            <div class="stars" data-rating="communicationRating">
-                                                <input type="radio" name="communicationRating" value="5" id="comm5"><label for="comm5">★</label>
-                                                <input type="radio" name="communicationRating" value="4" id="comm4"><label for="comm4">★</label>
-                                                <input type="radio" name="communicationRating" value="3" id="comm3"><label for="comm3">★</label>
-                                                <input type="radio" name="communicationRating" value="2" id="comm2"><label for="comm2">★</label>
-                                                <input type="radio" name="communicationRating" value="1" id="comm1"><label for="comm1">★</label>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <div class="form-section">
-                                    <h3>💬 Feedback Details</h3>
-                                    <div class="form-group">
-                                        <label>General Comments</label>
-                                        <textarea name="comments" placeholder="Share your general observations about the third party service this week..."></textarea>
-                                    </div>
-                                    <div class="form-group">
-                                        <label>Issues Reported</label>
-                                        <textarea name="issuesReported" placeholder="List any issues or problems encountered..."></textarea>
-                                    </div>
-                                    <div class="form-group">
-                                        <label>Recommendations</label>
-                                        <textarea name="recommendations" placeholder="Any suggestions for improvement..."></textarea>
-                                    </div>
-                                </div>
-                                
-                                <div class="form-section">
-                                    <h3>📷 Attach Image (Optional)</h3>
-                                    <div class="form-group">
-                                        <label>Upload an image to support your feedback</label>
-                                        <div class="image-upload-container">
-                                            <input type="file" name="feedbackImage" id="feedbackImage" accept="image/*" style="display: none;">
-                                            <div class="image-upload-area" onclick="document.getElementById('feedbackImage').click()">
-                                                <div id="imagePreviewContainer" style="display: none;">
-                                                    <img id="imagePreview" src="" alt="Preview" style="max-width: 100%; max-height: 200px; border-radius: 8px;">
-                                                    <button type="button" onclick="event.stopPropagation(); removeImage();" style="position: absolute; top: 5px; right: 5px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 25px; height: 25px; cursor: pointer;">×</button>
+                                            <label><span class="question-number">17</span>Is the Cleaning Machine operational? <span class="required">*</span></label>
+                                            <div class="yes-no-toggle">
+                                                <div class="yes-no-btn yes" onclick="selectYesNo(this, 'machineOperational', 'yes')">
+                                                    <input type="radio" name="machineOperational" value="yes">Yes
                                                 </div>
-                                                <div id="uploadPlaceholder">
-                                                    <span style="font-size: 40px;">📷</span>
-                                                    <p>Click to upload an image</p>
-                                                    <small style="color: #999;">Max size: 10MB (JPG, PNG, GIF, WebP)</small>
+                                                <div class="yes-no-btn no" onclick="selectYesNo(this, 'machineOperational', 'no')">
+                                                    <input type="radio" name="machineOperational" value="no">No
                                                 </div>
                                             </div>
+                                        </div>
+                                        
+                                        <div class="form-group">
+                                            <label><span class="question-number">18</span>Comments (Cleaning Machine)</label>
+                                            <textarea name="machineComments" placeholder="Enter comments about cleaning machine..."></textarea>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- SECTION 3: Quality Control & Ratings -->
+                                <div class="form-section">
+                                    <h3>📊 Quality Control & Ratings</h3>
+                                    
+                                    <div class="form-group">
+                                        <label><span class="question-number">19</span>General Comments about Cleaning services</label>
+                                        <textarea name="generalCleaningComments" placeholder="Enter general comments about cleaning services..."></textarea>
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <label><span class="question-number">20</span>Is the Quality Control team from the company visiting the store regularly? <span class="required">*</span></label>
+                                        <div class="yes-no-toggle">
+                                            <div class="yes-no-btn yes" onclick="selectYesNo(this, 'qcVisiting', 'yes')">
+                                                <input type="radio" name="qcVisiting" value="yes" required>Yes
+                                            </div>
+                                            <div class="yes-no-btn no" onclick="selectYesNo(this, 'qcVisiting', 'no')">
+                                                <input type="radio" name="qcVisiting" value="no">No
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <label><span class="question-number">21</span>How often is the Quality Control team from the cleaning company visiting the store?</label>
+                                        <input type="text" name="qcVisitFrequency" placeholder="e.g., Weekly, Bi-weekly, Monthly">
+                                    </div>
+                                    
+                                    <div class="rating-container">
+                                        <label class="rating-label"><span class="question-number">22</span>How do you rate the response time of the third-party cleaning company when you face issues?</label>
+                                        <div class="stars">
+                                            <input type="radio" name="responseTimeRating" value="5" id="resp5"><label for="resp5">★</label>
+                                            <input type="radio" name="responseTimeRating" value="4" id="resp4"><label for="resp4">★</label>
+                                            <input type="radio" name="responseTimeRating" value="3" id="resp3"><label for="resp3">★</label>
+                                            <input type="radio" name="responseTimeRating" value="2" id="resp2"><label for="resp2">★</label>
+                                            <input type="radio" name="responseTimeRating" value="1" id="resp1"><label for="resp1">★</label>
+                                        </div>
+                                        <small style="color: #666;">1 = Poor, 5 = Excellent</small>
+                                    </div>
+                                    
+                                    <div class="rating-container">
+                                        <label class="rating-label"><span class="question-number">23</span>Store Cleanliness Rating</label>
+                                        <div class="stars">
+                                            <input type="radio" name="cleanlinessRating" value="5" id="clean5"><label for="clean5">★</label>
+                                            <input type="radio" name="cleanlinessRating" value="4" id="clean4"><label for="clean4">★</label>
+                                            <input type="radio" name="cleanlinessRating" value="3" id="clean3"><label for="clean3">★</label>
+                                            <input type="radio" name="cleanlinessRating" value="2" id="clean2"><label for="clean2">★</label>
+                                            <input type="radio" name="cleanlinessRating" value="1" id="clean1"><label for="clean1">★</label>
+                                        </div>
+                                        <small style="color: #666;">1 = Poor, 5 = Excellent</small>
+                                    </div>
+                                </div>
+                                
+                                <!-- SECTION 4: Porter Services -->
+                                <div class="form-section">
+                                    <h3>🧑‍💼 Porter Services</h3>
+                                    
+                                    <div class="form-group">
+                                        <label><span class="question-number">24</span>Are porter services available at the store? <span class="required">*</span></label>
+                                        <div class="yes-no-toggle">
+                                            <div class="yes-no-btn yes" onclick="selectYesNo(this, 'porterAvailable', 'yes'); togglePorterSection(true);">
+                                                <input type="radio" name="porterAvailable" value="yes" required>Yes
+                                            </div>
+                                            <div class="yes-no-btn no" onclick="selectYesNo(this, 'porterAvailable', 'no'); togglePorterSection(false);">
+                                                <input type="radio" name="porterAvailable" value="no">No
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Conditional Section: Porter Available = YES -->
+                                    <div class="conditional-section" id="porterYesSection">
+                                        <div class="form-group">
+                                            <label><span class="question-number">25</span>Is the needed porter's count being available at the store as per the schedule? <span class="required">*</span></label>
+                                            <div class="yes-no-toggle">
+                                                <div class="yes-no-btn yes" onclick="selectYesNo(this, 'porterCount', 'yes')">
+                                                    <input type="radio" name="porterCount" value="yes">Yes
+                                                </div>
+                                                <div class="yes-no-btn no" onclick="selectYesNo(this, 'porterCount', 'no')">
+                                                    <input type="radio" name="porterCount" value="no">No
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="form-group">
+                                            <label><span class="question-number">26</span>Are the porters abiding by the set schedule? <span class="required">*</span></label>
+                                            <div class="yes-no-toggle">
+                                                <div class="yes-no-btn yes" onclick="selectYesNo(this, 'porterSchedule', 'yes')">
+                                                    <input type="radio" name="porterSchedule" value="yes">Yes
+                                                </div>
+                                                <div class="yes-no-btn no" onclick="selectYesNo(this, 'porterSchedule', 'no')">
+                                                    <input type="radio" name="porterSchedule" value="no">No
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="form-group">
+                                            <label><span class="question-number">27</span>Are the Porters attending with company uniforms? <span class="required">*</span></label>
+                                            <div class="yes-no-toggle">
+                                                <div class="yes-no-btn yes" onclick="selectYesNo(this, 'porterUniforms', 'yes')">
+                                                    <input type="radio" name="porterUniforms" value="yes">Yes
+                                                </div>
+                                                <div class="yes-no-btn no" onclick="selectYesNo(this, 'porterUniforms', 'no')">
+                                                    <input type="radio" name="porterUniforms" value="no">No
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="form-group">
+                                            <label><span class="question-number">28</span>Do porters respect personal Hygiene? <span class="required">*</span></label>
+                                            <div class="yes-no-toggle">
+                                                <div class="yes-no-btn yes" onclick="selectYesNo(this, 'porterHygiene', 'yes')">
+                                                    <input type="radio" name="porterHygiene" value="yes">Yes
+                                                </div>
+                                                <div class="yes-no-btn no" onclick="selectYesNo(this, 'porterHygiene', 'no')">
+                                                    <input type="radio" name="porterHygiene" value="no">No
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="form-group">
+                                            <label><span class="question-number">29</span>Comments About Porter Services</label>
+                                            <textarea name="porterComments" placeholder="Enter comments about porter services..."></textarea>
                                         </div>
                                     </div>
                                 </div>
@@ -351,29 +572,48 @@ router.get('/', async (req, res) => {
                         setTimeout(() => { toast.style.display = 'none'; }, 4000);
                     }
                     
-                    // Image preview functionality
-                    document.getElementById('feedbackImage').addEventListener('change', function(e) {
-                        const file = e.target.files[0];
-                        if (file) {
-                            if (file.size > 10 * 1024 * 1024) {
-                                showToast('Image size must be less than 10MB', 'error');
-                                e.target.value = '';
-                                return;
-                            }
-                            const reader = new FileReader();
-                            reader.onload = function(e) {
-                                document.getElementById('imagePreview').src = e.target.result;
-                                document.getElementById('imagePreviewContainer').style.display = 'block';
-                                document.getElementById('uploadPlaceholder').style.display = 'none';
-                            };
-                            reader.readAsDataURL(file);
-                        }
-                    });
+                    function selectCompany(el, value) {
+                        document.querySelectorAll('.company-radio').forEach(r => r.classList.remove('selected'));
+                        el.classList.add('selected');
+                        el.querySelector('input').checked = true;
+                    }
                     
-                    function removeImage() {
-                        document.getElementById('feedbackImage').value = '';
-                        document.getElementById('imagePreviewContainer').style.display = 'none';
-                        document.getElementById('uploadPlaceholder').style.display = 'block';
+                    function selectYesNo(el, name, value) {
+                        const parent = el.parentElement;
+                        parent.querySelectorAll('.yes-no-btn').forEach(btn => btn.classList.remove('selected'));
+                        el.classList.add('selected');
+                        el.querySelector('input').checked = true;
+                    }
+                    
+                    function toggleMachineSection(show) {
+                        const section = document.getElementById('machineYesSection');
+                        if (show) {
+                            section.classList.add('visible');
+                            // Make machine operational required when visible
+                        } else {
+                            section.classList.remove('visible');
+                            // Clear values when hidden
+                            section.querySelectorAll('input, textarea').forEach(el => {
+                                if (el.type === 'radio') el.checked = false;
+                                else el.value = '';
+                            });
+                            section.querySelectorAll('.yes-no-btn').forEach(btn => btn.classList.remove('selected'));
+                        }
+                    }
+                    
+                    function togglePorterSection(show) {
+                        const section = document.getElementById('porterYesSection');
+                        if (show) {
+                            section.classList.add('visible');
+                        } else {
+                            section.classList.remove('visible');
+                            // Clear values when hidden
+                            section.querySelectorAll('input, textarea').forEach(el => {
+                                if (el.type === 'radio') el.checked = false;
+                                else el.value = '';
+                            });
+                            section.querySelectorAll('.yes-no-btn').forEach(btn => btn.classList.remove('selected'));
+                        }
                     }
                     
                     document.getElementById('feedbackForm').addEventListener('submit', async function(e) {
@@ -381,7 +621,7 @@ router.get('/', async (req, res) => {
                         
                         const btn = document.getElementById('submitBtn');
                         btn.disabled = true;
-                        btn.innerHTML = '<span class="spinner"></span> Submitting...';
+                        btn.innerHTML = '<span>⏳</span> Submitting...';
                         
                         const formData = new FormData(this);
                         
@@ -399,7 +639,7 @@ router.get('/', async (req, res) => {
                         try {
                             const res = await fetch('/stores/weekly-feedback/submit', {
                                 method: 'POST',
-                                body: formData  // Send as FormData (no Content-Type header - browser sets it automatically with boundary)
+                                body: formData
                             });
                             
                             const result = await res.json();
@@ -451,6 +691,9 @@ router.post('/submit', upload.single('feedbackImage'), async (req, res) => {
             return res.status(400).json({ success: false, error: 'Feedback already submitted for this store this week' });
         }
         
+        // Convert yes/no to bit values
+        const toBit = (val) => val === 'yes' ? 1 : (val === 'no' ? 0 : null);
+        
         const result = await pool.request()
             .input('storeId', sql.Int, data.storeId)
             .input('storeName', sql.NVarChar(100), data.storeName)
@@ -465,29 +708,65 @@ router.post('/submit', upload.single('feedbackImage'), async (req, res) => {
             .input('headOfOpsEmail', sql.NVarChar(200), data.headOfOpsEmail)
             .input('weekStart', sql.Date, data.weekStart)
             .input('weekEnd', sql.Date, data.weekEnd)
-            .input('overallRating', sql.Int, data.overallRating || null)
+            // New fields
+            .input('cleaningCompany', sql.NVarChar(100), data.cleaningCompany)
+            .input('numberOfCleaners', sql.Int, data.numberOfCleaners || null)
+            .input('cleanersAdherence', sql.Bit, toBit(data.cleanersAdherence))
+            .input('cleanersAdherenceComments', sql.NVarChar(sql.MAX), data.cleanersAdherenceComments || null)
+            .input('cleanersUniforms', sql.Bit, toBit(data.cleanersUniforms))
+            .input('cleanersUniformComments', sql.NVarChar(sql.MAX), data.cleanersUniformComments || null)
+            .input('cleanersHygiene', sql.Bit, toBit(data.cleanersHygiene))
+            .input('cleanersHygieneComments', sql.NVarChar(sql.MAX), data.cleanersHygieneComments || null)
+            .input('deepCleaning', sql.Bit, toBit(data.deepCleaning))
+            .input('abidingChecklist', sql.Bit, toBit(data.abidingChecklist))
+            .input('cleaningChecklistComments', sql.NVarChar(sql.MAX), data.cleaningChecklistComments || null)
+            .input('machineAvailable', sql.Bit, toBit(data.machineAvailable))
+            .input('numberOfMachines', sql.Int, data.numberOfMachines || null)
+            .input('machineOperational', sql.Bit, toBit(data.machineOperational))
+            .input('machineComments', sql.NVarChar(sql.MAX), data.machineComments || null)
+            .input('generalCleaningComments', sql.NVarChar(sql.MAX), data.generalCleaningComments || null)
+            .input('qcVisiting', sql.Bit, toBit(data.qcVisiting))
+            .input('qcVisitFrequency', sql.NVarChar(200), data.qcVisitFrequency || null)
+            .input('responseTimeRating', sql.Int, data.responseTimeRating || null)
             .input('cleanlinessRating', sql.Int, data.cleanlinessRating || null)
-            .input('punctualityRating', sql.Int, data.punctualityRating || null)
-            .input('communicationRating', sql.Int, data.communicationRating || null)
-            .input('comments', sql.NVarChar(sql.MAX), data.comments || null)
-            .input('issuesReported', sql.NVarChar(sql.MAX), data.issuesReported || null)
-            .input('recommendations', sql.NVarChar(sql.MAX), data.recommendations || null)
+            .input('porterAvailable', sql.Bit, toBit(data.porterAvailable))
+            .input('porterCount', sql.Bit, toBit(data.porterCount))
+            .input('porterSchedule', sql.Bit, toBit(data.porterSchedule))
+            .input('porterUniforms', sql.Bit, toBit(data.porterUniforms))
+            .input('porterHygiene', sql.Bit, toBit(data.porterHygiene))
+            .input('porterComments', sql.NVarChar(sql.MAX), data.porterComments || null)
             .input('imagePath', sql.NVarChar(500), imagePath)
             .input('createdBy', sql.Int, currentUser.id || null)
             .query(`INSERT INTO WeeklyThirdPartyFeedback 
                     (StoreId, StoreName, StoreManagerId, StoreManagerName, StoreManagerEmail,
                      AreaManagerId, AreaManagerName, AreaManagerEmail,
                      HeadOfOperationsId, HeadOfOperationsName, HeadOfOperationsEmail,
-                     WeekStartDate, WeekEndDate, OverallRating, CleanlinessRating, 
-                     PunctualityRating, CommunicationRating, Comments, IssuesReported, 
-                     Recommendations, ImagePath, CreatedBy)
+                     WeekStartDate, WeekEndDate,
+                     CleaningCompany, NumberOfCleaners, CleanersAdherenceToSchedule, CleanersAdherenceComments,
+                     CleanersWithUniforms, CleanersUniformComments,
+                     CleanersPersonalHygiene, CleanersHygieneComments,
+                     DeepCleaningPerformed, CleaningTeamAbidingChecklist, CleaningChecklistComments,
+                     CleaningMachineAvailable, NumberOfCleaningMachines, CleaningMachineOperational, CleaningMachineComments,
+                     GeneralCleaningComments, QCTeamVisitingRegularly, QCTeamVisitFrequency,
+                     ResponseTimeRating, CleanlinessRating,
+                     PorterServicesAvailable, PorterCountAsPerSchedule, PortersAbidingBySchedule,
+                     PortersWithUniforms, PortersPersonalHygiene, PorterServicesComments,
+                     ImagePath, CreatedBy)
                     OUTPUT INSERTED.Id
                     VALUES (@storeId, @storeName, @storeManagerId, @storeManagerName, @storeManagerEmail,
                             @areaManagerId, @areaManagerName, @areaManagerEmail,
                             @headOfOpsId, @headOfOpsName, @headOfOpsEmail,
-                            @weekStart, @weekEnd, @overallRating, @cleanlinessRating,
-                            @punctualityRating, @communicationRating, @comments, @issuesReported,
-                            @recommendations, @imagePath, @createdBy)`);
+                            @weekStart, @weekEnd,
+                            @cleaningCompany, @numberOfCleaners, @cleanersAdherence, @cleanersAdherenceComments,
+                            @cleanersUniforms, @cleanersUniformComments,
+                            @cleanersHygiene, @cleanersHygieneComments,
+                            @deepCleaning, @abidingChecklist, @cleaningChecklistComments,
+                            @machineAvailable, @numberOfMachines, @machineOperational, @machineComments,
+                            @generalCleaningComments, @qcVisiting, @qcVisitFrequency,
+                            @responseTimeRating, @cleanlinessRating,
+                            @porterAvailable, @porterCount, @porterSchedule,
+                            @porterUniforms, @porterHygiene, @porterComments,
+                            @imagePath, @createdBy)`);
         
         const feedbackId = result.recordset[0].Id;
         
@@ -563,8 +842,9 @@ router.get('/history', async (req, res) => {
             <tr>
                 <td><strong>WF-${r.Id}</strong></td>
                 <td>${r.StoreName}</td>
+                <td>${r.CleaningCompany || '-'}</td>
                 <td>${new Date(r.WeekStartDate).toLocaleDateString('en-GB')} - ${new Date(r.WeekEndDate).toLocaleDateString('en-GB')}</td>
-                <td>${'⭐'.repeat(r.OverallRating || 0)}</td>
+                <td>${'⭐'.repeat(r.CleanlinessRating || 0)}</td>
                 <td>${new Date(r.CreatedAt).toLocaleDateString('en-GB')}</td>
                 <td>
                     <a href="/stores/weekly-feedback/view/${r.Id}" style="color: #6c5ce7; text-decoration: none;">View</a>
@@ -581,13 +861,13 @@ router.get('/history', async (req, res) => {
                 <style>
                     * { box-sizing: border-box; margin: 0; padding: 0; }
                     body { font-family: 'Segoe UI', Arial, sans-serif; background: #f5f6fa; min-height: 100vh; }
-                    .header { background: linear-gradient(135deg, #6c5ce7 0%, #a29bfe 100%); color: white; padding: 20px 30px; display: flex; justify-content: space-between; align-items: center; }
+                    .header { background: linear-gradient(135deg, #6c5ce7 0%, #a29bfe 100%); color: white; padding: 20px 30px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
                     .header h1 { font-size: 24px; }
-                    .header-nav { display: flex; gap: 15px; }
+                    .header-nav { display: flex; gap: 15px; flex-wrap: wrap; }
                     .header-nav a { color: white; text-decoration: none; padding: 8px 16px; border-radius: 5px; background: rgba(255,255,255,0.15); }
                     .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
-                    .table-container { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 15px rgba(0,0,0,0.08); }
-                    table { width: 100%; border-collapse: collapse; }
+                    .table-container { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 15px rgba(0,0,0,0.08); overflow-x: auto; }
+                    table { width: 100%; border-collapse: collapse; min-width: 700px; }
                     th { background: #f8f9fa; padding: 15px; text-align: left; font-size: 12px; text-transform: uppercase; color: #666; border-bottom: 2px solid #dee2e6; }
                     td { padding: 15px; border-bottom: 1px solid #eee; }
                     .empty-state { text-align: center; padding: 60px 20px; color: #666; }
@@ -596,7 +876,7 @@ router.get('/history', async (req, res) => {
             </head>
             <body>
                 <div class="header">
-                    <h1>📜 My Feedback History</h1>
+                    <h1>📜 Feedback History</h1>
                     <div class="header-nav">
                         <a href="/stores/weekly-feedback">➕ New Feedback</a>
                         <a href="/stores">← Back to Stores</a>
@@ -610,8 +890,9 @@ router.get('/history', async (req, res) => {
                                     <tr>
                                         <th>ID</th>
                                         <th>Store</th>
+                                        <th>Company</th>
                                         <th>Week</th>
-                                        <th>Rating</th>
+                                        <th>Cleanliness</th>
                                         <th>Submitted</th>
                                         <th>Actions</th>
                                     </tr>
@@ -656,6 +937,9 @@ router.get('/view/:id', async (req, res) => {
         
         const f = result.recordset[0];
         
+        const yesNo = (val) => val === true || val === 1 ? '<span style="color: #00b894; font-weight: 600;">✓ Yes</span>' : (val === false || val === 0 ? '<span style="color: #d63031; font-weight: 600;">✗ No</span>' : 'N/A');
+        const starRating = (val) => val ? '★'.repeat(val) + '☆'.repeat(5 - val) : 'Not rated';
+        
         res.send(`
             <!DOCTYPE html>
             <html>
@@ -665,19 +949,21 @@ router.get('/view/:id', async (req, res) => {
                 <style>
                     * { box-sizing: border-box; margin: 0; padding: 0; }
                     body { font-family: 'Segoe UI', Arial, sans-serif; background: #f5f6fa; min-height: 100vh; }
-                    .header { background: linear-gradient(135deg, #6c5ce7 0%, #a29bfe 100%); color: white; padding: 20px 30px; display: flex; justify-content: space-between; align-items: center; }
+                    .header { background: linear-gradient(135deg, #6c5ce7 0%, #a29bfe 100%); color: white; padding: 20px 30px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
                     .header h1 { font-size: 24px; }
                     .header-nav a { color: white; text-decoration: none; padding: 8px 16px; border-radius: 5px; background: rgba(255,255,255,0.15); }
-                    .container { max-width: 800px; margin: 30px auto; padding: 0 20px; }
+                    .container { max-width: 900px; margin: 30px auto; padding: 0 20px; }
                     .card { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 15px rgba(0,0,0,0.08); margin-bottom: 20px; }
                     .card-header { background: #f8f9fa; padding: 20px; border-bottom: 1px solid #eee; }
                     .card-header h3 { color: #6c5ce7; }
                     .card-body { padding: 20px; }
                     .detail-row { display: flex; padding: 12px 0; border-bottom: 1px solid #f0f0f0; }
-                    .detail-label { width: 180px; color: #666; font-weight: 500; }
+                    .detail-row:last-child { border-bottom: none; }
+                    .detail-label { width: 280px; color: #666; font-weight: 500; flex-shrink: 0; }
                     .detail-value { flex: 1; }
                     .rating { color: #f1c40f; font-size: 18px; }
                     .text-block { background: #f8f9fa; padding: 15px; border-radius: 8px; margin-top: 10px; white-space: pre-wrap; }
+                    .section-title { font-weight: 600; color: #333; padding: 15px 0 10px 0; border-top: 2px solid #eee; margin-top: 15px; }
                 </style>
             </head>
             <body>
@@ -700,24 +986,63 @@ router.get('/view/:id', async (req, res) => {
                     </div>
                     
                     <div class="card">
-                        <div class="card-header"><h3>⭐ Ratings</h3></div>
+                        <div class="card-header"><h3>🧹 Cleaning Services</h3></div>
                         <div class="card-body">
-                            <div class="detail-row"><span class="detail-label">Overall:</span><span class="detail-value rating">${'★'.repeat(f.OverallRating || 0)}${'☆'.repeat(5 - (f.OverallRating || 0))}</span></div>
-                            <div class="detail-row"><span class="detail-label">Cleanliness:</span><span class="detail-value rating">${'★'.repeat(f.CleanlinessRating || 0)}${'☆'.repeat(5 - (f.CleanlinessRating || 0))}</span></div>
-                            <div class="detail-row"><span class="detail-label">Punctuality:</span><span class="detail-value rating">${'★'.repeat(f.PunctualityRating || 0)}${'☆'.repeat(5 - (f.PunctualityRating || 0))}</span></div>
-                            <div class="detail-row"><span class="detail-label">Communication:</span><span class="detail-value rating">${'★'.repeat(f.CommunicationRating || 0)}${'☆'.repeat(5 - (f.CommunicationRating || 0))}</span></div>
+                            <div class="detail-row"><span class="detail-label">Cleaning Company:</span><span class="detail-value">${f.CleaningCompany || 'N/A'}</span></div>
+                            <div class="detail-row"><span class="detail-label">Number of Cleaners:</span><span class="detail-value">${f.NumberOfCleaners || 'N/A'}</span></div>
+                            <div class="detail-row"><span class="detail-label">Cleaners Adherence to Schedule:</span><span class="detail-value">${yesNo(f.CleanersAdherenceToSchedule)}</span></div>
+                            ${f.CleanersAdherenceComments ? `<div class="text-block">${f.CleanersAdherenceComments}</div>` : ''}
+                            <div class="detail-row"><span class="detail-label">Cleaners with Uniforms:</span><span class="detail-value">${yesNo(f.CleanersWithUniforms)}</span></div>
+                            ${f.CleanersUniformComments ? `<div class="text-block">${f.CleanersUniformComments}</div>` : ''}
+                            <div class="detail-row"><span class="detail-label">Cleaners Personal Hygiene:</span><span class="detail-value">${yesNo(f.CleanersPersonalHygiene)}</span></div>
+                            ${f.CleanersHygieneComments ? `<div class="text-block">${f.CleanersHygieneComments}</div>` : ''}
+                            <div class="detail-row"><span class="detail-label">Deep Cleaning Performed:</span><span class="detail-value">${yesNo(f.DeepCleaningPerformed)}</span></div>
+                            <div class="detail-row"><span class="detail-label">Abiding by Checklist:</span><span class="detail-value">${yesNo(f.CleaningTeamAbidingChecklist)}</span></div>
+                            ${f.CleaningChecklistComments ? `<div class="text-block">${f.CleaningChecklistComments}</div>` : ''}
+                            
+                            <div class="section-title">Cleaning Machine</div>
+                            <div class="detail-row"><span class="detail-label">Machine Available:</span><span class="detail-value">${yesNo(f.CleaningMachineAvailable)}</span></div>
+                            ${f.CleaningMachineAvailable ? `
+                                <div class="detail-row"><span class="detail-label">Number of Machines:</span><span class="detail-value">${f.NumberOfCleaningMachines || 'N/A'}</span></div>
+                                <div class="detail-row"><span class="detail-label">Machine Operational:</span><span class="detail-value">${yesNo(f.CleaningMachineOperational)}</span></div>
+                                ${f.CleaningMachineComments ? `<div class="text-block">${f.CleaningMachineComments}</div>` : ''}
+                            ` : ''}
+                            
+                            ${f.GeneralCleaningComments ? `
+                                <div class="section-title">General Comments</div>
+                                <div class="text-block">${f.GeneralCleaningComments}</div>
+                            ` : ''}
                         </div>
                     </div>
                     
                     <div class="card">
-                        <div class="card-header"><h3>💬 Feedback Details</h3></div>
+                        <div class="card-header"><h3>📊 Quality Control & Ratings</h3></div>
                         <div class="card-body">
-                            <div class="detail-row"><span class="detail-label">Comments:</span></div>
-                            <div class="text-block">${f.Comments || 'No comments'}</div>
-                            <div class="detail-row" style="margin-top:20px"><span class="detail-label">Issues Reported:</span></div>
-                            <div class="text-block">${f.IssuesReported || 'No issues reported'}</div>
-                            <div class="detail-row" style="margin-top:20px"><span class="detail-label">Recommendations:</span></div>
-                            <div class="text-block">${f.Recommendations || 'No recommendations'}</div>
+                            <div class="detail-row"><span class="detail-label">QC Team Visiting Regularly:</span><span class="detail-value">${yesNo(f.QCTeamVisitingRegularly)}</span></div>
+                            <div class="detail-row"><span class="detail-label">QC Visit Frequency:</span><span class="detail-value">${f.QCTeamVisitFrequency || 'N/A'}</span></div>
+                            <div class="detail-row"><span class="detail-label">Response Time Rating:</span><span class="detail-value rating">${starRating(f.ResponseTimeRating)}</span></div>
+                            <div class="detail-row"><span class="detail-label">Store Cleanliness Rating:</span><span class="detail-value rating">${starRating(f.CleanlinessRating)}</span></div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header"><h3>🧑‍💼 Porter Services</h3></div>
+                        <div class="card-body">
+                            <div class="detail-row"><span class="detail-label">Porter Services Available:</span><span class="detail-value">${yesNo(f.PorterServicesAvailable)}</span></div>
+                            ${f.PorterServicesAvailable ? `
+                                <div class="detail-row"><span class="detail-label">Porter Count as per Schedule:</span><span class="detail-value">${yesNo(f.PorterCountAsPerSchedule)}</span></div>
+                                <div class="detail-row"><span class="detail-label">Porters Abiding by Schedule:</span><span class="detail-value">${yesNo(f.PortersAbidingBySchedule)}</span></div>
+                                <div class="detail-row"><span class="detail-label">Porters with Uniforms:</span><span class="detail-value">${yesNo(f.PortersWithUniforms)}</span></div>
+                                <div class="detail-row"><span class="detail-label">Porters Personal Hygiene:</span><span class="detail-value">${yesNo(f.PortersPersonalHygiene)}</span></div>
+                                ${f.PorterServicesComments ? `<div class="text-block">${f.PorterServicesComments}</div>` : ''}
+                            ` : ''}
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header"><h3>📝 Submission Details</h3></div>
+                        <div class="card-body">
+                            <div class="detail-row"><span class="detail-label">Submitted At:</span><span class="detail-value">${new Date(f.CreatedAt).toLocaleString('en-GB')}</span></div>
                         </div>
                     </div>
                 </div>
