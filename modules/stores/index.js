@@ -14,6 +14,7 @@ const weeklyFeedbackRoutes = require('./weekly-feedback/routes');
 const complaintRoutes = require('./complaint/routes');
 const fiveDaysRoutes = require('./five-days/routes');
 const ohsIncidentRoutes = require('./ohs-incident/routes');
+const evacuationDrillRoutes = require('./evacuation-drill/routes');
 
 // Stores main page
 router.get('/', (req, res) => {
@@ -24,6 +25,7 @@ router.get('/', (req, res) => {
         { id: 'complaint', icon: '📝', title: 'Complaint', href: '/stores/complaint', desc: 'Submit and track complaints', color: '#e17055' },
         { id: 'five-days', icon: '📅', title: '5 Days - Expired Items', href: '/stores/five-days', desc: 'Track expired items during 5-day cycles', color: '#667eea' },
         { id: 'ohs-incident', icon: '🦺', title: 'OHS A&I Reporting', href: '/stores/ohs-incident', desc: 'Report accidents, incidents, and near misses', color: '#e17055' },
+        { id: 'evacuation-drill', icon: '🚨', title: 'Post Evacuation Drill', href: '/stores/evacuation-drill', desc: 'Submit post-evacuation drill assessments', color: '#00b894' },
         // More forms will be added here
     ];
     
@@ -157,5 +159,6 @@ router.use('/weekly-feedback', weeklyFeedbackRoutes);
 router.use('/complaint', complaintRoutes);
 router.use('/five-days', fiveDaysRoutes);
 router.use('/ohs-incident', ohsIncidentRoutes);
+router.use('/evacuation-drill', evacuationDrillRoutes);
 
 module.exports = router;
