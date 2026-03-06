@@ -980,11 +980,14 @@ router.get('/', async (req, res) => {
 router.get('/api/employees', async (req, res) => {
     try {
         const pool = await getPool();
-        // Get users who have OE permissions
+        // Get users who have specific security/OE roles
         const result = await pool.request().query(`
             SELECT DISTINCT u.Id, u.Username, u.DisplayName as displayName, u.Email as mail
             FROM Users u
+            INNER JOIN UserRoleAssignments ura ON ura.UserId = u.Id
+            INNER JOIN UserRoles ur ON ur.Id = ura.RoleId
             WHERE u.IsActive = 1
+            AND ur.RoleName IN ('Program Lead', 'Regional Security Manager', 'Security Compliance Inspector', 'Security Service Provider')
             ORDER BY u.DisplayName
         `);
         res.json(result.recordset);
