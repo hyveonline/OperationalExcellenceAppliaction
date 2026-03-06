@@ -197,24 +197,6 @@ router.get('/', async (req, res) => {
                         <div class="card-desc">Record worker entries - نموذج الدخول</div>
                         <span class="card-badge internal">Internal</span>
                     </a>
-                    <a href="/security-services/internal/schedule" class="menu-card internal">
-                        <div class="card-icon">📅</div>
-                        <div class="card-title">Security Schedule</div>
-                        <div class="card-desc">View and manage internal security officer schedules and shift assignments</div>
-                        <span class="card-badge internal">Internal</span>
-                    </a>
-                    <a href="/security-services/internal/attendance" class="menu-card internal">
-                        <div class="card-icon">✅</div>
-                        <div class="card-title">Attendance Tracking</div>
-                        <div class="card-desc">Track internal security officer attendance and timekeeping</div>
-                        <span class="card-badge internal">Internal</span>
-                    </a>
-                    <a href="/security-services/internal/incidents" class="menu-card internal">
-                        <div class="card-icon">⚠️</div>
-                        <div class="card-title">Incident Reports</div>
-                        <div class="card-desc">Log and manage internal security incident reports</div>
-                        <span class="card-badge internal">Internal</span>
-                    </a>
                     <a href="/security-services/security-checklist" class="menu-card internal">
                         <div class="card-icon">📋</div>
                         <div class="card-title">Security Checklist</div>
