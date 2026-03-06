@@ -218,6 +218,12 @@ app.get('/dashboard', requireAuth, async (req, res) => {
         'SECURITY_DAILY_REPORTING': 'security-daily-reporting',
         'SEC_VISIT_CALENDAR': 'sec-visit-calendar',
         'CAMERA_REQUEST': 'camera-request',
+        // Security Department forms (security-emp)
+        'SECURITY_LEGAL_CASES': 'legal-cases',
+        'SECURITY_BLACKLIST': 'thirdparty-blacklist',
+        'SECURITY_VISIT_CALENDAR': 'sec-visit-calendar',
+        'SECURITY_CAMERA_REQUEST': 'camera-request',
+        'SECURITY_POST_VISIT_REPORT': 'post-visit-report',
         
         // HR module (HR_DASHBOARD is required for HR access)
         'HR_DASHBOARD': 'hr',
