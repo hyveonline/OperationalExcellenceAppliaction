@@ -179,6 +179,66 @@ router.get('/', async (req, res) => {
                     background: white;
                 }
                 
+                /* Filter dropdowns */
+                .filter-select {
+                    padding: 8px 12px;
+                    border: 1px solid #ddd;
+                    border-radius: 6px;
+                    font-size: 13px;
+                    background: white;
+                    min-width: 150px;
+                }
+                .filter-label {
+                    font-size: 12px;
+                    color: #666;
+                    margin-right: 4px;
+                }
+                .filter-group {
+                    display: flex;
+                    align-items: center;
+                    gap: 4px;
+                    margin-left: 10px;
+                    padding-left: 10px;
+                    border-left: 1px solid #ddd;
+                }
+                .btn-clear-filter {
+                    background: #607d8b !important;
+                    color: white !important;
+                    padding: 6px 12px !important;
+                    font-size: 12px !important;
+                }
+                .btn-clear-filter:hover { background: #455a64 !important; }
+                
+                /* Cell selection for copy/paste */
+                td.cell-selected {
+                    outline: 2px solid #2196F3 !important;
+                    background: #e3f2fd !important;
+                }
+                td.cell-copied {
+                    outline: 2px dashed #4CAF50 !important;
+                    background: #e8f5e9 !important;
+                }
+                .copy-hint {
+                    position: fixed;
+                    bottom: 20px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    background: #333;
+                    color: white;
+                    padding: 8px 16px;
+                    border-radius: 6px;
+                    font-size: 12px;
+                    z-index: 1000;
+                    animation: fadeInOut 2s ease;
+                }
+                @keyframes fadeInOut {
+                    0% { opacity: 0; }
+                    10% { opacity: 1; }
+                    80% { opacity: 1; }
+                    100% { opacity: 0; }
+                }
+                tr.filtered-out { display: none; }
+                
                 /* Table */
                 .table-wrapper {
                     overflow-x: auto;
@@ -386,6 +446,16 @@ router.get('/', async (req, res) => {
                         <select class="year-select" id="year-Security" onchange="loadData('Security')">
                             ${generateYearOptions()}
                         </select>
+                        <div class="filter-group">
+                            <span class="filter-label">🔍 Filter:</span>
+                            <select class="filter-select" id="filter-company-Security" onchange="applyFilters('Security')">
+                                <option value="">All Companies</option>
+                            </select>
+                            <select class="filter-select" id="filter-store-Security" onchange="applyFilters('Security')">
+                                <option value="">All Stores</option>
+                            </select>
+                            <button class="btn-clear-filter" onclick="clearFilters('Security')">✖ Clear</button>
+                        </div>
                     </div>
                     <div class="table-wrapper">
                         <table id="table-Security">
@@ -407,6 +477,16 @@ router.get('/', async (req, res) => {
                         <select class="year-select" id="year-Valet" onchange="loadData('Valet')">
                             ${generateYearOptions()}
                         </select>
+                        <div class="filter-group">
+                            <span class="filter-label">🔍 Filter:</span>
+                            <select class="filter-select" id="filter-company-Valet" onchange="applyFilters('Valet')">
+                                <option value="">All Companies</option>
+                            </select>
+                            <select class="filter-select" id="filter-store-Valet" onchange="applyFilters('Valet')">
+                                <option value="">All Stores</option>
+                            </select>
+                            <button class="btn-clear-filter" onclick="clearFilters('Valet')">✖ Clear</button>
+                        </div>
                     </div>
                     <div class="table-wrapper">
                         <table id="table-Valet">
@@ -428,6 +508,16 @@ router.get('/', async (req, res) => {
                         <select class="year-select" id="year-Cleaning" onchange="loadData('Cleaning')">
                             ${generateYearOptions()}
                         </select>
+                        <div class="filter-group">
+                            <span class="filter-label">🔍 Filter:</span>
+                            <select class="filter-select" id="filter-company-Cleaning" onchange="applyFilters('Cleaning')">
+                                <option value="">All Companies</option>
+                            </select>
+                            <select class="filter-select" id="filter-store-Cleaning" onchange="applyFilters('Cleaning')">
+                                <option value="">All Stores</option>
+                            </select>
+                            <button class="btn-clear-filter" onclick="clearFilters('Cleaning')">✖ Clear</button>
+                        </div>
                     </div>
                     <div class="table-wrapper">
                         <table id="table-Cleaning">
@@ -449,6 +539,16 @@ router.get('/', async (req, res) => {
                         <select class="year-select" id="year-Helpers" onchange="loadData('Helpers')">
                             ${generateYearOptions()}
                         </select>
+                        <div class="filter-group">
+                            <span class="filter-label">🔍 Filter:</span>
+                            <select class="filter-select" id="filter-company-Helpers" onchange="applyFilters('Helpers')">
+                                <option value="">All Companies</option>
+                            </select>
+                            <select class="filter-select" id="filter-store-Helpers" onchange="applyFilters('Helpers')">
+                                <option value="">All Stores</option>
+                            </select>
+                            <button class="btn-clear-filter" onclick="clearFilters('Helpers')">✖ Clear</button>
+                        </div>
                     </div>
                     <div class="table-wrapper">
                         <table id="table-Helpers">
@@ -513,6 +613,27 @@ router.get('/', async (req, res) => {
                     'Cleaning': { entries: [], months: [], deletedIds: [] },
                     'Helpers': { entries: [], months: [], deletedIds: [] }
                 };
+                
+                // Filter state for each category
+                let filterState = {
+                    'Security': { company: '', store: '' },
+                    'Valet': { company: '', store: '' },
+                    'Cleaning': { company: '', store: '' },
+                    'Helpers': { company: '', store: '' }
+                };
+                
+                // Copy/paste state for cells
+                let clipboardData = {
+                    cells: [],       // Array of copied cell values
+                    category: null,
+                    startRow: null,
+                    startCol: null,
+                    endRow: null,
+                    endCol: null
+                };
+                let selectedCells = [];  // Array of {row, col, element} for current selection
+                let selectionStart = null;
+                let isSelecting = false;
                 
                 let currentCategory = 'Security';
                 
@@ -579,6 +700,9 @@ router.get('/', async (req, res) => {
                             deletedIds: []
                         };
                         
+                        // Populate filter dropdowns
+                        populateFilterDropdowns(category);
+                        
                         renderTable(category);
                     } catch (error) {
                         console.error('Error loading data:', error);
@@ -586,6 +710,123 @@ router.get('/', async (req, res) => {
                     }
                     
                     hideLoading();
+                }
+                
+                // Populate filter dropdowns with unique values from data
+                function populateFilterDropdowns(category) {
+                    const entries = categoryData[category].entries;
+                    
+                    // Get unique companies
+                    const companies = [...new Set(entries.map(e => e.Company).filter(c => c && c.trim()))].sort();
+                    const companySelect = document.getElementById('filter-company-' + category);
+                    if (companySelect) {
+                        const currentVal = companySelect.value;
+                        companySelect.innerHTML = '<option value="">All Companies</option>' +
+                            companies.map(c => '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>').join('');
+                        companySelect.value = currentVal;
+                    }
+                    
+                    // Get unique stores (Branch)
+                    const stores = [...new Set(entries.map(e => e.Branch).filter(s => s && s.trim()))].sort();
+                    const storeSelect = document.getElementById('filter-store-' + category);
+                    if (storeSelect) {
+                        const currentVal = storeSelect.value;
+                        storeSelect.innerHTML = '<option value="">All Stores</option>' +
+                            stores.map(s => '<option value="' + escapeHtml(s) + '">' + escapeHtml(s) + '</option>').join('');
+                        storeSelect.value = currentVal;
+                    }
+                }
+                
+                // Apply filters and update table display
+                function applyFilters(category) {
+                    const companyFilter = document.getElementById('filter-company-' + category).value;
+                    const storeFilter = document.getElementById('filter-store-' + category).value;
+                    
+                    filterState[category] = { company: companyFilter, store: storeFilter };
+                    
+                    const tbody = document.getElementById('table-' + category).querySelector('tbody');
+                    const rows = tbody.querySelectorAll('tr');
+                    
+                    rows.forEach(row => {
+                        const idx = parseInt(row.dataset.idx);
+                        if (isNaN(idx)) return;
+                        
+                        const entry = categoryData[category].entries[idx];
+                        if (!entry) return;
+                        
+                        // AND logic: both filters must match
+                        const companyMatch = !companyFilter || entry.Company === companyFilter;
+                        const storeMatch = !storeFilter || entry.Branch === storeFilter;
+                        
+                        if (companyMatch && storeMatch) {
+                            row.classList.remove('filtered-out');
+                        } else {
+                            row.classList.add('filtered-out');
+                        }
+                    });
+                    
+                    // Recalculate totals for filtered rows only
+                    updateFilteredTotals(category);
+                }
+                
+                // Update totals based on visible (filtered) rows
+                function updateFilteredTotals(category) {
+                    const months = categoryData[category].months;
+                    const entries = categoryData[category].entries;
+                    const companyFilter = filterState[category].company;
+                    const storeFilter = filterState[category].store;
+                    
+                    const tfoot = document.getElementById('table-' + category).querySelector('tfoot');
+                    if (!tfoot || months.length === 0) return;
+                    
+                    const columns = baseColumns[category];
+                    
+                    let footerHtml = '<tr class="summary-row"><td></td>';
+                    columns.forEach((col, i) => {
+                        footerHtml += '<td>' + (i === 0 ? 'TOTALS (Filtered)' : '') + '</td>';
+                    });
+                    
+                    months.forEach(month => {
+                        let totalCount = 0;
+                        let totalCost = 0;
+                        
+                        entries.forEach(entry => {
+                            if (entry.isDeleted) return;
+                            
+                            // Apply same filter logic
+                            const companyMatch = !companyFilter || entry.Company === companyFilter;
+                            const storeMatch = !storeFilter || entry.Branch === storeFilter;
+                            
+                            if (companyMatch && storeMatch && entry.monthlyData && entry.monthlyData[month]) {
+                                const count = parseFloat(entry.monthlyData[month].StaffCount) || 0;
+                                const salary = parseFloat(entry.monthlyData[month].Salary) || 0;
+                                totalCount += count;
+                                totalCost += count * salary;
+                            }
+                        });
+                        
+                        footerHtml += '<td style="text-align:right;font-weight:600;">' + totalCount + '</td>';
+                        footerHtml += '<td></td>';
+                        footerHtml += '<td class="total-cost" style="font-weight:700;">$' + totalCost.toLocaleString('en-US', {minimumFractionDigits: 0}) + '</td>';
+                    });
+                    
+                    footerHtml += '</tr>';
+                    tfoot.innerHTML = footerHtml;
+                }
+                
+                // Clear all filters
+                function clearFilters(category) {
+                    document.getElementById('filter-company-' + category).value = '';
+                    document.getElementById('filter-store-' + category).value = '';
+                    filterState[category] = { company: '', store: '' };
+                    
+                    // Show all rows
+                    const tbody = document.getElementById('table-' + category).querySelector('tbody');
+                    tbody.querySelectorAll('tr').forEach(row => row.classList.remove('filtered-out'));
+                    
+                    // Restore full totals
+                    renderTable(category);
+                    showNotification('Filters cleared');
                 }
                 
                 function renderTable(category) {
@@ -960,6 +1201,230 @@ router.get('/', async (req, res) => {
                     }
                     
                     hideLoading();
+                }
+                
+                // =============================================
+                // COPY/PASTE FUNCTIONALITY
+                // =============================================
+                
+                // Initialize copy/paste handlers on page load
+                document.addEventListener('DOMContentLoaded', function() {
+                    initCopyPaste();
+                });
+                
+                function initCopyPaste() {
+                    // Track mouse selection
+                    document.addEventListener('mousedown', handleCellMouseDown);
+                    document.addEventListener('mousemove', handleCellMouseMove);
+                    document.addEventListener('mouseup', handleCellMouseUp);
+                    
+                    // Keyboard shortcuts
+                    document.addEventListener('keydown', handleKeyboard);
+                }
+                
+                function handleCellMouseDown(e) {
+                    const cell = e.target.closest('td');
+                    if (!cell) return;
+                    
+                    const input = cell.querySelector('input, select');
+                    if (!input) return;
+                    
+                    // Get table context
+                    const table = cell.closest('table');
+                    if (!table) return;
+                    
+                    const row = cell.closest('tr');
+                    const rowIdx = parseInt(row.dataset.idx);
+                    if (isNaN(rowIdx)) return;
+                    
+                    // Clear previous selection
+                    clearCellSelection();
+                    
+                    // Start new selection
+                    const cellIdx = Array.from(row.cells).indexOf(cell);
+                    selectionStart = { row: rowIdx, col: cellIdx, table: table.id };
+                    isSelecting = true;
+                    
+                    // Select this cell
+                    selectCell(cell, rowIdx, cellIdx);
+                }
+                
+                function handleCellMouseMove(e) {
+                    if (!isSelecting || !selectionStart) return;
+                    
+                    const cell = e.target.closest('td');
+                    if (!cell) return;
+                    
+                    const input = cell.querySelector('input, select');
+                    if (!input) return;
+                    
+                    const table = cell.closest('table');
+                    if (!table || table.id !== selectionStart.table) return;
+                    
+                    const row = cell.closest('tr');
+                    const rowIdx = parseInt(row.dataset.idx);
+                    if (isNaN(rowIdx)) return;
+                    
+                    const cellIdx = Array.from(row.cells).indexOf(cell);
+                    
+                    // Clear and rebuild selection range
+                    clearCellSelection();
+                    
+                    const startRow = Math.min(selectionStart.row, rowIdx);
+                    const endRow = Math.max(selectionStart.row, rowIdx);
+                    const startCol = Math.min(selectionStart.col, cellIdx);
+                    const endCol = Math.max(selectionStart.col, cellIdx);
+                    
+                    // Select all cells in range
+                    const tbody = table.querySelector('tbody');
+                    const rows = tbody.querySelectorAll('tr');
+                    
+                    rows.forEach(tr => {
+                        const rIdx = parseInt(tr.dataset.idx);
+                        if (isNaN(rIdx) || rIdx < startRow || rIdx > endRow) return;
+                        
+                        const cells = tr.cells;
+                        for (let c = startCol; c <= endCol; c++) {
+                            if (cells[c] && cells[c].querySelector('input, select')) {
+                                selectCell(cells[c], rIdx, c);
+                            }
+                        }
+                    });
+                }
+                
+                function handleCellMouseUp(e) {
+                    isSelecting = false;
+                }
+                
+                function selectCell(cell, rowIdx, colIdx) {
+                    cell.classList.add('cell-selected');
+                    selectedCells.push({ row: rowIdx, col: colIdx, element: cell });
+                }
+                
+                function clearCellSelection() {
+                    selectedCells.forEach(c => {
+                        if (c.element) {
+                            c.element.classList.remove('cell-selected');
+                            c.element.classList.remove('cell-copied');
+                        }
+                    });
+                    selectedCells = [];
+                }
+                
+                function clearCopiedHighlight() {
+                    document.querySelectorAll('.cell-copied').forEach(c => c.classList.remove('cell-copied'));
+                }
+                
+                function handleKeyboard(e) {
+                    // Ctrl+C - Copy
+                    if (e.ctrlKey && e.key === 'c' && selectedCells.length > 0) {
+                        e.preventDefault();
+                        copyCells();
+                        return;
+                    }
+                    
+                    // Ctrl+V - Paste
+                    if (e.ctrlKey && e.key === 'v' && clipboardData.cells.length > 0) {
+                        e.preventDefault();
+                        pasteCells();
+                        return;
+                    }
+                    
+                    // Escape - Clear selection
+                    if (e.key === 'Escape') {
+                        clearCellSelection();
+                        clearCopiedHighlight();
+                    }
+                }
+                
+                function copyCells() {
+                    if (selectedCells.length === 0) return;
+                    
+                    // Clear previous copied highlight
+                    clearCopiedHighlight();
+                    
+                    // Sort cells by row then column
+                    selectedCells.sort((a, b) => a.row - b.row || a.col - b.col);
+                    
+                    // Get values
+                    const values = [];
+                    selectedCells.forEach(c => {
+                        const input = c.element.querySelector('input, select');
+                        if (input) {
+                            values.push({
+                                row: c.row,
+                                col: c.col,
+                                value: input.value
+                            });
+                            c.element.classList.add('cell-copied');
+                        }
+                    });
+                    
+                    clipboardData = {
+                        cells: values,
+                        category: currentCategory,
+                        startRow: Math.min(...values.map(v => v.row)),
+                        startCol: Math.min(...values.map(v => v.col)),
+                        endRow: Math.max(...values.map(v => v.row)),
+                        endCol: Math.max(...values.map(v => v.col))
+                    };
+                    
+                    showCopyHint(values.length + ' cell(s) copied - Press Ctrl+V to paste');
+                }
+                
+                function pasteCells() {
+                    if (clipboardData.cells.length === 0 || selectedCells.length === 0) return;
+                    
+                    const targetStart = selectedCells.sort((a, b) => a.row - b.row || a.col - b.col)[0];
+                    const table = document.getElementById('table-' + currentCategory);
+                    const tbody = table.querySelector('tbody');
+                    const rows = tbody.querySelectorAll('tr');
+                    
+                    // Calculate offset
+                    const rowOffset = targetStart.row - clipboardData.startRow;
+                    const colOffset = targetStart.col - clipboardData.startCol;
+                    
+                    let pastedCount = 0;
+                    
+                    clipboardData.cells.forEach(cell => {
+                        const targetRow = cell.row + rowOffset;
+                        const targetCol = cell.col + colOffset;
+                        
+                        // Find the target row
+                        const tr = Array.from(rows).find(r => parseInt(r.dataset.idx) === targetRow);
+                        if (!tr) return;
+                        
+                        const targetCell = tr.cells[targetCol];
+                        if (!targetCell) return;
+                        
+                        const input = targetCell.querySelector('input, select');
+                        if (!input || input.disabled) return;
+                        
+                        // Set the value
+                        input.value = cell.value;
+                        
+                        // Trigger change event to update data
+                        input.dispatchEvent(new Event('change', { bubbles: true }));
+                        pastedCount++;
+                    });
+                    
+                    if (pastedCount > 0) {
+                        showCopyHint(pastedCount + ' cell(s) pasted');
+                    }
+                    
+                    clearCellSelection();
+                }
+                
+                function showCopyHint(message) {
+                    // Remove existing hints
+                    document.querySelectorAll('.copy-hint').forEach(h => h.remove());
+                    
+                    const hint = document.createElement('div');
+                    hint.className = 'copy-hint';
+                    hint.textContent = message;
+                    document.body.appendChild(hint);
+                    
+                    setTimeout(() => hint.remove(), 2000);
                 }
             </script>
         </body>
