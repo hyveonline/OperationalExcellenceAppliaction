@@ -240,36 +240,6 @@ router.get('/', async (req, res) => {
                         <span class="card-badge internal">Internal</span>
                     </a>
                 </div>
-                
-                <div class="divider"></div>
-                
-                <h3 class="section-title">🤝 Third Party Security</h3>
-                <div class="menu-grid">
-                    <a href="/security-services/thirdparty/schedule" class="menu-card thirdparty">
-                        <div class="card-icon">📅</div>
-                        <div class="card-title">Third Party Schedule</div>
-                        <div class="card-desc">View and manage third party security provider schedules</div>
-                        <span class="card-badge thirdparty">Third Party</span>
-                    </a>
-                    <a href="/security-services/thirdparty/attendance" class="menu-card thirdparty">
-                        <div class="card-icon">✅</div>
-                        <div class="card-title">Attendance Tracking</div>
-                        <div class="card-desc">Track third party security attendance and hours</div>
-                        <span class="card-badge thirdparty">Third Party</span>
-                    </a>
-                    <a href="/security-services/thirdparty/providers" class="menu-card thirdparty">
-                        <div class="card-icon">🏢</div>
-                        <div class="card-title">Service Providers</div>
-                        <div class="card-desc">Manage third party security service provider information</div>
-                        <span class="card-badge thirdparty">Third Party</span>
-                    </a>
-                    <a href="/security-services/thirdparty/compliance" class="menu-card thirdparty">
-                        <div class="card-icon">📋</div>
-                        <div class="card-title">Compliance & Audits</div>
-                        <div class="card-desc">Monitor third party security compliance and audit reports</div>
-                        <span class="card-badge thirdparty">Third Party</span>
-                    </a>
-                </div>
             </div>
         </body>
         </html>
