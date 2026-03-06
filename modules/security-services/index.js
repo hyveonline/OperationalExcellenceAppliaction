@@ -205,7 +205,7 @@ router.get('/', async (req, res) => {
                     </a>
                     <a href="/security-services/cleaning-checklist" class="menu-card internal">
                         <div class="card-icon">🚽</div>
-                        <div class="card-title">Canteens and Toilets Check List</div>
+                        <div class="card-title">HO Dbayeh & Zouk Toilets and Canteens Checklist</div>
                         <div class="card-desc">Weekly cleaning checklist for toilets and canteens - قائمة التنظيف</div>
                         <span class="card-badge internal">Internal</span>
                     </a>
