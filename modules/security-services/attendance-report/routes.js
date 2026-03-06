@@ -253,11 +253,12 @@ router.get('/', (req, res) => {
                     <table class="entries-table" id="entriesTable">
                         <thead>
                             <tr>
-                                <th style="width: 35%">Employee Name</th>
-                                <th style="width: 18%">Time In</th>
-                                <th style="width: 18%">Time Out</th>
-                                <th style="width: 15%">Informed</th>
-                                <th style="width: 14%">Action</th>
+                                <th style="width: 25%">Employee Name</th>
+                                <th style="width: 13%">Time In</th>
+                                <th style="width: 13%">Time Out</th>
+                                <th style="width: 10%">Informed</th>
+                                <th style="width: 29%">Notes</th>
+                                <th style="width: 10%">Action</th>
                             </tr>
                         </thead>
                         <tbody id="entriesBody">
@@ -266,6 +267,7 @@ router.get('/', (req, res) => {
                                 <td><input type="time" class="entry-time-in"></td>
                                 <td><input type="time" class="entry-time-out"></td>
                                 <td class="informed-label"><input type="checkbox" class="entry-informed"> Yes</td>
+                                <td><input type="text" class="entry-notes" placeholder="Notes (optional)"></td>
                                 <td><button type="button" class="btn-remove" onclick="removeRow(this)">×</button></td>
                             </tr>
                         </tbody>
@@ -289,8 +291,7 @@ router.get('/', (req, res) => {
                         <td><input type="text" class="entry-name" placeholder="Employee name"></td>
                         <td><input type="time" class="entry-time-in"></td>
                         <td><input type="time" class="entry-time-out"></td>
-                        <td class="informed-label"><input type="checkbox" class="entry-informed"> Yes</td>
-                        <td><button type="button" class="btn-remove" onclick="removeRow(this)">×</button></td>
+                        <td class="informed-label"><input type="checkbox" class="entry-informed"> Yes</td>                        <td><input type="text" class="entry-notes" placeholder="Notes (optional)"></td>                        <td><button type="button" class="btn-remove" onclick="removeRow(this)">×</button></td>
                     \`;
                     tbody.appendChild(row);
                 }
@@ -330,6 +331,7 @@ router.get('/', (req, res) => {
                         const timeIn = row.querySelector('.entry-time-in').value;
                         const timeOut = row.querySelector('.entry-time-out').value;
                         const informed = row.querySelector('.entry-informed').checked;
+                        const notes = row.querySelector('.entry-notes') ? row.querySelector('.entry-notes').value.trim() : '';
                         
                         if (name) {
                             entries.push({
@@ -337,6 +339,7 @@ router.get('/', (req, res) => {
                                 timeIn: timeIn || null,
                                 timeOut: timeOut || null,
                                 informed: informed,
+                                notes: notes,
                                 order: index + 1
                             });
                         }
@@ -421,10 +424,11 @@ router.post('/save', async (req, res) => {
                 .input('timeIn', sql.NVarChar, entry.timeIn || '')
                 .input('timeOut', sql.NVarChar, entry.timeOut || '')
                 .input('informed', sql.Bit, entry.informed ? 1 : 0)
+                .input('notes', sql.NVarChar, entry.notes || '')
                 .input('order', sql.Int, entry.order)
                 .query(`
-                    INSERT INTO Security_AttendanceEntries (AttendanceReportId, EmployeeName, TimeIn, TimeOut, Informed, EntryOrder)
-                    VALUES (@reportId, @employeeName, @timeIn, @timeOut, @informed, @order)
+                    INSERT INTO Security_AttendanceEntries (AttendanceReportId, EmployeeName, TimeIn, TimeOut, Informed, Notes, EntryOrder)
+                    VALUES (@reportId, @employeeName, @timeIn, @timeOut, @informed, @notes, @order)
                 `);
         }
         
@@ -475,6 +479,7 @@ router.get('/:id', async (req, res) => {
                 <td>${entry.TimeIn || '-'}</td>
                 <td>${entry.TimeOut || '-'}</td>
                 <td><span class="informed-badge ${entry.Informed ? 'yes' : 'no'}">${entry.Informed ? '✓ Yes' : '✗ No'}</span></td>
+                <td>${entry.Notes || '-'}</td>
             </tr>
         `).join('');
         
@@ -628,6 +633,7 @@ router.get('/:id', async (req, res) => {
                                     <th>Time In</th>
                                     <th>Time Out</th>
                                     <th>Informed</th>
+                                    <th>Notes</th>
                                 </tr>
                             </thead>
                             <tbody>
