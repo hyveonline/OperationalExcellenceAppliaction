@@ -1877,7 +1877,10 @@ router.get('/visitor-cars', async (req, res) => {
         const carsResult = await pool.request()
             .query(`
                 SELECT vc.*, 
-                       (SELECT COUNT(*) FROM Security_VisitorCarEntries WHERE VisitorCarId = vc.Id) as EntryCount
+                       (SELECT COUNT(*) FROM Security_VisitorCarEntries WHERE VisitorCarId = vc.Id) as EntryCount,
+                       (SELECT STRING_AGG(VisitorName, ', ') FROM Security_VisitorCarEntries WHERE VisitorCarId = vc.Id) as VisitorNames,
+                       (SELECT STRING_AGG(PlateNumber, ', ') FROM Security_VisitorCarEntries WHERE VisitorCarId = vc.Id) as PlateNumbers,
+                       (SELECT STRING_AGG(GuardName, ', ') FROM (SELECT DISTINCT GuardName FROM Security_VisitorCarEntries WHERE VisitorCarId = vc.Id AND GuardName IS NOT NULL AND GuardName != '') AS g) as GuardNames
                 FROM Security_VisitorCars vc
                 WHERE vc.Status = 'Active'
                 ORDER BY vc.RecordDate DESC, vc.CreatedAt DESC
@@ -1891,12 +1894,18 @@ router.get('/visitor-cars', async (req, res) => {
             const recordDate = new Date(record.RecordDate).toLocaleDateString('en-GB', { 
                 weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' 
             });
+            const visitorNames = record.VisitorNames || '-';
+            const plateNumbers = record.PlateNumbers || '-';
+            const guardNames = record.GuardNames || '-';
             return `
                 <tr onclick="viewRecord(${record.Id})" style="cursor: pointer;">
                     <td>${recordDate}</td>
                     <td><span class="location-badge">${record.Location}</span></td>
                     <td>${record.CreatedBy}</td>
                     <td><span class="entry-count">${record.EntryCount} vehicles</span></td>
+                    <td style="font-size: 12px; color: #666; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${visitorNames}">👤 ${visitorNames}</td>
+                    <td style="font-size: 12px; color: #666; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${plateNumbers}">🚗 ${plateNumbers}</td>
+                    <td style="font-size: 12px; color: #666;">👮 ${guardNames}</td>
                     <td>
                         <button class="btn-view" onclick="event.stopPropagation(); viewRecord(${record.Id})">View</button>
                     </td>
@@ -2078,6 +2087,9 @@ router.get('/visitor-cars', async (req, res) => {
                                             <th>Location</th>
                                             <th>Created By</th>
                                             <th>Vehicles</th>
+                                            <th>Visitors</th>
+                                            <th>Plates</th>
+                                            <th>Guards</th>
                                             <th>Action</th>
                                         </tr>
                                     </thead>
@@ -2125,16 +2137,22 @@ router.get('/visitor-cars', async (req, res) => {
                                 const recordDate = new Date(record.RecordDate).toLocaleDateString('en-GB', { 
                                     weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' 
                                 });
+                                const visitorNames = record.VisitorNames || '-';
+                                const plateNumbers = record.PlateNumbers || '-';
+                                const guardNames = record.GuardNames || '-';
                                 return '<tr onclick="viewRecord(' + record.Id + ')" style="cursor: pointer;">' +
                                     '<td>' + recordDate + '</td>' +
                                     '<td><span class="location-badge">' + record.Location + '</span></td>' +
                                     '<td>' + record.CreatedBy + '</td>' +
                                     '<td><span class="entry-count">' + record.EntryCount + ' vehicles</span></td>' +
+                                    '<td style="font-size: 12px; color: #666; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="' + visitorNames + '">👤 ' + visitorNames + '</td>' +
+                                    '<td style="font-size: 12px; color: #666; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="' + plateNumbers + '">🚗 ' + plateNumbers + '</td>' +
+                                    '<td style="font-size: 12px; color: #666;">👮 ' + guardNames + '</td>' +
                                     '<td><button class="btn-view" onclick="event.stopPropagation(); viewRecord(' + record.Id + ')">View</button></td>' +
                                 '</tr>';
                             }).join('');
                             
-                            container.innerHTML = '<table><thead><tr><th>Date</th><th>Location</th><th>Created By</th><th>Vehicles</th><th>Action</th></tr></thead><tbody>' + rows + '</tbody></table>';
+                            container.innerHTML = '<table><thead><tr><th>Date</th><th>Location</th><th>Created By</th><th>Vehicles</th><th>Visitors</th><th>Plates</th><th>Guards</th><th>Action</th></tr></thead><tbody>' + rows + '</tbody></table>';
                         } catch (err) {
                             console.error('Error filtering records:', err);
                         }
@@ -2158,7 +2176,10 @@ router.get('/api/visitor-cars', async (req, res) => {
         
         let query = `
             SELECT vc.*, 
-                   (SELECT COUNT(*) FROM Security_VisitorCarEntries WHERE VisitorCarId = vc.Id) as EntryCount
+                   (SELECT COUNT(*) FROM Security_VisitorCarEntries WHERE VisitorCarId = vc.Id) as EntryCount,
+                   (SELECT STRING_AGG(VisitorName, ', ') FROM Security_VisitorCarEntries WHERE VisitorCarId = vc.Id) as VisitorNames,
+                   (SELECT STRING_AGG(PlateNumber, ', ') FROM Security_VisitorCarEntries WHERE VisitorCarId = vc.Id) as PlateNumbers,
+                   (SELECT STRING_AGG(GuardName, ', ') FROM (SELECT DISTINCT GuardName FROM Security_VisitorCarEntries WHERE VisitorCarId = vc.Id AND GuardName IS NOT NULL AND GuardName != '') AS g) as GuardNames
             FROM Security_VisitorCars vc
             WHERE vc.Status = 'Active'
         `;
