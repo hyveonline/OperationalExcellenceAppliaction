@@ -65,8 +65,11 @@ router.get('/', async (req, res) => {
     // Get store from StoreManagerAssignments table (primary assignment)
     let storeName = '';
     let storeId = null;
+    let allStores = [];
     try {
         const pool = await getPool();
+        
+        // Get user's assigned store
         const storeResult = await pool.request()
             .input('userId', sql.Int, user?.userId || 0)
             .query(`
@@ -79,9 +82,20 @@ router.get('/', async (req, res) => {
             storeId = storeResult.recordset[0].Id;
             storeName = storeResult.recordset[0].StoreName;
         }
+        
+        // Get all active stores for dropdown
+        const allStoresResult = await pool.request().query(`
+            SELECT Id, StoreName, StoreCode FROM Stores WHERE IsActive = 1 ORDER BY StoreName
+        `);
+        allStores = allStoresResult.recordset;
     } catch (err) {
         console.error('[5 Days] Error getting store assignment:', err);
     }
+    
+    // Generate store options HTML
+    const storeOptionsHtml = allStores.map(s => 
+        `<option value="${s.Id}" ${s.Id === storeId ? 'selected' : ''}>${s.StoreName}${s.StoreCode ? ' (' + s.StoreCode + ')' : ''}</option>`
+    ).join('');
     
     res.send(`
         <!DOCTYPE html>
@@ -232,7 +246,11 @@ router.get('/', async (req, res) => {
                                 <h3 style="color: #333; margin-bottom: 5px;">📊 Bulk Upload via Excel</h3>
                                 <p style="color: #666; font-size: 13px; margin: 0;">Download template, fill items for the cycle, then upload</p>
                             </div>
-                            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                            <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+                                <select id="uploadStore" style="padding: 10px 15px; border: 2px solid #667eea; border-radius: 8px; font-size: 14px; background: white; min-width: 180px;">
+                                    <option value="">-- Select Store --</option>
+                                    ${storeOptionsHtml}
+                                </select>
                                 <select id="uploadCycle" style="padding: 10px 15px; border: 2px solid #667eea; border-radius: 8px; font-size: 14px; background: white;">
                                     <option value="1">Cycle 1</option>
                                     <option value="2">Cycle 2</option>
@@ -365,13 +383,23 @@ router.get('/', async (req, res) => {
                     if (!file) return;
                     
                     const cycle = document.getElementById('uploadCycle').value;
+                    const storeId = document.getElementById('uploadStore').value;
                     const statusDiv = document.getElementById('uploadStatus');
+                    
+                    if (!storeId) {
+                        statusDiv.style.display = 'block';
+                        statusDiv.innerHTML = '<span style="color: #dc3545;">❌ Please select a store first</span>';
+                        input.value = '';
+                        return;
+                    }
+                    
                     statusDiv.style.display = 'block';
                     statusDiv.innerHTML = '<span style="color: #667eea;">⏳ Uploading and processing...</span>';
                     
                     const formData = new FormData();
                     formData.append('file', file);
                     formData.append('cycleNumber', cycle);
+                    formData.append('storeId', storeId);
                     
                     try {
                         const res = await fetch('/stores/five-days/api/upload-excel', {
@@ -924,17 +952,31 @@ router.post('/api/upload-excel', upload.single('file'), async (req, res) => {
         
         const pool = await getPool();
         
-        // Get user's store
-        const storeResult = await pool.request()
-            .input('userId', sql.Int, user?.userId || 0)
-            .query(`
-                SELECT StoreId FROM StoreManagerAssignments 
-                WHERE UserId = @userId AND IsPrimary = 1
-            `);
+        // Get storeId from request body first, then fall back to user assignment
+        let storeId = req.body.storeId ? parseInt(req.body.storeId) : null;
         
-        const storeId = storeResult.recordset[0]?.StoreId;
         if (!storeId) {
-            return res.status(400).json({ error: 'Store not assigned to user' });
+            // Try to get user's assigned store as fallback
+            const storeResult = await pool.request()
+                .input('userId', sql.Int, user?.userId || 0)
+                .query(`
+                    SELECT StoreId FROM StoreManagerAssignments 
+                    WHERE UserId = @userId AND IsPrimary = 1
+                `);
+            storeId = storeResult.recordset[0]?.StoreId;
+        }
+        
+        if (!storeId) {
+            return res.status(400).json({ error: 'Please select a store' });
+        }
+        
+        // Verify store exists
+        const storeCheck = await pool.request()
+            .input('storeId', sql.Int, storeId)
+            .query('SELECT Id, StoreName FROM Stores WHERE Id = @storeId AND IsActive = 1');
+        
+        if (!storeCheck.recordset[0]) {
+            return res.status(400).json({ error: 'Invalid store selected' });
         }
         
         // Read Excel file
