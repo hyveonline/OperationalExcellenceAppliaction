@@ -40,12 +40,12 @@ const ohsUpload = multer({
     }
 });
 
-// Image compression settings
+// Image compression settings - optimized for storage
 const COMPRESSION_CONFIG = {
-    maxWidth: 1920,
-    maxHeight: 1080,
-    quality: 80,
-    pngCompressionLevel: 8
+    maxWidth: 1280,
+    maxHeight: 960,
+    quality: 70,
+    pngCompressionLevel: 9
 };
 
 // Compress and resize image
@@ -2363,19 +2363,20 @@ function generateOHSReportHTML(data) {
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f5f5f5; color: #333; line-height: 1.6; }
         .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
-        .header { background: linear-gradient(135deg, #e17055 0%, #d63031 100%); color: white; padding: 30px; border-radius: 12px; margin-bottom: 20px; }
-        .header h1 { font-size: 28px; margin-bottom: 10px; }
-        .header-info { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-top: 20px; }
-        .header-item { background: rgba(255,255,255,0.1); padding: 10px 15px; border-radius: 8px; }
-        .header-item label { font-size: 12px; opacity: 0.8; display: block; }
-        .header-item span { font-size: 16px; font-weight: 600; }
-        .score-card { background: white; border-radius: 12px; padding: 30px; margin-bottom: 20px; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        .score-value { font-size: 72px; font-weight: bold; }
+        .header { background: linear-gradient(135deg, #e17055 0%, #d63031 100%); color: white; padding: 15px 20px; border-radius: 10px; margin-bottom: 15px; }
+        .header h1 { font-size: 20px; margin-bottom: 8px; }
+        .header-info { display: flex; flex-wrap: wrap; gap: 10px; }
+        .header-item { background: rgba(255,255,255,0.1); padding: 6px 12px; border-radius: 6px; }
+        .header-item label { font-size: 10px; opacity: 0.8; display: block; }
+        .header-item span { font-size: 13px; font-weight: 600; }
+        .score-card { background: white; border-radius: 10px; padding: 12px 25px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); display: flex; align-items: center; justify-content: center; gap: 20px; }
+        .score-value { font-size: 36px; font-weight: bold; }
         .score-value.pass { color: #10b981; }
         .score-value.fail { color: #ef4444; }
-        .score-label { font-size: 24px; margin-top: 10px; }
+        .score-label { font-size: 18px; font-weight: 600; }
         .score-label.pass { color: #10b981; }
         .score-label.fail { color: #ef4444; }
+        .score-threshold { color: #64748b; font-size: 14px; border-left: 1px solid #e2e8f0; padding-left: 20px; }
         .section-card { background: white; border-radius: 12px; margin-bottom: 20px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
         .section-header { background: #fff5f5; padding: 15px 20px; border-bottom: 1px solid #fecaca; display: flex; justify-content: space-between; align-items: center; }
         .section-title { font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
@@ -2460,7 +2461,10 @@ function generateOHSReportHTML(data) {
         .lightbox-close:hover { color: #f59e0b; }
         @media print { .lightbox { display: none !important; } }
         .finding-item { background: #fef2f2; border-radius: 8px; padding: 12px; margin-bottom: 8px; border-left: 4px solid #ef4444; }
-        .finding-ref { font-weight: 600; color: #e17055; font-size: 12px; }
+        .finding-ref { font-weight: 600; color: #e17055; font-size: 12px; display: inline-block; }
+        .finding-badge { display: inline-block; font-size: 10px; padding: 2px 8px; border-radius: 10px; margin-left: 8px; font-weight: 600; }
+        .finding-badge.repetitive { background: #fef3c7; color: #92400e; }
+        .finding-badge.first-time { background: #dbeafe; color: #1e40af; }
         .finding-question { margin: 5px 0; font-size: 14px; }
         .finding-detail { color: #64748b; font-size: 13px; }
         .finding-cr { background: #ecfdf5; border-left: 4px solid #10b981; padding: 10px; margin-top: 8px; border-radius: 4px; font-size: 13px; color: #065f46; }
@@ -2546,21 +2550,19 @@ function generateOHSReportHTML(data) {
         <div class="header">
             <h1>🦺 OHS Inspection Report</h1>
             <div class="header-info">
-                <div class="header-item"><label>Document Number</label><span>${audit.DocumentNumber}</span></div>
+                <div class="header-item"><label>Document #</label><span>${audit.DocumentNumber}</span></div>
                 <div class="header-item"><label>Store</label><span>${audit.StoreName}</span></div>
                 <div class="header-item"><label>Brand</label><span>${audit.BrandName || 'N/A'}</span></div>
-                <div class="header-item"><label>Region</label><span>${audit.Region || 'N/A'}</span></div>
-                <div class="header-item"><label>Inspection Date</label><span>${new Date(audit.InspectionDate).toLocaleDateString()}</span></div>
+                <div class="header-item"><label>Date</label><span>${new Date(audit.InspectionDate).toLocaleDateString()}</span></div>
                 <div class="header-item"><label>Inspectors</label><span>${audit.Inspectors || 'N/A'}</span></div>
                 <div class="header-item"><label>Accompanied By</label><span>${audit.AccompaniedBy || 'N/A'}</span></div>
-                <div class="header-item"><label>Status</label><span>${audit.Status}</span></div>
             </div>
         </div>
         
         <div class="score-card">
             <div class="score-value ${passedClass}">${overallScore}%</div>
             <div class="score-label ${passedClass}">${passedText}</div>
-            <div style="color: #64748b; margin-top: 10px;">Threshold: ${threshold}%</div>
+            <div class="score-threshold">Threshold: ${threshold}%</div>
         </div>
         
         <div class="summary-section">
@@ -2709,7 +2711,7 @@ function generateOHSReportHTML(data) {
                             const itemPics = pictures[f.Id] || [];
                             return `
                         <div class="finding-item">
-                            <div class="finding-ref">[${f.ReferenceValue || 'N/A'}]</div>
+                            <div class="finding-ref">[${f.ReferenceValue || 'N/A'}]${f.IsRepetitive ? '<span class="finding-badge repetitive">🔁 Repetitive</span>' : '<span class="finding-badge first-time">1st Time</span>'}</div>
                             <div class="finding-question">${f.Question}</div>
                             <div class="finding-detail">Answer: <strong class="${f.Answer === 'No' ? 'choice-no' : 'choice-partial'}">${f.Answer}</strong> | Finding: ${f.Finding || 'N/A'}</div>
                             ${f.CorrectiveAction ? `<div class="finding-cr">✅ Corrective Action: ${f.CorrectiveAction}</div>` : ''}
