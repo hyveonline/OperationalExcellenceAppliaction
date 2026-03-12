@@ -262,12 +262,6 @@ router.get('/', async (req, res) => {
                             <div class="card-desc">View all OHS inspections, filter by status, store, or date range.</div>
                         </a>
                         
-                        <a href="/ohs-inspection/action-plans" class="card">
-                            <div class="card-icon">🎯</div>
-                            <div class="card-title">Action Plans</div>
-                            <div class="card-desc">Track and manage action plans from completed inspections.</div>
-                        </a>
-                        
                         <a href="/ohs-inspection/settings" class="card">
                             <div class="card-icon">⚙️</div>
                             <div class="card-title">Settings</div>
@@ -1126,8 +1120,7 @@ router.get('/api/stores/available-managers', async (req, res) => {
         const result = await pool.request().query(`
             SELECT DISTINCT u.Id as userId, u.Email as email, u.DisplayName as displayName, r.RoleName as role
             FROM Users u
-            JOIN UserRoles ur ON u.Id = ur.UserId
-            JOIN Roles r ON ur.RoleId = r.Id
+            JOIN UserRoles r ON u.RoleId = r.Id
             WHERE r.RoleName IN ('Store Manager', 'System Administrator', 'Senior Inspector')
             ORDER BY u.DisplayName
         `);
