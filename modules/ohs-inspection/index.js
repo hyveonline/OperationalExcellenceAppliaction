@@ -2296,6 +2296,91 @@ router.post('/api/audits/:auditId/generate-report', async (req, res) => {
             `);
         const freetextSections = freetextSectionsResult.recordset;
         
+        // Fetch historical audits for this store (for cycle columns in summary table)
+        // OHS cycle logic: 2 audits per store per year = 1 cycle
+        const currentYear = new Date().getFullYear();
+        const historicalResult = await pool.request()
+            .input('storeId', sql.Int, audit.StoreId)
+            .input('currentAuditId', sql.Int, auditId)
+            .input('currentYear', sql.Int, currentYear)
+            .query(`
+                SELECT 
+                    i.Id, i.DocumentNumber, i.InspectionDate, i.CompletedAt,
+                    CAST(ROUND((i.TotalPoints / NULLIF(i.MaxPoints, 0)) * 100, 0) AS INT) as TotalScore,
+                    YEAR(i.CompletedAt) as AuditYear
+                FROM OHS_Inspections i
+                WHERE i.StoreId = @storeId 
+                    AND i.Status = 'Completed'
+                    AND YEAR(i.CompletedAt) = @currentYear
+                ORDER BY i.CompletedAt ASC, i.Id ASC
+            `);
+        
+        // Calculate cycle for each historical audit using OHS logic (2 per cycle)
+        const allAudits = historicalResult.recordset;
+        const historicalAuditsWithCycles = [];
+        
+        for (let i = 0; i < allAudits.length; i++) {
+            const ha = allAudits[i];
+            const cycleNumber = Math.ceil((i + 1) / 2);
+            const auditWithinCycle = ((i) % 2) + 1;
+            
+            // For each historical audit, get department AND section scores
+            const scoresResult = await pool.request()
+                .input('inspectionId', sql.Int, ha.Id)
+                .query(`
+                    SELECT 
+                        DepartmentName,
+                        SectionName,
+                        SUM(Score) as EarnedScore,
+                        SUM(CASE WHEN Answer != 'NA' THEN Coefficient ELSE 0 END) as MaxScore,
+                        CAST(ROUND((SUM(Score) / NULLIF(SUM(CASE WHEN Answer != 'NA' THEN Coefficient ELSE 0 END), 0)) * 100, 0) AS INT) as Percentage
+                    FROM OHS_InspectionItems
+                    WHERE InspectionId = @inspectionId
+                    GROUP BY DepartmentName, SectionName
+                `);
+            
+            const departmentScores = {};
+            const sectionScores = {};
+            for (const ds of scoresResult.recordset) {
+                // Build section key as "DepartmentName|SectionName"
+                const sectionKey = `${ds.DepartmentName}|${ds.SectionName}`;
+                sectionScores[sectionKey] = ds.Percentage || 0;
+                
+                // Also accumulate department totals
+                if (!departmentScores[ds.DepartmentName]) {
+                    departmentScores[ds.DepartmentName] = { earned: 0, max: 0 };
+                }
+                departmentScores[ds.DepartmentName].earned += ds.EarnedScore || 0;
+                departmentScores[ds.DepartmentName].max += ds.MaxScore || 0;
+            }
+            
+            // Calculate department percentages
+            for (const deptName of Object.keys(departmentScores)) {
+                const dept = departmentScores[deptName];
+                departmentScores[deptName] = dept.max > 0 ? Math.round((dept.earned / dept.max) * 100) : 0;
+            }
+            
+            historicalAuditsWithCycles.push({
+                auditId: ha.Id,
+                documentNumber: ha.DocumentNumber,
+                inspectionDate: ha.InspectionDate,
+                totalScore: ha.TotalScore || 0,
+                cycle: cycleNumber,
+                auditWithinCycle,
+                cycleLabel: `C${cycleNumber} (${auditWithinCycle}/2)`,
+                departmentScores,
+                sectionScores,
+                isCurrent: ha.Id === parseInt(auditId)
+            });
+        }
+        
+        // Get last 6 audits (or all if less than 6)
+        const currentIndex = historicalAuditsWithCycles.findIndex(a => a.isCurrent);
+        const startIdx = Math.max(0, currentIndex - 5);
+        const cycleAudits = currentIndex >= 0 
+            ? historicalAuditsWithCycles.slice(startIdx, currentIndex + 1)
+            : historicalAuditsWithCycles.slice(-6);
+        
         // Build report data
         const reportData = {
             audit,
@@ -2304,6 +2389,7 @@ router.post('/api/audits/:auditId/generate-report', async (req, res) => {
             freetextSections,
             overallScore,
             threshold,
+            cycleAudits,
             generatedAt: new Date().toISOString()
         };
         
@@ -2599,7 +2685,7 @@ function generateDepartmentReportHTML(data) {
 
 // Helper function to generate HTML report
 function generateOHSReportHTML(data) {
-    const { audit, departments, pictures, freetextSections = [], overallScore, threshold, generatedAt } = data;
+    const { audit, departments, pictures, freetextSections = [], overallScore, threshold, cycleAudits = [], generatedAt } = data;
     const passedClass = overallScore >= threshold ? 'pass' : 'fail';
     const passedText = overallScore >= threshold ? 'PASS ✅' : 'FAIL ❌';
     
@@ -2654,12 +2740,13 @@ function generateOHSReportHTML(data) {
         .summary-table { width: 100%; border-collapse: collapse; }
         .summary-table th, .summary-table td { padding: 10px 15px; }
         .summary-table th:first-child, .summary-table td:first-child { width: 1%; white-space: nowrap; }
-        .summary-table th:nth-child(3), .summary-table td:nth-child(3) { width: 1%; white-space: nowrap; text-align: right !important; }
         .summary-table th { background: #64748b; color: white; text-align: left; font-size: 12px; text-transform: uppercase; font-weight: 600; border-bottom: 2px solid #475569; }
         .summary-table td { border-bottom: 1px solid #e2e8f0; vertical-align: middle; }
         .summary-table .dept-row td:first-child { background: #f8fafc; border-right: 1px solid #e2e8f0; vertical-align: top; }
         .summary-table .na-row { background: #f8fafc; color: #94a3b8; }
-        .summary-table .na-row td:nth-child(2) { text-align: right !important; }
+        .summary-table .total-row { background: #f1f5f9; border-top: 2px solid #64748b; }
+        .summary-table .total-row td { font-size: 14px; }
+        .summary-table .current-cycle { background: #dbeafe; }
         .score-pass { color: #10b981; }
         .score-fail { color: #ef4444; }
         
@@ -2925,7 +3012,7 @@ function generateOHSReportHTML(data) {
                     <tr>
                         <th>Department</th>
                         <th>Section</th>
-                        <th>Score</th>
+                        ${cycleAudits.map(ca => `<th style="text-align:center;">${ca.cycleLabel}</th>`).join('')}
                     </tr>
                 </thead>
                 <tbody>
@@ -2933,30 +3020,51 @@ function generateOHSReportHTML(data) {
                         if (dept.IsNA) {
                             return `<tr class="dept-row na-row">
                                 <td colspan="2"><strong>${dept.DepartmentIcon || '📁'} ${dept.DepartmentName}</strong></td>
-                                <td>N/A</td>
+                                ${cycleAudits.map(ca => {
+                                    const currentClass = ca.isCurrent ? ' current-cycle' : '';
+                                    return `<td style="text-align:center;" class="${currentClass}">N/A</td>`;
+                                }).join('')}
                             </tr>`;
                         }
                         const rows = [];
-                        const deptPassed = dept.Percentage >= dept.PassingGrade;
-                        const deptScoreClass = deptPassed ? 'score-pass' : 'score-fail';
                         dept.sections.forEach((section, idx) => {
-                            const sectionPassed = section.Percentage >= dept.PassingGrade;
-                            const sectionScoreClass = sectionPassed ? 'score-pass' : 'score-fail';
+                            const sectionKey = dept.DepartmentName + '|' + section.SectionName;
                             if (idx === 0) {
                                 rows.push(`<tr class="dept-row">
-                                    <td rowspan="${dept.sections.length}"><strong>${dept.DepartmentIcon || '📁'} ${dept.DepartmentName}</strong><br><small class="${deptScoreClass}">Overall: ${dept.Percentage}%</small></td>
+                                    <td rowspan="${dept.sections.length}"><strong>${dept.DepartmentIcon || '📁'} ${dept.DepartmentName}</strong></td>
                                     <td>${section.SectionName}</td>
-                                    <td><strong class="${sectionScoreClass}">${section.Percentage}%</strong></td>
+                                    ${cycleAudits.map(ca => {
+                                        const score = ca.sectionScores[sectionKey] || 0;
+                                        const isPassed = score >= dept.PassingGrade;
+                                        const scoreClass = isPassed ? 'score-pass' : 'score-fail';
+                                        const currentClass = ca.isCurrent ? ' current-cycle' : '';
+                                        return `<td style="text-align:center;" class="${currentClass}"><strong class="${scoreClass}">${score}%</strong></td>`;
+                                    }).join('')}
                                 </tr>`);
                             } else {
                                 rows.push(`<tr>
                                     <td>${section.SectionName}</td>
-                                    <td><strong class="${sectionScoreClass}">${section.Percentage}%</strong></td>
+                                    ${cycleAudits.map(ca => {
+                                        const score = ca.sectionScores[sectionKey] || 0;
+                                        const isPassed = score >= dept.PassingGrade;
+                                        const scoreClass = isPassed ? 'score-pass' : 'score-fail';
+                                        const currentClass = ca.isCurrent ? ' current-cycle' : '';
+                                        return `<td style="text-align:center;" class="${currentClass}"><strong class="${scoreClass}">${score}%</strong></td>`;
+                                    }).join('')}
                                 </tr>`);
                             }
                         });
                         return rows.join('');
                     }).join('')}
+                    <tr class="total-row">
+                        <td colspan="2"><strong>TOTAL</strong></td>
+                        ${cycleAudits.map(ca => {
+                            const isPassed = ca.totalScore >= threshold;
+                            const scoreClass = isPassed ? 'score-pass' : 'score-fail';
+                            const currentClass = ca.isCurrent ? ' current-cycle' : '';
+                            return `<td style="text-align:center;" class="${currentClass}"><strong class="${scoreClass}">${ca.totalScore}%</strong></td>`;
+                        }).join('')}
+                    </tr>
                 </tbody>
             </table>
         </div>

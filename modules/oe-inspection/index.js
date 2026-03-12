@@ -1980,6 +1980,63 @@ router.post('/api/audits/:auditId/generate-report', async (req, res) => {
             section.PassingGrade = sectionPassingGrades[section.SectionName] || threshold;
         }
         
+        // 5.5 Fetch historical audits for this store (for cycle columns in summary table)
+        const historicalResult = await pool.request()
+            .input('storeId', sql.Int, audit.StoreId)
+            .input('currentAuditId', sql.Int, auditId)
+            .query(`
+                SELECT 
+                    i.Id, i.DocumentNumber, i.InspectionDate, i.CompletedAt,
+                    CAST(ROUND((i.TotalPoints / NULLIF(i.MaxPoints, 0)) * 100, 0) AS INT) as TotalScore
+                FROM OE_Inspections i
+                WHERE i.StoreId = @storeId 
+                    AND i.Status = 'Completed'
+                ORDER BY i.CompletedAt ASC, i.Id ASC
+            `);
+        
+        // Calculate cycle for each historical audit (including current)
+        const allAudits = historicalResult.recordset;
+        const historicalAuditsWithCycles = [];
+        let cycleNumber = 0;
+        
+        for (const ha of allAudits) {
+            cycleNumber++;
+            // For each historical audit, get section scores
+            const sectionScoresResult = await pool.request()
+                .input('inspectionId', sql.Int, ha.Id)
+                .query(`
+                    SELECT 
+                        SectionName,
+                        SUM(Score) as EarnedScore,
+                        SUM(CASE WHEN Answer != 'NA' THEN Coefficient ELSE 0 END) as MaxScore,
+                        CAST(ROUND((SUM(Score) / NULLIF(SUM(CASE WHEN Answer != 'NA' THEN Coefficient ELSE 0 END), 0)) * 100, 0) AS INT) as Percentage
+                    FROM OE_InspectionItems
+                    WHERE InspectionId = @inspectionId
+                    GROUP BY SectionName
+                `);
+            
+            const sectionScores = {};
+            for (const ss of sectionScoresResult.recordset) {
+                sectionScores[ss.SectionName] = ss.Percentage || 0;
+            }
+            
+            historicalAuditsWithCycles.push({
+                auditId: ha.Id,
+                documentNumber: ha.DocumentNumber,
+                inspectionDate: ha.InspectionDate,
+                totalScore: ha.TotalScore || 0,
+                cycle: cycleNumber,
+                cycleLabel: `C${cycleNumber} (1/1)`,
+                sectionScores,
+                isCurrent: ha.Id === parseInt(auditId)
+            });
+        }
+        
+        // Find current audit's position and get last 6 audits (including current)
+        const currentIndex = historicalAuditsWithCycles.findIndex(a => a.isCurrent);
+        const startIdx = Math.max(0, currentIndex - 5);
+        const cycleAudits = historicalAuditsWithCycles.slice(startIdx, currentIndex + 1);
+        
         // 6. Get pictures for all items
         const picturesResult = await pool.request()
             .input('auditId', sql.Int, auditId)
@@ -2018,6 +2075,7 @@ router.post('/api/audits/:auditId/generate-report', async (req, res) => {
             fridgeReadings: fridgeResult.recordset,
             overallScore,
             threshold,
+            cycleAudits,
             generatedAt: new Date().toISOString()
         };
         
@@ -2051,7 +2109,7 @@ router.post('/api/audits/:auditId/generate-report', async (req, res) => {
 
 // Helper function to generate HTML report
 function generateReportHTML(data) {
-    const { audit, sections, findings, pictures, fridgeReadings, overallScore, threshold, generatedAt } = data;
+    const { audit, sections, findings, pictures, fridgeReadings, overallScore, threshold, cycleAudits, generatedAt } = data;
     const passedClass = overallScore >= threshold ? 'pass' : 'fail';
     const passedText = overallScore >= threshold ? 'PASS ✅' : 'FAIL ❌';
     
@@ -2120,6 +2178,9 @@ function generateReportHTML(data) {
         .summary-table th { background: #64748b; color: white; text-align: left; font-size: 12px; text-transform: uppercase; font-weight: 600; border-bottom: 2px solid #475569; }
         .summary-table td { border-bottom: 1px solid #e2e8f0; vertical-align: middle; }
         .summary-table tr:hover { background: #f8fafc; }
+        .summary-table .total-row { background: #f1f5f9; border-top: 2px solid #64748b; }
+        .summary-table .total-row td { font-size: 14px; }
+        .summary-table .current-cycle { background: #dbeafe; }
         .score-pass { color: #10b981; font-weight: 600; }
         .score-fail { color: #ef4444; font-weight: 600; }
         
@@ -2361,20 +2422,33 @@ function generateReportHTML(data) {
                 <thead>
                     <tr>
                         <th>Section</th>
-                        <th style="text-align:right;">Score</th>
+                        ${cycleAudits.map(ca => `<th style="text-align:center;">${ca.cycleLabel}</th>`).join('')}
                     </tr>
                 </thead>
                 <tbody>
                     ${sections.map(section => {
                         const sectionThreshold = section.PassingGrade || threshold;
-                        const sectionPassed = section.Percentage >= sectionThreshold;
-                        const scoreClass = sectionPassed ? 'score-pass' : 'score-fail';
                         return `
                         <tr>
                             <td><strong>${section.SectionName}</strong></td>
-                            <td style="text-align:right;"><strong class="${scoreClass}">${section.Percentage}%</strong></td>
+                            ${cycleAudits.map(ca => {
+                                const score = ca.sectionScores[section.SectionName] || 0;
+                                const isPassed = score >= sectionThreshold;
+                                const scoreClass = isPassed ? 'score-pass' : 'score-fail';
+                                const currentClass = ca.isCurrent ? ' current-cycle' : '';
+                                return `<td style="text-align:center;" class="${currentClass}"><strong class="${scoreClass}">${score}%</strong></td>`;
+                            }).join('')}
                         </tr>`;
                     }).join('')}
+                    <tr class="total-row">
+                        <td><strong>TOTAL</strong></td>
+                        ${cycleAudits.map(ca => {
+                            const isPassed = ca.totalScore >= threshold;
+                            const scoreClass = isPassed ? 'score-pass' : 'score-fail';
+                            const currentClass = ca.isCurrent ? ' current-cycle' : '';
+                            return `<td style="text-align:center;" class="${currentClass}"><strong class="${scoreClass}">${ca.totalScore}%</strong></td>`;
+                        }).join('')}
+                    </tr>
                 </tbody>
             </table>
         </div>
