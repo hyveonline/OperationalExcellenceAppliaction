@@ -302,12 +302,6 @@ router.get('/', async (req, res) => {
                             <div class="card-desc">View all inspections, filter by status, store, or date range.</div>
                         </a>
                         
-                        <a href="/oe-inspection/action-plans" class="card">
-                            <div class="card-icon">🎯</div>
-                            <div class="card-title">Action Plans</div>
-                            <div class="card-desc">Track and manage action plans from completed inspections.</div>
-                        </a>
-                        
                         <a href="/oe-inspection/settings" class="card">
                             <div class="card-icon">⚙️</div>
                             <div class="card-title">Settings</div>
@@ -324,12 +318,6 @@ router.get('/', async (req, res) => {
                             <div class="card-icon">🏪</div>
                             <div class="card-title">Store Management</div>
                             <div class="card-desc">Add, edit, and manage stores. Assign store managers.</div>
-                        </a>
-                        
-                        <a href="/oe-inspection/department-reports" class="card">
-                            <div class="card-icon">📋</div>
-                            <div class="card-title">Department Reports</div>
-                            <div class="card-desc">View reports filtered by department (Maintenance, Procurement, Cleaning).</div>
                         </a>
                         
                         <a href="/oe-inspection/schedule" class="card">
