@@ -1903,6 +1903,23 @@ router.post('/api/audits/:auditId/generate-report', async (req, res) => {
         
         const sections = Array.from(sectionMap.values()).sort((a, b) => a.SectionOrder - b.SectionOrder);
         
+        // Sort items within each section by ReferenceValue (natural sort for numbers like 1.1, 1.2, 1.10)
+        for (const section of sections) {
+            section.items.sort((a, b) => {
+                const refA = a.ReferenceValue || '';
+                const refB = b.ReferenceValue || '';
+                // Natural sort: split by dots and compare numerically
+                const partsA = refA.split('.').map(p => parseInt(p) || 0);
+                const partsB = refB.split('.').map(p => parseInt(p) || 0);
+                for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
+                    const numA = partsA[i] || 0;
+                    const numB = partsB[i] || 0;
+                    if (numA !== numB) return numA - numB;
+                }
+                return 0;
+            });
+        }
+        
         // 4. Get findings (non-compliant items)
         const findings = itemsResult.recordset.filter(item => 
             item.Answer === 'No' || item.Answer === 'Partially' || item.Finding
