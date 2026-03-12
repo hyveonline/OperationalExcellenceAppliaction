@@ -1934,9 +1934,35 @@ router.post('/api/audits/:auditId/generate-report', async (req, res) => {
         const totalMax = sections.reduce((sum, s) => sum + s.maxScore, 0);
         const overallScore = totalMax > 0 ? Math.round((totalEarned / totalMax) * 100) : 0;
         
-        // Get settings for threshold
-        const settingsResult = await pool.request().query(`SELECT TOP 1 * FROM OE_InspectionSettings`);
-        const threshold = settingsResult.recordset[0]?.PassingGrade || 83;
+        // Get settings for threshold - based on schema/template
+        const settingsResult = await pool.request()
+            .input('templateId', sql.Int, audit.TemplateId)
+            .query(`
+                SELECT ISNULL(s.SettingValue, '80') as PassingGrade
+                FROM OE_InspectionSettings s
+                WHERE s.SettingKey = 'PASSING_SCORE_' + CAST(@templateId AS VARCHAR)
+            `);
+        const threshold = settingsResult.recordset.length > 0 
+            ? parseInt(settingsResult.recordset[0].PassingGrade) || 80 
+            : 80;
+        
+        // Also get section-level passing grades
+        const sectionGradesResult = await pool.request()
+            .input('templateId', sql.Int, audit.TemplateId)
+            .query(`
+                SELECT SectionName, ISNULL(PassingGrade, 80) as PassingGrade
+                FROM OE_InspectionTemplateSections
+                WHERE TemplateId = @templateId
+            `);
+        const sectionPassingGrades = {};
+        for (const sg of sectionGradesResult.recordset) {
+            sectionPassingGrades[sg.SectionName] = sg.PassingGrade;
+        }
+        
+        // Update sections with their specific passing grades
+        for (const section of sections) {
+            section.PassingGrade = sectionPassingGrades[section.SectionName] || threshold;
+        }
         
         // 6. Get pictures for all items
         const picturesResult = await pool.request()
@@ -2013,6 +2039,38 @@ function generateReportHTML(data) {
     const passedClass = overallScore >= threshold ? 'pass' : 'fail';
     const passedText = overallScore >= threshold ? 'PASS ✅' : 'FAIL ❌';
     
+    // Collect all pictures for galleries
+    const goodObsItems = [];
+    const findingPicItems = [];
+    
+    sections.forEach(section => {
+        (section.items || []).forEach(item => {
+            const itemPics = pictures[item.Id] || [];
+            itemPics.forEach(pic => {
+                if (pic.pictureType === 'Good') {
+                    goodObsItems.push({
+                        ref: item.ReferenceValue || 'N/A',
+                        section: section.SectionName,
+                        question: item.Question,
+                        dataUrl: pic.dataUrl,
+                        fileName: pic.fileName
+                    });
+                } else if (item.Answer === 'No' || item.Answer === 'Partially') {
+                    findingPicItems.push({
+                        ref: item.ReferenceValue || 'N/A',
+                        section: section.SectionName,
+                        question: item.Question,
+                        answer: item.Answer,
+                        finding: item.Finding,
+                        dataUrl: pic.dataUrl,
+                        fileName: pic.fileName,
+                        pictureType: pic.pictureType
+                    });
+                }
+            });
+        });
+    });
+    
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -2023,58 +2081,202 @@ function generateReportHTML(data) {
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f5f5f5; color: #333; line-height: 1.6; }
         .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
-        .header { background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: white; padding: 30px; border-radius: 12px; margin-bottom: 20px; }
-        .header h1 { font-size: 28px; margin-bottom: 10px; }
-        .header-info { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-top: 20px; }
-        .header-item { background: rgba(255,255,255,0.1); padding: 10px 15px; border-radius: 8px; }
-        .header-item label { font-size: 12px; opacity: 0.8; display: block; }
-        .header-item span { font-size: 16px; font-weight: 600; }
-        .score-card { background: white; border-radius: 12px; padding: 30px; margin-bottom: 20px; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        .score-value { font-size: 72px; font-weight: bold; }
+        .header { background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: white; padding: 15px 20px; border-radius: 10px; margin-bottom: 15px; }
+        .header h1 { font-size: 20px; margin-bottom: 8px; }
+        .header-info { display: flex; flex-wrap: wrap; gap: 10px; }
+        .header-item { background: rgba(255,255,255,0.1); padding: 6px 12px; border-radius: 6px; }
+        .header-item label { font-size: 10px; opacity: 0.8; display: block; }
+        .header-item span { font-size: 13px; font-weight: 600; }
+        .score-card { background: white; border-radius: 10px; padding: 12px 25px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); display: flex; align-items: center; justify-content: center; gap: 20px; }
+        .score-value { font-size: 36px; font-weight: bold; }
         .score-value.pass { color: #10b981; }
         .score-value.fail { color: #ef4444; }
-        .score-label { font-size: 24px; margin-top: 10px; }
+        .score-label { font-size: 18px; font-weight: 600; }
         .score-label.pass { color: #10b981; }
         .score-label.fail { color: #ef4444; }
+        .score-threshold { color: #64748b; font-size: 14px; border-left: 1px solid #e2e8f0; padding-left: 20px; }
+        
+        /* Summary Section */
+        .summary-section { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 25px; overflow: hidden; }
+        .summary-title { background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: white; margin: 0; padding: 15px 20px; font-size: 18px; font-weight: 600; }
+        .summary-table { width: 100%; border-collapse: collapse; }
+        .summary-table th, .summary-table td { padding: 10px 15px; }
+        .summary-table th { background: #64748b; color: white; text-align: left; font-size: 12px; text-transform: uppercase; font-weight: 600; border-bottom: 2px solid #475569; }
+        .summary-table td { border-bottom: 1px solid #e2e8f0; vertical-align: middle; }
+        .summary-table tr:hover { background: #f8fafc; }
+        .score-pass { color: #10b981; font-weight: 600; }
+        .score-fail { color: #ef4444; font-weight: 600; }
+        
+        /* Chart Styles */
+        .chart-section { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 25px; overflow: hidden; }
+        .chart-title { background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: white; margin: 0; padding: 15px 20px; font-size: 18px; font-weight: 600; }
+        .chart-simple { padding: 20px; }
+        .chart-row { display: flex; align-items: center; margin-bottom: 8px; gap: 10px; }
+        .chart-row-label { width: 200px; font-size: 12px; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+        .chart-row-bar-container { flex: 1; height: 20px; background: #e2e8f0; border-radius: 4px; position: relative; overflow: visible; }
+        .chart-row-bar { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
+        .chart-row-bar.bar-pass { background: linear-gradient(90deg, #10b981 0%, #059669 100%); }
+        .chart-row-bar.bar-fail { background: linear-gradient(90deg, #ef4444 0%, #dc2626 100%); }
+        .chart-row-threshold { position: absolute; top: -2px; bottom: -2px; width: 2px; background: #f59e0b; }
+        .chart-row-value { width: 50px; font-size: 13px; font-weight: 700; text-align: right; }
+        .chart-row-value.bar-pass { color: #10b981; }
+        .chart-row-value.bar-fail { color: #ef4444; }
+        .chart-legend { display: flex; gap: 20px; justify-content: center; padding: 15px; border-top: 1px solid #e2e8f0; background: #f8fafc; }
+        .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #475569; }
+        .legend-color { width: 14px; height: 14px; border-radius: 3px; }
+        .legend-color.pass { background: #10b981; }
+        .legend-color.fail { background: #ef4444; }
+        .legend-line { width: 20px; height: 2px; background: #f59e0b; }
+        
+        /* Toggle controls */
+        .toggle-controls { display: flex; gap: 10px; margin-bottom: 20px; justify-content: flex-end; }
+        .toggle-btn { background: #3b82f6; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; transition: background 0.2s; }
+        .toggle-btn:hover { background: #1d4ed8; }
+        
+        /* Section Styles */
         .section-card { background: white; border-radius: 12px; margin-bottom: 20px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        .section-header { background: #f8fafc; padding: 20px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; }
-        .section-title { font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
-        .section-score { font-size: 24px; font-weight: bold; }
-        .section-score.pass { color: #10b981; }
-        .section-score.fail { color: #ef4444; }
+        .section-header { background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; }
+        .section-header:hover { filter: brightness(1.05); }
+        .section-title { font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+        .section-score { font-size: 20px; font-weight: bold; display: flex; align-items: center; gap: 10px; }
+        .collapse-icon { font-size: 20px; transition: transform 0.3s ease; }
+        .collapse-icon.collapsed { transform: rotate(-90deg); }
+        .section-content { padding: 0; transition: max-height 0.3s ease, padding 0.3s ease, opacity 0.3s ease; overflow: hidden; }
+        .section-content.collapsed { max-height: 0 !important; padding: 0; opacity: 0; }
+        
+        /* Table Styles */
         table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #e2e8f0; }
-        th { background: #f8fafc; font-weight: 600; font-size: 12px; text-transform: uppercase; color: #64748b; }
+        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #e2e8f0; font-size: 13px; }
+        th { background: #f8fafc; font-weight: 600; font-size: 11px; text-transform: uppercase; color: #64748b; }
         tr:hover { background: #f8fafc; }
         .choice-yes { color: #10b981; font-weight: 600; }
         .choice-no { color: #ef4444; font-weight: 600; }
         .choice-partial { color: #f59e0b; font-weight: 600; }
         .choice-na { color: #94a3b8; }
-        .findings-card { background: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
-        .findings-title { color: #dc2626; font-size: 20px; font-weight: 600; margin-bottom: 15px; }
-        .finding-item { background: white; border-radius: 8px; padding: 15px; margin-bottom: 10px; border-left: 4px solid #ef4444; }
-        .finding-ref { font-weight: 600; color: #1e40af; }
-        .finding-question { margin: 5px 0; }
+        
+        /* Section Findings */
+        .section-findings { background: #fef2f2; border-top: 2px solid #fecaca; padding: 12px 15px; }
+        .section-findings-title { color: #dc2626; font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+        .finding-item { background: white; border-radius: 8px; padding: 12px; margin-bottom: 8px; border-left: 4px solid #ef4444; }
+        .finding-ref { font-weight: 600; color: #1e40af; font-size: 12px; }
+        .finding-question { margin: 5px 0; font-size: 14px; }
+        .finding-detail { color: #64748b; font-size: 13px; }
+        .finding-cr { background: #ecfdf5; border-left: 4px solid #10b981; padding: 10px; margin-top: 8px; border-radius: 4px; font-size: 13px; color: #065f46; }
         .finding-pictures { margin-top: 10px; padding-top: 10px; border-top: 1px solid #e2e8f0; }
-        .picture-group { margin-bottom: 8px; }
         .pictures-wrapper { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 5px; }
-        .finding-detail { color: #64748b; font-size: 14px; }
-        .footer { text-align: center; padding: 20px; color: #64748b; font-size: 14px; }
+        
+        /* Fridge Readings */
+        .fridge-section { background: white; border-radius: 12px; margin-bottom: 20px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .fridge-header { background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%); color: white; padding: 15px 20px; }
+        .fridge-title { font-size: 18px; font-weight: 600; }
+        
+        /* Gallery Styles */
+        .gallery-section { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 25px; overflow: hidden; }
+        .gallery-title { margin: 0; padding: 15px 20px; font-size: 18px; font-weight: 600; color: white; }
+        .gallery-title.good { background: linear-gradient(135deg, #10b981 0%, #059669 100%); }
+        .gallery-title.findings { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); }
+        .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; padding: 20px; }
+        .gallery-card { background: #f8fafc; border-radius: 10px; overflow: hidden; border: 1px solid #e2e8f0; transition: transform 0.2s, box-shadow 0.2s; }
+        .gallery-card:hover { transform: translateY(-3px); box-shadow: 0 4px 15px rgba(0,0,0,0.15); }
+        .gallery-card.good { border-left: 4px solid #10b981; }
+        .gallery-card.finding { border-left: 4px solid #ef4444; }
+        .gallery-img { width: 100%; height: 180px; object-fit: cover; cursor: pointer; background: #e2e8f0; }
+        .gallery-info { padding: 12px; }
+        .gallery-ref { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
+        .gallery-ref.good { color: #059669; }
+        .gallery-ref.finding { color: #dc2626; }
+        .gallery-section-name { font-size: 12px; color: #64748b; margin-bottom: 4px; }
+        .gallery-type { font-size: 11px; padding: 2px 8px; border-radius: 10px; display: inline-block; }
+        .gallery-type.good { background: #d1fae5; color: #065f46; }
+        .gallery-type.issue { background: #fee2e2; color: #991b1b; }
+        .gallery-type.corrective { background: #d1fae5; color: #065f46; }
+        .gallery-empty { text-align: center; padding: 40px 20px; color: #94a3b8; font-size: 16px; }
+        
+        /* Lightbox */
+        .lightbox { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 9999; justify-content: center; align-items: center; }
+        .lightbox.active { display: flex; }
+        .lightbox img { max-width: 90%; max-height: 90%; border-radius: 8px; box-shadow: 0 4px 30px rgba(0,0,0,0.5); }
+        .lightbox-close { position: absolute; top: 20px; right: 30px; color: white; font-size: 40px; font-weight: bold; cursor: pointer; transition: color 0.2s; }
+        .lightbox-close:hover { color: #3b82f6; }
+        
+        /* Filter Toolbar */
+        .filter-toolbar {
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            border: 1px solid #cbd5e1;
+            border-radius: 12px;
+            padding: 12px 20px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            position: sticky;
+            top: 80px;
+            z-index: 100;
+        }
+        .filter-toolbar-title { font-weight: 600; color: #475569; font-size: 14px; }
+        .filter-group { display: flex; gap: 8px; }
+        .filter-btn {
+            padding: 6px 14px;
+            border: 2px solid #cbd5e1;
+            border-radius: 20px;
+            background: white;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .filter-btn:hover { background: #f1f5f9; }
+        .filter-btn.active { border-color: #3b82f6; background: #eff6ff; color: #1d4ed8; }
+        .filter-btn.filter-yes.active { border-color: #10b981; background: #ecfdf5; color: #059669; }
+        .filter-btn.filter-partial.active { border-color: #f59e0b; background: #fffbeb; color: #d97706; }
+        .filter-btn.filter-no.active { border-color: #ef4444; background: #fef2f2; color: #dc2626; }
+        .filter-btn.filter-na.active { border-color: #64748b; background: #f1f5f9; color: #475569; }
+        .filter-divider { width: 1px; height: 30px; background: #cbd5e1; }
+        .hidden-by-filter { display: none !important; }
+        .section-hidden { display: none !important; }
+        
+        /* Action Bar */
         .action-bar { position: fixed; top: 20px; right: 20px; display: flex; gap: 10px; z-index: 1000; }
         .action-bar button { padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); transition: transform 0.2s, box-shadow 0.2s; }
         .action-bar button:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
         .btn-email { background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; }
         .btn-print { background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; }
+        .btn-pdf { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; }
         .btn-back { background: linear-gradient(135deg, #64748b 0%, #475569 100%); color: white; }
-        @media print { body { background: white; } .container { max-width: 100%; padding: 0; } .action-bar { display: none !important; } }
+        
+        .footer { text-align: center; padding: 20px; color: #64748b; font-size: 14px; }
+        
+        @media print { 
+            @page { size: landscape; margin: 10mm; }
+            body { background: white; font-size: 11px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .container { max-width: 100%; padding: 0; }
+            .action-bar { display: none !important; }
+            .filter-toolbar { display: none !important; }
+            .section-card { break-inside: avoid; page-break-inside: avoid; }
+            .gallery-section { break-before: page; }
+            .lightbox { display: none !important; }
+        }
     </style>
 </head>
 <body>
     <div class="action-bar">
         <button class="btn-back" onclick="goBack()">← Back</button>
+        <button class="btn-pdf" onclick="exportToPDF()">📄 PDF</button>
         <button class="btn-email" onclick="openEmailModal('full')">📧 Send Report</button>
         <button class="btn-print" onclick="window.print()">🖨️ Print</button>
     </div>
+    
+    <!-- Lightbox for images -->
+    <div class="lightbox" id="lightbox" onclick="closeLightbox()">
+        <span class="lightbox-close">&times;</span>
+        <img id="lightbox-img" src="" alt="Full size image">
+    </div>
+    
     <script>
         function goBack() {
             if (document.referrer && document.referrer.includes(window.location.hostname)) {
@@ -2083,14 +2285,47 @@ function generateReportHTML(data) {
                 window.location.href = '/oe-inspection/reports';
             }
         }
+        
+        function exportToPDF() {
+            const overlay = document.createElement('div');
+            overlay.innerHTML = '<div style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);display:flex;justify-content:center;align-items:center;z-index:10000;"><div style="background:white;padding:30px 50px;border-radius:12px;text-align:center;"><h3 style="margin:0 0 15px 0;">📄 Export to PDF</h3><p style="margin:0 0 20px 0;color:#666;">In the print dialog, select <strong>"Save as PDF"</strong> as the destination.</p></div></div>';
+            document.body.appendChild(overlay);
+            setTimeout(() => { overlay.remove(); window.print(); }, 2000);
+        }
+        
+        function openLightbox(src) {
+            document.getElementById('lightbox-img').src = src;
+            document.getElementById('lightbox').classList.add('active');
+        }
+        
+        function closeLightbox() {
+            document.getElementById('lightbox').classList.remove('active');
+        }
     </script>
+    
     <div class="container">
+        <!-- Filter Toolbar -->
+        <div class="filter-toolbar">
+            <span class="filter-toolbar-title">🔍 Filter:</span>
+            <div class="filter-group">
+                <button class="filter-btn filter-yes active" onclick="toggleFilter('yes', this)" title="Show/Hide Yes answers">✓ Yes</button>
+                <button class="filter-btn filter-partial active" onclick="toggleFilter('partial', this)" title="Show/Hide Partially answers">◐ Partially</button>
+                <button class="filter-btn filter-no active" onclick="toggleFilter('no', this)" title="Show/Hide No answers">✗ No</button>
+                <button class="filter-btn filter-na active" onclick="toggleFilter('na', this)" title="Show/Hide N/A answers">— N/A</button>
+            </div>
+            <div class="filter-divider"></div>
+            <div class="filter-group">
+                <button class="filter-btn" onclick="showOnlyFindings()" title="Show only items with findings">⚠️ Findings Only</button>
+                <button class="filter-btn" onclick="resetFilters()" title="Reset all filters">🔄 Reset</button>
+            </div>
+        </div>
+        
         <div class="header">
             <h1>📋 OE Inspection Report</h1>
             <div class="header-info">
-                <div class="header-item"><label>Document Number</label><span>${audit.DocumentNumber}</span></div>
+                <div class="header-item"><label>Document #</label><span>${audit.DocumentNumber}</span></div>
                 <div class="header-item"><label>Store</label><span>${audit.StoreName}</span></div>
-                <div class="header-item"><label>Inspection Date</label><span>${new Date(audit.InspectionDate).toLocaleDateString()}</span></div>
+                <div class="header-item"><label>Date</label><span>${new Date(audit.InspectionDate).toLocaleDateString()}</span></div>
                 <div class="header-item"><label>Inspectors</label><span>${audit.Inspectors || 'N/A'}</span></div>
                 <div class="header-item"><label>Accompanied By</label><span>${audit.AccompaniedBy || 'N/A'}</span></div>
                 <div class="header-item"><label>Status</label><span>${audit.Status}</span></div>
@@ -2100,68 +2335,139 @@ function generateReportHTML(data) {
         <div class="score-card">
             <div class="score-value ${passedClass}">${overallScore}%</div>
             <div class="score-label ${passedClass}">${passedText}</div>
-            <div style="color: #64748b; margin-top: 10px;">Threshold: ${threshold}%</div>
+            <div class="score-threshold">Threshold: ${threshold}%</div>
         </div>
         
-        ${sections.map(section => `
-        <div class="section-card">
-            <div class="section-header">
-                <div class="section-title">${section.SectionIcon || '📋'} ${section.SectionName}</div>
-                <div class="section-score ${section.Percentage >= threshold ? 'pass' : 'fail'}">${section.Percentage}%</div>
-            </div>
-            <table>
+        <!-- Summary Table -->
+        <div class="summary-section">
+            <h2 class="summary-title">📊 Audit Summary</h2>
+            <table class="summary-table">
                 <thead>
                     <tr>
-                        <th>#</th>
-                        <th>Question</th>
-                        <th>Answer</th>
-                        <th>Score</th>
-                        <th>Finding</th>
+                        <th>Section</th>
+                        <th style="text-align:right;">Score</th>
                     </tr>
                 </thead>
                 <tbody>
-                    ${(section.items || []).map(item => `
-                    <tr>
-                        <td>${item.ReferenceValue || '-'}</td>
-                        <td>${item.Question || '-'}</td>
-                        <td class="${item.Answer === 'Yes' ? 'choice-yes' : item.Answer === 'No' ? 'choice-no' : item.Answer === 'Partially' ? 'choice-partial' : 'choice-na'}">${item.Answer || '-'}</td>
-                        <td>${item.Score ?? '-'} / ${item.Coefficient || 0}</td>
-                        <td>${item.Finding || '-'}</td>
-                    </tr>
-                    `).join('')}
+                    ${sections.map(section => {
+                        const sectionThreshold = section.PassingGrade || threshold;
+                        const sectionPassed = section.Percentage >= sectionThreshold;
+                        const scoreClass = sectionPassed ? 'score-pass' : 'score-fail';
+                        return `
+                        <tr>
+                            <td><strong>${section.SectionName}</strong></td>
+                            <td style="text-align:right;"><strong class="${scoreClass}">${section.Percentage}%</strong></td>
+                        </tr>`;
+                    }).join('')}
                 </tbody>
             </table>
         </div>
-        `).join('')}
         
-        ${findings.length > 0 ? `
-        <div class="findings-card">
-            <div class="findings-title">⚠️ Findings Summary (${findings.length} items)</div>
-            ${findings.map(f => {
-                const itemPics = pictures[f.Id] || [];
-                
-                return `
-            <div class="finding-item">
-                <div class="finding-ref">[${f.ReferenceValue || 'N/A'}] ${f.SectionName}</div>
-                <div class="finding-question">${f.Question}</div>
-                <div class="finding-detail">Answer: ${f.Answer} | Finding: ${f.Finding || 'N/A'}</div>
-                ${itemPics.length > 0 ? `
-                <div class="finding-pictures">
-                    <strong>Photos (${itemPics.length}):</strong>
-                    <div class="pictures-wrapper">
-                        ${itemPics.map(p => `<img src="${p.dataUrl}" alt="${p.fileName || p.pictureType || 'Photo'}" title="${p.pictureType || 'Photo'}" style="max-width:120px;max-height:90px;margin:4px;border-radius:4px;cursor:pointer;border:2px solid ${p.pictureType === 'Good' || p.pictureType === 'corrective' ? '#10b981' : '#ef4444'};" onclick="window.open(this.src,'_blank')">`).join('')}
+        <!-- Chart -->
+        <div class="chart-section">
+            <h2 class="chart-title">📊 Section Scores Overview</h2>
+            <div class="chart-simple">
+                ${sections.map(section => {
+                    const sectionThreshold = section.PassingGrade || threshold;
+                    const barClass = section.Percentage >= sectionThreshold ? 'bar-pass' : 'bar-fail';
+                    return `
+                    <div class="chart-row">
+                        <div class="chart-row-label">${section.SectionName}</div>
+                        <div class="chart-row-bar-container">
+                            <div class="chart-row-bar ${barClass}" style="width: ${section.Percentage}%;"></div>
+                            <div class="chart-row-threshold" style="left: ${sectionThreshold}%;"></div>
+                        </div>
+                        <div class="chart-row-value ${barClass}">${section.Percentage}%</div>
                     </div>
+                    `;
+                }).join('')}
+            </div>
+            <div class="chart-legend">
+                <span class="legend-item"><span class="legend-color pass"></span> Pass (≥threshold)</span>
+                <span class="legend-item"><span class="legend-color fail"></span> Fail (&lt;threshold)</span>
+                <span class="legend-item"><span class="legend-line"></span> Section Threshold</span>
+            </div>
+        </div>
+        
+        <div class="toggle-controls">
+            <button class="toggle-btn" onclick="expandAll()">📂 Expand All</button>
+            <button class="toggle-btn" onclick="collapseAll()">📁 Collapse All</button>
+        </div>
+        
+        ${sections.map((section, sectionIdx) => {
+            const sectionFindings = (section.items || []).filter(item => 
+                item.Answer === 'No' || item.Answer === 'Partially'
+            );
+            
+            return `
+        <div class="section-card">
+            <div class="section-header" onclick="toggleSection(${sectionIdx})">
+                <div class="section-title">
+                    <span class="collapse-icon" id="icon-${sectionIdx}">▼</span>
+                    ${section.SectionName}
+                </div>
+                <div class="section-score">${section.Percentage}%</div>
+            </div>
+            <div class="section-content" id="section-${sectionIdx}">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width:60px">#</th>
+                            <th>Question</th>
+                            <th style="width:80px">Answer</th>
+                            <th style="width:80px">Score</th>
+                            <th style="width:90px">Observation</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${(section.items || []).map(item => {
+                            const answerType = item.Answer === 'Yes' ? 'Yes' : item.Answer === 'No' ? 'No' : item.Answer === 'Partially' ? 'Partially' : 'NA';
+                            const itemPics = pictures[item.Id] || [];
+                            const goodPics = itemPics.filter(p => p.pictureType === 'Good');
+                            const goodPicsHtml = goodPics.length > 0 
+                                ? goodPics.map(p => '<img src="' + p.dataUrl + '" alt="Good" title="Good Observation" style="max-width:50px;max-height:40px;border-radius:4px;cursor:pointer;border:2px solid #10b981;object-fit:cover;" onclick="openLightbox(this.src)">').join('') 
+                                : '-';
+                            return `
+                        <tr data-answer="${answerType}">
+                            <td>${item.ReferenceValue || '-'}</td>
+                            <td>${item.Question || '-'}</td>
+                            <td class="${item.Answer === 'Yes' ? 'choice-yes' : item.Answer === 'No' ? 'choice-no' : item.Answer === 'Partially' ? 'choice-partial' : 'choice-na'}">${item.Answer || '-'}</td>
+                            <td>${item.Score ?? '-'} / ${item.Coefficient || 0}</td>
+                            <td>${goodPicsHtml}</td>
+                        </tr>
+                        `}).join('')}
+                    </tbody>
+                </table>
+                ${sectionFindings.length > 0 ? `
+                <div class="section-findings">
+                    <div class="section-findings-title">⚠️ Findings (${sectionFindings.length})</div>
+                    ${sectionFindings.map(f => {
+                        const itemPics = pictures[f.Id] || [];
+                        const correctiveHtml = f.CorrectedAction ? '<div class="finding-cr">✅ Corrective Action: ' + f.CorrectedAction + '</div>' : '';
+                        const picsHtml = itemPics.length > 0 
+                            ? '<div class="finding-pictures"><strong>Photos:</strong><div class="pictures-wrapper">' + 
+                              itemPics.map(p => '<img src="' + p.dataUrl + '" alt="' + (p.fileName || 'Photo') + '" title="' + (p.pictureType || 'Photo') + '" style="max-width:100px;max-height:75px;border-radius:4px;cursor:pointer;border:2px solid ' + (p.pictureType === 'Good' || p.pictureType === 'corrective' ? '#10b981' : '#ef4444') + ';" onclick="openLightbox(this.src)">').join('') + 
+                              '</div></div>' 
+                            : '';
+                        return `
+                    <div class="finding-item">
+                        <div class="finding-ref">[${f.ReferenceValue || 'N/A'}]</div>
+                        <div class="finding-question">${f.Question}</div>
+                        <div class="finding-detail">Answer: <strong class="${f.Answer === 'No' ? 'choice-no' : 'choice-partial'}">${f.Answer}</strong> | Finding: ${f.Finding || 'N/A'}</div>
+                        ${correctiveHtml}
+                        ${picsHtml}
+                    </div>
+                    `}).join('')}
                 </div>
                 ` : ''}
             </div>
-            `}).join('')}
         </div>
-        ` : ''}
+        `}).join('')}
         
         ${fridgeReadings.length > 0 ? `
-        <div class="section-card">
-            <div class="section-header">
-                <div class="section-title">🌡️ Fridge Temperature Readings</div>
+        <div class="fridge-section">
+            <div class="fridge-header">
+                <div class="fridge-title">🌡️ Fridge Temperature Readings</div>
             </div>
             <table>
                 <thead>
@@ -2182,12 +2488,131 @@ function generateReportHTML(data) {
         </div>
         ` : ''}
         
+        <!-- Good Observations Gallery -->
+        <div class="gallery-section">
+            <h2 class="gallery-title good">✅ Good Observations Gallery (${goodObsItems.length})</h2>
+            ${goodObsItems.length > 0 ? `
+            <div class="gallery-grid">
+                ${goodObsItems.map(item => `
+                <div class="gallery-card good">
+                    <img src="${item.dataUrl}" alt="Good Observation" class="gallery-img" onclick="openLightbox(this.src)">
+                    <div class="gallery-info">
+                        <div class="gallery-ref good">[${item.ref}]</div>
+                        <div class="gallery-section-name">📋 ${item.section}</div>
+                        <span class="gallery-type good">✅ Good Observation</span>
+                    </div>
+                </div>
+                `).join('')}
+            </div>
+            ` : `<div class="gallery-empty">No good observations captured</div>`}
+        </div>
+        
+        <!-- Findings Gallery -->
+        <div class="gallery-section">
+            <h2 class="gallery-title findings">⚠️ Findings Gallery (${findingPicItems.length})</h2>
+            ${findingPicItems.length > 0 ? `
+            <div class="gallery-grid">
+                ${findingPicItems.map(item => `
+                <div class="gallery-card finding">
+                    <img src="${item.dataUrl}" alt="Finding" class="gallery-img" onclick="openLightbox(this.src)">
+                    <div class="gallery-info">
+                        <div class="gallery-ref finding">[${item.ref}]</div>
+                        <div class="gallery-section-name">📋 ${item.section}</div>
+                        <span class="gallery-type ${item.pictureType === 'corrective' ? 'corrective' : 'issue'}">${item.pictureType === 'corrective' ? '✅ Corrective' : '⚠️ Issue'}</span>
+                    </div>
+                </div>
+                `).join('')}
+            </div>
+            ` : `<div class="gallery-empty">No finding photos captured</div>`}
+        </div>
+        
         <div class="footer">
-            Report generated on ${new Date(generatedAt).toLocaleString()}
+            Report generated on ${new Date(generatedAt).toLocaleString()} | OE Inspection System
         </div>
     </div>
+    
     <script>
         const auditId = ${audit.Id};
+        
+        // Section collapse/expand
+        function toggleSection(index) {
+            const content = document.getElementById('section-' + index);
+            const icon = document.getElementById('icon-' + index);
+            
+            if (content.classList.contains('collapsed')) {
+                content.classList.remove('collapsed');
+                icon.classList.remove('collapsed');
+            } else {
+                content.classList.add('collapsed');
+                icon.classList.add('collapsed');
+            }
+        }
+        
+        function expandAll() {
+            document.querySelectorAll('.section-content').forEach(el => el.classList.remove('collapsed'));
+            document.querySelectorAll('.collapse-icon').forEach(el => el.classList.remove('collapsed'));
+        }
+        
+        function collapseAll() {
+            document.querySelectorAll('.section-content').forEach(el => el.classList.add('collapsed'));
+            document.querySelectorAll('.collapse-icon').forEach(el => el.classList.add('collapsed'));
+        }
+        
+        // Filter functionality
+        const filters = { yes: true, partial: true, no: true, na: true };
+        
+        function toggleFilter(type, btn) {
+            filters[type] = !filters[type];
+            btn.classList.toggle('active', filters[type]);
+            applyFilters();
+        }
+        
+        function applyFilters() {
+            document.querySelectorAll('tr[data-answer]').forEach(row => {
+                const answer = row.dataset.answer;
+                let show = false;
+                
+                if (answer === 'Yes' && filters.yes) show = true;
+                if (answer === 'Partially' && filters.partial) show = true;
+                if (answer === 'No' && filters.no) show = true;
+                if (answer === 'NA' && filters.na) show = true;
+                
+                row.classList.toggle('hidden-by-filter', !show);
+            });
+            
+            // Hide sections that have no visible rows
+            document.querySelectorAll('.section-card').forEach(section => {
+                const visibleRows = section.querySelectorAll('tr[data-answer]:not(.hidden-by-filter)');
+                section.classList.toggle('section-hidden', visibleRows.length === 0);
+            });
+        }
+        
+        function showOnlyFindings() {
+            filters.yes = false;
+            filters.na = false;
+            filters.partial = true;
+            filters.no = true;
+            
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                if (btn.classList.contains('filter-yes')) btn.classList.remove('active');
+                if (btn.classList.contains('filter-na')) btn.classList.remove('active');
+                if (btn.classList.contains('filter-partial')) btn.classList.add('active');
+                if (btn.classList.contains('filter-no')) btn.classList.add('active');
+            });
+            
+            applyFilters();
+        }
+        
+        function resetFilters() {
+            filters.yes = true;
+            filters.partial = true;
+            filters.no = true;
+            filters.na = true;
+            
+            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.add('active'));
+            document.querySelectorAll('tr[data-answer]').forEach(row => row.classList.remove('hidden-by-filter'));
+            document.querySelectorAll('.section-card').forEach(section => section.classList.remove('section-hidden'));
+        }
         
         async function openEmailModal(reportType) {
             try {
