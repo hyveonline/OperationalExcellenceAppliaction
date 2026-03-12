@@ -573,7 +573,7 @@ router.get('/api/templates/schemas/:schemaId', async (req, res) => {
             const sectionsResult = await pool.request()
                 .input('departmentId', sql.Int, department.departmentId)
                 .query(`
-                    SELECT Id as sectionId, SectionName as sectionName, SectionIcon as sectionIcon, SectionOrder as sectionNumber, DepartmentId as departmentId
+                    SELECT Id as sectionId, SectionName as sectionName, SectionIcon as sectionIcon, SectionOrder as sectionNumber, DepartmentId as departmentId, SectionType as sectionType
                     FROM OHS_InspectionTemplateSections 
                     WHERE DepartmentId = @departmentId AND IsActive = 1
                     ORDER BY SectionOrder
@@ -599,7 +599,7 @@ router.get('/api/templates/schemas/:schemaId', async (req, res) => {
         const orphanSectionsResult = await pool.request()
             .input('templateId', sql.Int, schemaId)
             .query(`
-                SELECT Id as sectionId, SectionName as sectionName, SectionIcon as sectionIcon, SectionOrder as sectionNumber
+                SELECT Id as sectionId, SectionName as sectionName, SectionIcon as sectionIcon, SectionOrder as sectionNumber, SectionType as sectionType
                 FROM OHS_InspectionTemplateSections 
                 WHERE TemplateId = @templateId AND DepartmentId IS NULL AND IsActive = 1
                 ORDER BY SectionOrder
@@ -758,6 +758,7 @@ router.get('/api/templates/departments/:departmentId/sections', async (req, res)
                     s.SectionIcon as sectionIcon, 
                     s.SectionOrder as sectionNumber,
                     s.DepartmentId as departmentId,
+                    s.SectionType as sectionType,
                     (SELECT COUNT(*) FROM OHS_InspectionTemplateItems i WHERE i.SectionId = s.Id AND i.IsActive = 1) as itemCount
                 FROM OHS_InspectionTemplateSections s
                 WHERE s.DepartmentId = @departmentId AND s.IsActive = 1
@@ -773,7 +774,7 @@ router.get('/api/templates/departments/:departmentId/sections', async (req, res)
 // Create section under department
 router.post('/api/templates/departments/:departmentId/sections', async (req, res) => {
     try {
-        const { sectionNumber, sectionName, sectionIcon, templateId } = req.body;
+        const { sectionNumber, sectionName, sectionIcon, templateId, sectionType } = req.body;
         const pool = await sql.connect(dbConfig);
         const result = await pool.request()
             .input('templateId', sql.Int, templateId)
@@ -781,10 +782,11 @@ router.post('/api/templates/departments/:departmentId/sections', async (req, res
             .input('name', sql.NVarChar, sectionName)
             .input('icon', sql.NVarChar, sectionIcon || '📋')
             .input('order', sql.Int, sectionNumber)
+            .input('sectionType', sql.NVarChar, sectionType || 'checklist')
             .query(`
-                INSERT INTO OHS_InspectionTemplateSections (TemplateId, DepartmentId, SectionName, SectionIcon, SectionOrder, IsActive)
+                INSERT INTO OHS_InspectionTemplateSections (TemplateId, DepartmentId, SectionName, SectionIcon, SectionOrder, SectionType, IsActive)
                 OUTPUT INSERTED.Id as sectionId
-                VALUES (@templateId, @departmentId, @name, @icon, @order, 1)
+                VALUES (@templateId, @departmentId, @name, @icon, @order, @sectionType, 1)
             `);
         res.json({ success: true, data: { sectionId: result.recordset[0].sectionId } });
     } catch (error) {
@@ -842,14 +844,15 @@ router.post('/api/templates/schemas/:schemaId/sections', async (req, res) => {
 // Update section
 router.put('/api/templates/sections/:sectionId', async (req, res) => {
     try {
-        const { sectionName, sectionIcon, sectionNumber } = req.body;
+        const { sectionName, sectionIcon, sectionNumber, sectionType } = req.body;
         const pool = await sql.connect(dbConfig);
         await pool.request()
             .input('id', sql.Int, req.params.sectionId)
             .input('name', sql.NVarChar, sectionName)
             .input('icon', sql.NVarChar, sectionIcon || '📋')
             .input('order', sql.Int, sectionNumber)
-            .query(`UPDATE OHS_InspectionTemplateSections SET SectionName = @name, SectionIcon = @icon, SectionOrder = @order WHERE Id = @id`);
+            .input('sectionType', sql.NVarChar, sectionType || 'checklist')
+            .query(`UPDATE OHS_InspectionTemplateSections SET SectionName = @name, SectionIcon = @icon, SectionOrder = @order, SectionType = @sectionType WHERE Id = @id`);
         res.json({ success: true });
     } catch (error) {
         console.error('Error updating section:', error);
@@ -1599,7 +1602,9 @@ router.get('/api/audits/:auditId', async (req, res) => {
                     s.MaxPoints as maxPoints,
                     s.DepartmentName as departmentName,
                     s.DepartmentOrder as departmentOrder,
-                    s.DepartmentIsNA as departmentIsNA
+                    s.DepartmentIsNA as departmentIsNA,
+                    s.SectionType as sectionType,
+                    s.FreetextResponse as freetextResponse
                 FROM OHS_InspectionSections s
                 WHERE s.InspectionId = @inspectionId
                 ORDER BY ISNULL(s.DepartmentOrder, 999), s.SectionOrder
@@ -1611,7 +1616,7 @@ router.get('/api/audits/:auditId', async (req, res) => {
             const templateSections = await pool.request()
                 .input('templateId', sql.Int, templateId)
                 .query(`
-                    SELECT Id, SectionName, SectionIcon, SectionOrder, PassingGrade
+                    SELECT Id, SectionName, SectionIcon, SectionOrder, PassingGrade, SectionType
                     FROM OHS_InspectionTemplateSections
                     WHERE TemplateId = @templateId AND IsActive = 1
                     ORDER BY SectionOrder
@@ -1623,37 +1628,41 @@ router.get('/api/audits/:auditId', async (req, res) => {
                     .input('sectionName', sql.NVarChar, section.SectionName)
                     .input('sectionIcon', sql.NVarChar, section.SectionIcon)
                     .input('sectionOrder', sql.Int, section.SectionOrder)
+                    .input('sectionType', sql.NVarChar, section.SectionType || 'checklist')
                     .query(`
-                        INSERT INTO OHS_InspectionSections (InspectionId, SectionName, SectionIcon, SectionOrder)
-                        VALUES (@inspectionId, @sectionName, @sectionIcon, @sectionOrder)
+                        INSERT INTO OHS_InspectionSections (InspectionId, SectionName, SectionIcon, SectionOrder, SectionType)
+                        VALUES (@inspectionId, @sectionName, @sectionIcon, @sectionOrder, @sectionType)
                     `);
                 
-                const templateItems = await pool.request()
-                    .input('sectionId', sql.Int, section.Id)
-                    .query(`
-                        SELECT ReferenceValue, Question, Coefficient, AnswerOptions, Criteria, ISNULL(ItemOrder, 0) as ItemOrder
-                        FROM OHS_InspectionTemplateItems
-                        WHERE SectionId = @sectionId AND IsActive = 1
-                        ORDER BY ISNULL(ItemOrder, 0), ReferenceValue
-                    `);
-                
-                for (const item of templateItems.recordset) {
-                    await pool.request()
-                        .input('inspectionId', sql.Int, auditId)
-                        .input('sectionName', sql.NVarChar, section.SectionName)
-                        .input('sectionOrder', sql.Int, section.SectionOrder)
-                        .input('itemOrder', sql.Int, item.ItemOrder || 0)
-                        .input('referenceValue', sql.NVarChar, item.ReferenceValue)
-                        .input('question', sql.NVarChar, item.Question)
-                        .input('coefficient', sql.Decimal(5,2), item.Coefficient || 1)
-                        .input('answerOptions', sql.NVarChar, item.AnswerOptions || 'Yes,Partially,No,NA')
-                        .input('criteria', sql.NVarChar, item.Criteria)
+                // Only copy items for checklist sections
+                if (section.SectionType !== 'freetext') {
+                    const templateItems = await pool.request()
+                        .input('sectionId', sql.Int, section.Id)
                         .query(`
-                            INSERT INTO OHS_InspectionItems 
-                                (InspectionId, SectionName, SectionOrder, ItemOrder, ReferenceValue, Question, Coefficient, AnswerOptions, Criteria)
-                            VALUES 
-                                (@inspectionId, @sectionName, @sectionOrder, @itemOrder, @referenceValue, @question, @coefficient, @answerOptions, @criteria)
+                            SELECT ReferenceValue, Question, Coefficient, AnswerOptions, Criteria, ISNULL(ItemOrder, 0) as ItemOrder
+                            FROM OHS_InspectionTemplateItems
+                            WHERE SectionId = @sectionId AND IsActive = 1
+                            ORDER BY ISNULL(ItemOrder, 0), ReferenceValue
                         `);
+                
+                    for (const item of templateItems.recordset) {
+                        await pool.request()
+                            .input('inspectionId', sql.Int, auditId)
+                            .input('sectionName', sql.NVarChar, section.SectionName)
+                            .input('sectionOrder', sql.Int, section.SectionOrder)
+                            .input('itemOrder', sql.Int, item.ItemOrder || 0)
+                            .input('referenceValue', sql.NVarChar, item.ReferenceValue)
+                            .input('question', sql.NVarChar, item.Question)
+                            .input('coefficient', sql.Decimal(5,2), item.Coefficient || 1)
+                            .input('answerOptions', sql.NVarChar, item.AnswerOptions || 'Yes,Partially,No,NA')
+                            .input('criteria', sql.NVarChar, item.Criteria)
+                            .query(`
+                                INSERT INTO OHS_InspectionItems 
+                                    (InspectionId, SectionName, SectionOrder, ItemOrder, ReferenceValue, Question, Coefficient, AnswerOptions, Criteria)
+                                VALUES 
+                                    (@inspectionId, @sectionName, @sectionOrder, @itemOrder, @referenceValue, @question, @coefficient, @answerOptions, @criteria)
+                            `);
+                    }
                 }
             }
             
@@ -1667,7 +1676,9 @@ router.get('/api/audits/:auditId', async (req, res) => {
                         s.SectionIcon as sectionIcon,
                         s.Score as sectionScore,
                         s.TotalPoints as totalPoints,
-                        s.MaxPoints as maxPoints
+                        s.MaxPoints as maxPoints,
+                        s.SectionType as sectionType,
+                        s.FreetextResponse as freetextResponse
                     FROM OHS_InspectionSections s
                     WHERE s.InspectionId = @inspectionId
                     ORDER BY s.SectionOrder
@@ -1874,6 +1885,26 @@ router.put('/api/audits/response/:responseId', async (req, res) => {
         res.json({ success: true });
     } catch (error) {
         console.error('Error updating response:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Update freetext response for a section
+router.put('/api/audits/section/:sectionId/freetext', async (req, res) => {
+    try {
+        const { sectionId } = req.params;
+        const { freetextResponse } = req.body;
+        
+        const pool = await sql.connect(dbConfig);
+        
+        await pool.request()
+            .input('sectionId', sql.Int, sectionId)
+            .input('freetextResponse', sql.NVarChar, freetextResponse || null)
+            .query(`UPDATE OHS_InspectionSections SET FreetextResponse = @freetextResponse WHERE Id = @sectionId`);
+        
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Error updating freetext response:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });
@@ -2234,11 +2265,24 @@ router.post('/api/audits/:auditId/generate-report', async (req, res) => {
             });
         }
         
+        // Get freetext sections
+        const freetextSectionsResult = await pool.request()
+            .input('auditId', sql.Int, auditId)
+            .query(`
+                SELECT s.Id, s.SectionName, s.SectionIcon, s.SectionOrder, s.FreetextResponse,
+                       s.DepartmentName, s.DepartmentOrder
+                FROM OHS_InspectionSections s
+                WHERE s.InspectionId = @auditId AND s.SectionType = 'freetext'
+                ORDER BY ISNULL(s.DepartmentOrder, 999), s.SectionOrder
+            `);
+        const freetextSections = freetextSectionsResult.recordset;
+        
         // Build report data
         const reportData = {
             audit,
             departments: departmentsData,
             pictures: picturesByItem,
+            freetextSections,
             overallScore,
             threshold,
             generatedAt: new Date().toISOString()
@@ -2536,7 +2580,7 @@ function generateDepartmentReportHTML(data) {
 
 // Helper function to generate HTML report
 function generateOHSReportHTML(data) {
-    const { audit, departments, pictures, overallScore, threshold, generatedAt } = data;
+    const { audit, departments, pictures, freetextSections = [], overallScore, threshold, generatedAt } = data;
     const passedClass = overallScore >= threshold ? 'pass' : 'fail';
     const passedText = overallScore >= threshold ? 'PASS ✅' : 'FAIL ❌';
     
@@ -2680,6 +2724,18 @@ function generateOHSReportHTML(data) {
         .gallery-type.issue { background: #fee2e2; color: #991b1b; }
         .gallery-type.corrective { background: #d1fae5; color: #065f46; }
         .gallery-empty { text-align: center; padding: 40px 20px; color: #94a3b8; font-size: 16px; }
+        
+        /* Freetext Section Styles */
+        .freetext-section { background: white; border-radius: 12px; margin-bottom: 25px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); border-left: 4px solid #8b5cf6; }
+        .freetext-header { background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; padding: 15px 20px; }
+        .freetext-title { font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+        .freetext-badge { background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 20px; font-size: 12px; margin-left: auto; }
+        .freetext-content { padding: 20px; background: #faf5ff; min-height: 80px; }
+        .freetext-content p { font-size: 14px; line-height: 1.8; color: #374151; white-space: pre-wrap; }
+        .freetext-empty { color: #9ca3af; font-style: italic; }
+        .freetext-container { margin-bottom: 25px; }
+        .freetext-container-title { background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; padding: 15px 20px; border-radius: 12px 12px 0 0; font-size: 18px; font-weight: 600; }
+        
         .action-bar { position: fixed; top: 20px; right: 20px; display: flex; gap: 10px; z-index: 1000; }
         .action-bar button { padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); transition: transform 0.2s, box-shadow 0.2s; }
         .action-bar button:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
@@ -2809,6 +2865,9 @@ function generateOHSReportHTML(data) {
             <div class="filter-group">
                 <button class="filter-btn filter-na-dept active" onclick="toggleNADepartments(this)" title="Show/Hide N/A Departments">
                     🏬 N/A Departments
+                </button>
+                <button class="filter-btn filter-freetext active" onclick="toggleFreetextSections(this)" title="Show/Hide Notes & Recommendations">
+                    💡 Notes
                 </button>
             </div>
             <div class="filter-divider"></div>
@@ -3098,6 +3157,26 @@ function generateOHSReportHTML(data) {
         </div>`;
         })()}
         
+        <!-- Freetext Sections (Other Notes/Recommendations) -->
+        ${freetextSections.length > 0 ? `
+        <div class="freetext-container">
+            <div class="freetext-container-title">💡 Other Notes & Recommendations</div>
+            ${freetextSections.map(section => `
+            <div class="freetext-section">
+                <div class="freetext-header">
+                    <div class="freetext-title">
+                        ${section.SectionIcon || '📝'} ${section.SectionName}
+                        ${section.DepartmentName ? `<span class="freetext-badge">📁 ${section.DepartmentName}</span>` : ''}
+                    </div>
+                </div>
+                <div class="freetext-content">
+                    ${section.FreetextResponse ? `<p>${section.FreetextResponse}</p>` : `<p class="freetext-empty">No notes entered for this section.</p>`}
+                </div>
+            </div>
+            `).join('')}
+        </div>
+        ` : ''}
+        
         <div class="footer">
             Report generated on ${new Date(generatedAt).toLocaleString()} | OHS Inspection System
         </div>
@@ -3131,7 +3210,7 @@ function generateOHSReportHTML(data) {
         }
         
         // Filter functionality
-        const filters = { yes: true, partial: true, no: true, na: true, naDepts: true };
+        const filters = { yes: true, partial: true, no: true, na: true, naDepts: true, freetext: true };
         
         function toggleFilter(type, btn) {
             filters[type] = !filters[type];
@@ -3145,6 +3224,15 @@ function generateOHSReportHTML(data) {
             
             document.querySelectorAll('[data-na-dept="true"]').forEach(dept => {
                 dept.classList.toggle('dept-hidden', !filters.naDepts);
+            });
+        }
+        
+        function toggleFreetextSections(btn) {
+            filters.freetext = !filters.freetext;
+            btn.classList.toggle('active', filters.freetext);
+            
+            document.querySelectorAll('.freetext-container').forEach(el => {
+                el.style.display = filters.freetext ? 'block' : 'none';
             });
         }
         
@@ -3190,6 +3278,7 @@ function generateOHSReportHTML(data) {
             filters.no = true;
             filters.na = true;
             filters.naDepts = true;
+            filters.freetext = true;
             
             document.querySelectorAll('.filter-btn').forEach(btn => {
                 btn.classList.add('active');
@@ -3205,6 +3294,10 @@ function generateOHSReportHTML(data) {
             
             document.querySelectorAll('.section-block').forEach(section => {
                 section.classList.remove('section-hidden');
+            });
+            
+            document.querySelectorAll('.freetext-container').forEach(el => {
+                el.style.display = 'block';
             });
         }
         

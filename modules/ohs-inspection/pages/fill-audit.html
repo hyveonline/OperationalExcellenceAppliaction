@@ -1001,22 +1001,39 @@
                     
                     for (const section of deptSections) {
                         const sectionIndex = auditData.sections.indexOf(section);
+                        const isFreetext = section.sectionType === 'freetext';
                         const answered = section.items ? section.items.filter(i => i.selectedChoice).length : 0;
                         const total = section.items ? section.items.length : 0;
                         const score = calculateSectionScore(section);
+                        const hasResponse = section.freetextResponse && section.freetextResponse.trim().length > 0;
                         
-                        html += `
-                            <div class="section-nav-item ${sectionIndex === currentSectionIndex ? 'active' : ''}" onclick="selectSection(${sectionIndex})" style="${isNA ? 'opacity: 0.5;' : ''}">
-                                <div class="section-nav-icon">${section.sectionIcon || '📋'}</div>
-                                <div class="section-nav-info">
-                                    <div class="section-nav-name">${section.sectionName}</div>
-                                    <div class="section-nav-progress">${answered} / ${total} answered</div>
+                        if (isFreetext) {
+                            html += `
+                                <div class="section-nav-item ${sectionIndex === currentSectionIndex ? 'active' : ''}" onclick="selectSection(${sectionIndex})" style="${isNA ? 'opacity: 0.5;' : ''} ${hasResponse ? 'border-left: 3px solid #8b5cf6;' : ''}">
+                                    <div class="section-nav-icon">${section.sectionIcon || '💡'}</div>
+                                    <div class="section-nav-info">
+                                        <div class="section-nav-name">${section.sectionName}</div>
+                                        <div class="section-nav-progress" style="color: #8b5cf6;">${hasResponse ? '✓ Has response' : 'Free text'}</div>
+                                    </div>
+                                    <div class="section-nav-score" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; font-size: 0.65rem;">
+                                        💡
+                                    </div>
                                 </div>
-                                <div class="section-nav-score ${score >= 80 ? 'score-pass' : score > 0 ? 'score-fail' : 'score-na'}">
-                                    ${score > 0 ? score + '%' : '-'}
+                            `;
+                        } else {
+                            html += `
+                                <div class="section-nav-item ${sectionIndex === currentSectionIndex ? 'active' : ''}" onclick="selectSection(${sectionIndex})" style="${isNA ? 'opacity: 0.5;' : ''}">
+                                    <div class="section-nav-icon">${section.sectionIcon || '📋'}</div>
+                                    <div class="section-nav-info">
+                                        <div class="section-nav-name">${section.sectionName}</div>
+                                        <div class="section-nav-progress">${answered} / ${total} answered</div>
+                                    </div>
+                                    <div class="section-nav-score ${score >= 80 ? 'score-pass' : score > 0 ? 'score-fail' : 'score-na'}">
+                                        ${score > 0 ? score + '%' : '-'}
+                                    </div>
                                 </div>
-                            </div>
-                        `;
+                            `;
+                        }
                     }
                     
                     html += `
@@ -1144,6 +1161,9 @@
                 auditData.departments?.find(d => d.departmentName === section.departmentName) : null;
             const isNA = dept?.isNA;
             
+            // Check if this is a freetext section
+            const isFreetext = section.sectionType === 'freetext';
+            
             // Build department badge HTML if section has a department
             const deptBadgeHtml = section.departmentName ? `
                 <div style="margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
@@ -1152,6 +1172,56 @@
                     ${isNA ? '<span style="background: #fee2e2; color: #dc2626; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; font-weight: 600;">N/A - Excluded from scoring</span>' : ''}
                 </div>
             ` : '';
+
+            // Render freetext section differently
+            if (isFreetext) {
+                container.innerHTML = `
+                    ${deptBadgeHtml}
+                    <div class="section-header" style="${isNA ? 'opacity: 0.6;' : ''}">
+                        <div class="section-title">
+                            <div class="section-icon">${section.sectionIcon || '💡'}</div>
+                            <div class="section-name">${section.sectionName}</div>
+                        </div>
+                        <div class="section-stats">
+                            <div class="section-stat">
+                                <div class="section-stat-value" style="font-size: 1rem; color: #8b5cf6;">💡</div>
+                                <div class="section-stat-label">Free Text</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="question-card" style="background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%); border: 2px solid #8b5cf6;">
+                        <div style="margin-bottom: 1rem;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                                <span style="font-size: 1.25rem;">💡</span>
+                                <span style="font-weight: 600; color: #6d28d9;">Recommendations / Observations</span>
+                            </div>
+                            <p style="color: #7c3aed; font-size: 0.875rem; margin: 0;">
+                                Use this section to add any additional recommendations, observations, or notes that don't fit into the checklist categories above.
+                            </p>
+                        </div>
+                        <textarea 
+                            id="freetext-${section.sectionId}"
+                            class="finding-input" 
+                            style="min-height: 200px; border: 2px solid #c4b5fd; border-radius: 8px; padding: 1rem; font-size: 1rem; resize: vertical;"
+                            placeholder="Enter your recommendations, observations, or notes here..."
+                            onchange="updateFreetextResponse(${section.sectionId}, this.value)"
+                        >${section.freetextResponse || ''}</textarea>
+                        <div style="margin-top: 0.75rem; display: flex; justify-content: space-between; align-items: center;">
+                            <span style="color: #a78bfa; font-size: 0.75rem;">
+                                ℹ️ This section is not scored
+                            </span>
+                            <button class="btn" id="save-btn-${section.sectionId}" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; padding: 0.5rem 1rem; border: none; border-radius: 6px; cursor: pointer;"
+                                    onclick="saveFreetextResponse(${section.sectionId}, this)">
+                                💾 Save Response
+                            </button>
+                        </div>
+                    </div>
+
+                    <div style="height: 100px;"></div>
+                `;
+                return;
+            }
 
             container.innerHTML = `
                 ${deptBadgeHtml}
@@ -1334,6 +1404,47 @@
                 }
             } catch (error) {
                 console.error('Error updating finding:', error);
+            }
+        }
+
+        // Update freetext response locally (auto-save on change)
+        function updateFreetextResponse(sectionId, value) {
+            const section = auditData.sections.find(s => s.sectionId === sectionId);
+            if (section) {
+                section.freetextResponse = value;
+            }
+        }
+
+        // Save freetext response to server
+        async function saveFreetextResponse(sectionId, btn) {
+            try {
+                const section = auditData.sections.find(s => s.sectionId === sectionId);
+                if (!section) return;
+
+                const response = await fetch(`/ohs-inspection/api/audits/section/${sectionId}/freetext`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ freetextResponse: section.freetextResponse || '' })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    // Show success feedback
+                    const originalText = btn.innerHTML;
+                    btn.innerHTML = '✓ Saved!';
+                    btn.style.background = '#10b981';
+                    setTimeout(() => {
+                        btn.innerHTML = originalText;
+                        btn.style.background = 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)';
+                    }, 2000);
+                    // Update sidebar to show response indicator
+                    renderSectionsSidebar();
+                } else {
+                    alert('Error saving response: ' + (result.error || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error saving freetext response:', error);
+                alert('Error saving response');
             }
         }
 
