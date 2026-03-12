@@ -138,6 +138,18 @@
         .gallery-type.issue { background: #fee2e2; color: #991b1b; }
         .gallery-type.corrective { background: #d1fae5; color: #065f46; }
         .gallery-empty { text-align: center; padding: 40px 20px; color: #94a3b8; font-size: 16px; }
+        
+        /* Freetext Section Styles */
+        .freetext-section { background: white; border-radius: 12px; margin-bottom: 25px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); border-left: 4px solid #8b5cf6; }
+        .freetext-header { background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; padding: 15px 20px; }
+        .freetext-title { font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+        .freetext-badge { background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 20px; font-size: 12px; margin-left: auto; }
+        .freetext-content { padding: 20px; background: #faf5ff; min-height: 80px; }
+        .freetext-content p { font-size: 14px; line-height: 1.8; color: #374151; white-space: pre-wrap; }
+        .freetext-empty { color: #9ca3af; font-style: italic; }
+        .freetext-container { margin-bottom: 25px; }
+        .freetext-container-title { background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; padding: 15px 20px; border-radius: 12px 12px 0 0; font-size: 18px; font-weight: 600; }
+        
         .action-bar { position: fixed; top: 20px; right: 20px; display: flex; gap: 10px; z-index: 1000; }
         .action-bar button { padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); transition: transform 0.2s, box-shadow 0.2s; }
         .action-bar button:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
@@ -267,6 +279,9 @@
             <div class="filter-group">
                 <button class="filter-btn filter-na-dept active" onclick="toggleNADepartments(this)" title="Show/Hide N/A Departments">
                     🏬 N/A Departments
+                </button>
+                <button class="filter-btn filter-freetext active" onclick="toggleFreetextSections(this)" title="Show/Hide Notes & Recommendations">
+                    💡 Notes
                 </button>
             </div>
             <div class="filter-divider"></div>
@@ -16283,8 +16298,11 @@ Noting that oil leakage was noticed as shown in the picture.
             
         </div>
         
+        <!-- Freetext Sections (Other Notes/Recommendations) -->
+        
+        
         <div class="footer">
-            Report generated on 3/12/2026, 8:03:44 PM | OHS Inspection System
+            Report generated on 3/12/2026, 9:21:07 PM | OHS Inspection System
         </div>
     </div>
     <script>
@@ -16316,7 +16334,7 @@ Noting that oil leakage was noticed as shown in the picture.
         }
         
         // Filter functionality
-        const filters = { yes: true, partial: true, no: true, na: true, naDepts: true };
+        const filters = { yes: true, partial: true, no: true, na: true, naDepts: true, freetext: true };
         
         function toggleFilter(type, btn) {
             filters[type] = !filters[type];
@@ -16330,6 +16348,15 @@ Noting that oil leakage was noticed as shown in the picture.
             
             document.querySelectorAll('[data-na-dept="true"]').forEach(dept => {
                 dept.classList.toggle('dept-hidden', !filters.naDepts);
+            });
+        }
+        
+        function toggleFreetextSections(btn) {
+            filters.freetext = !filters.freetext;
+            btn.classList.toggle('active', filters.freetext);
+            
+            document.querySelectorAll('.freetext-container').forEach(el => {
+                el.style.display = filters.freetext ? 'block' : 'none';
             });
         }
         
@@ -16375,6 +16402,7 @@ Noting that oil leakage was noticed as shown in the picture.
             filters.no = true;
             filters.na = true;
             filters.naDepts = true;
+            filters.freetext = true;
             
             document.querySelectorAll('.filter-btn').forEach(btn => {
                 btn.classList.add('active');
@@ -16390,6 +16418,10 @@ Noting that oil leakage was noticed as shown in the picture.
             
             document.querySelectorAll('.section-block').forEach(section => {
                 section.classList.remove('section-hidden');
+            });
+            
+            document.querySelectorAll('.freetext-container').forEach(el => {
+                el.style.display = 'block';
             });
         }
         

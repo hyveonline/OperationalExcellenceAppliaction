@@ -807,6 +807,7 @@ router.get('/api/templates/schemas/:schemaId/sections', async (req, res) => {
                     s.SectionName as sectionName, 
                     s.SectionIcon as sectionIcon, 
                     s.SectionOrder as sectionNumber,
+                    s.SectionType as sectionType,
                     (SELECT COUNT(*) FROM OHS_InspectionTemplateItems i WHERE i.SectionId = s.Id AND i.IsActive = 1) as itemCount
                 FROM OHS_InspectionTemplateSections s
                 WHERE s.TemplateId = @templateId AND s.IsActive = 1
@@ -822,17 +823,18 @@ router.get('/api/templates/schemas/:schemaId/sections', async (req, res) => {
 // Create section
 router.post('/api/templates/schemas/:schemaId/sections', async (req, res) => {
     try {
-        const { sectionNumber, sectionName, sectionIcon } = req.body;
+        const { sectionNumber, sectionName, sectionIcon, sectionType } = req.body;
         const pool = await sql.connect(dbConfig);
         const result = await pool.request()
             .input('templateId', sql.Int, req.params.schemaId)
             .input('name', sql.NVarChar, sectionName)
             .input('icon', sql.NVarChar, sectionIcon || '📋')
             .input('order', sql.Int, sectionNumber)
+            .input('sectionType', sql.NVarChar, sectionType || 'checklist')
             .query(`
-                INSERT INTO OHS_InspectionTemplateSections (TemplateId, SectionName, SectionIcon, SectionOrder, IsActive)
+                INSERT INTO OHS_InspectionTemplateSections (TemplateId, SectionName, SectionIcon, SectionOrder, SectionType, IsActive)
                 OUTPUT INSERTED.Id as sectionId
-                VALUES (@templateId, @name, @icon, @order, 1)
+                VALUES (@templateId, @name, @icon, @order, @sectionType, 1)
             `);
         res.json({ success: true, data: { sectionId: result.recordset[0].sectionId } });
     } catch (error) {
@@ -1365,7 +1367,7 @@ router.post('/api/inspections', async (req, res) => {
                 const templateSections = await pool.request()
                     .input('departmentId', sql.Int, dept.Id)
                     .query(`
-                        SELECT Id, SectionName, SectionIcon, SectionOrder
+                        SELECT Id, SectionName, SectionIcon, SectionOrder, SectionType
                         FROM OHS_InspectionTemplateSections
                         WHERE DepartmentId = @departmentId AND IsActive = 1
                         ORDER BY SectionOrder
@@ -1378,13 +1380,75 @@ router.post('/api/inspections', async (req, res) => {
                         .input('sectionName', sql.NVarChar, section.SectionName)
                         .input('sectionIcon', sql.NVarChar, section.SectionIcon)
                         .input('sectionOrder', sql.Int, section.SectionOrder)
+                        .input('sectionType', sql.NVarChar, section.SectionType || 'checklist')
                         .input('departmentName', sql.NVarChar, dept.DepartmentName)
                         .input('departmentOrder', sql.Int, dept.DepartmentOrder)
                         .query(`
-                            INSERT INTO OHS_InspectionSections (InspectionId, SectionName, SectionIcon, SectionOrder, DepartmentName, DepartmentOrder, DepartmentIsNA)
-                            VALUES (@inspectionId, @sectionName, @sectionIcon, @sectionOrder, @departmentName, @departmentOrder, 0)
+                            INSERT INTO OHS_InspectionSections (InspectionId, SectionName, SectionIcon, SectionOrder, SectionType, DepartmentName, DepartmentOrder, DepartmentIsNA)
+                            VALUES (@inspectionId, @sectionName, @sectionIcon, @sectionOrder, @sectionType, @departmentName, @departmentOrder, 0)
                         `);
                     
+                    // Only copy items for checklist sections (freetext sections have no items)
+                    if (section.SectionType !== 'freetext') {
+                        // Copy items for this section
+                        const templateItems = await pool.request()
+                            .input('sectionId', sql.Int, section.Id)
+                            .query(`
+                                SELECT ReferenceValue, Question, Coefficient, AnswerOptions, Criteria, ISNULL(ItemOrder, 0) as ItemOrder
+                                FROM OHS_InspectionTemplateItems
+                                WHERE SectionId = @sectionId AND IsActive = 1
+                                ORDER BY ISNULL(ItemOrder, 0), ReferenceValue
+                            `);
+                        
+                        for (const item of templateItems.recordset) {
+                            await pool.request()
+                                .input('inspectionId', sql.Int, inspectionId)
+                                .input('sectionName', sql.NVarChar, section.SectionName)
+                                .input('sectionOrder', sql.Int, section.SectionOrder)
+                                .input('itemOrder', sql.Int, item.ItemOrder || 0)
+                                .input('referenceValue', sql.NVarChar, item.ReferenceValue)
+                                .input('question', sql.NVarChar, item.Question)
+                                .input('coefficient', sql.Decimal(5,2), item.Coefficient || 1)
+                                .input('answerOptions', sql.NVarChar, item.AnswerOptions || 'Yes,Partially,No,NA')
+                                .input('criteria', sql.NVarChar, item.Criteria)
+                                .input('departmentName', sql.NVarChar, dept.DepartmentName)
+                                .input('departmentOrder', sql.Int, dept.DepartmentOrder)
+                                .query(`
+                                    INSERT INTO OHS_InspectionItems 
+                                        (InspectionId, SectionName, SectionOrder, ItemOrder, ReferenceValue, Question, Coefficient, AnswerOptions, Criteria, DepartmentName, DepartmentOrder, DepartmentIsNA)
+                                    VALUES 
+                                        (@inspectionId, @sectionName, @sectionOrder, @itemOrder, @referenceValue, @question, @coefficient, @answerOptions, @criteria, @departmentName, @departmentOrder, 0)
+                                `);
+                        }
+                    }
+                }
+            }
+            
+            // Also handle sections without departments (legacy templates)
+            const orphanSections = await pool.request()
+                .input('templateId', sql.Int, useTemplateId)
+                .query(`
+                    SELECT Id, SectionName, SectionIcon, SectionOrder, SectionType
+                    FROM OHS_InspectionTemplateSections
+                    WHERE TemplateId = @templateId AND DepartmentId IS NULL AND IsActive = 1
+                    ORDER BY SectionOrder
+                `);
+            
+            for (const section of orphanSections.recordset) {
+                // Insert section without department
+                await pool.request()
+                    .input('inspectionId', sql.Int, inspectionId)
+                    .input('sectionName', sql.NVarChar, section.SectionName)
+                    .input('sectionIcon', sql.NVarChar, section.SectionIcon)
+                    .input('sectionOrder', sql.Int, section.SectionOrder)
+                    .input('sectionType', sql.NVarChar, section.SectionType || 'checklist')
+                    .query(`
+                        INSERT INTO OHS_InspectionSections (InspectionId, SectionName, SectionIcon, SectionOrder, SectionType)
+                        VALUES (@inspectionId, @sectionName, @sectionIcon, @sectionOrder, @sectionType)
+                    `);
+                
+                // Only copy items for checklist sections (freetext sections have no items)
+                if (section.SectionType !== 'freetext') {
                     // Copy items for this section
                     const templateItems = await pool.request()
                         .input('sectionId', sql.Int, section.Id)
@@ -1406,67 +1470,13 @@ router.post('/api/inspections', async (req, res) => {
                             .input('coefficient', sql.Decimal(5,2), item.Coefficient || 1)
                             .input('answerOptions', sql.NVarChar, item.AnswerOptions || 'Yes,Partially,No,NA')
                             .input('criteria', sql.NVarChar, item.Criteria)
-                            .input('departmentName', sql.NVarChar, dept.DepartmentName)
-                            .input('departmentOrder', sql.Int, dept.DepartmentOrder)
                             .query(`
                                 INSERT INTO OHS_InspectionItems 
-                                    (InspectionId, SectionName, SectionOrder, ItemOrder, ReferenceValue, Question, Coefficient, AnswerOptions, Criteria, DepartmentName, DepartmentOrder, DepartmentIsNA)
+                                    (InspectionId, SectionName, SectionOrder, ItemOrder, ReferenceValue, Question, Coefficient, AnswerOptions, Criteria)
                                 VALUES 
-                                    (@inspectionId, @sectionName, @sectionOrder, @itemOrder, @referenceValue, @question, @coefficient, @answerOptions, @criteria, @departmentName, @departmentOrder, 0)
+                                    (@inspectionId, @sectionName, @sectionOrder, @itemOrder, @referenceValue, @question, @coefficient, @answerOptions, @criteria)
                             `);
                     }
-                }
-            }
-            
-            // Also handle sections without departments (legacy templates)
-            const orphanSections = await pool.request()
-                .input('templateId', sql.Int, useTemplateId)
-                .query(`
-                    SELECT Id, SectionName, SectionIcon, SectionOrder
-                    FROM OHS_InspectionTemplateSections
-                    WHERE TemplateId = @templateId AND DepartmentId IS NULL AND IsActive = 1
-                    ORDER BY SectionOrder
-                `);
-            
-            for (const section of orphanSections.recordset) {
-                // Insert section without department
-                await pool.request()
-                    .input('inspectionId', sql.Int, inspectionId)
-                    .input('sectionName', sql.NVarChar, section.SectionName)
-                    .input('sectionIcon', sql.NVarChar, section.SectionIcon)
-                    .input('sectionOrder', sql.Int, section.SectionOrder)
-                    .query(`
-                        INSERT INTO OHS_InspectionSections (InspectionId, SectionName, SectionIcon, SectionOrder)
-                        VALUES (@inspectionId, @sectionName, @sectionIcon, @sectionOrder)
-                    `);
-                
-                // Copy items for this section
-                const templateItems = await pool.request()
-                    .input('sectionId', sql.Int, section.Id)
-                    .query(`
-                        SELECT ReferenceValue, Question, Coefficient, AnswerOptions, Criteria, ISNULL(ItemOrder, 0) as ItemOrder
-                        FROM OHS_InspectionTemplateItems
-                        WHERE SectionId = @sectionId AND IsActive = 1
-                        ORDER BY ISNULL(ItemOrder, 0), ReferenceValue
-                    `);
-                
-                for (const item of templateItems.recordset) {
-                    await pool.request()
-                        .input('inspectionId', sql.Int, inspectionId)
-                        .input('sectionName', sql.NVarChar, section.SectionName)
-                        .input('sectionOrder', sql.Int, section.SectionOrder)
-                        .input('itemOrder', sql.Int, item.ItemOrder || 0)
-                        .input('referenceValue', sql.NVarChar, item.ReferenceValue)
-                        .input('question', sql.NVarChar, item.Question)
-                        .input('coefficient', sql.Decimal(5,2), item.Coefficient || 1)
-                        .input('answerOptions', sql.NVarChar, item.AnswerOptions || 'Yes,Partially,No,NA')
-                        .input('criteria', sql.NVarChar, item.Criteria)
-                        .query(`
-                            INSERT INTO OHS_InspectionItems 
-                                (InspectionId, SectionName, SectionOrder, ItemOrder, ReferenceValue, Question, Coefficient, AnswerOptions, Criteria)
-                            VALUES 
-                                (@inspectionId, @sectionName, @sectionOrder, @itemOrder, @referenceValue, @question, @coefficient, @answerOptions, @criteria)
-                        `);
                 }
             }
         }
