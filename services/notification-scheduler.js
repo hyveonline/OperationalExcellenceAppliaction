@@ -48,12 +48,17 @@ async function generateWeeklyFeedbackReminders() {
         const storesResult = await pool.request()
             .query(`SELECT Id, StoreName FROM Stores WHERE IsActive = 1`);
         
-        // Get all Store Managers
+        // Get all Store Managers (excluding those who also have OHS Manager role)
         const managersResult = await pool.request()
             .query(`SELECT u.Id, u.DisplayName, u.Email, u.StoreId 
                     FROM Users u 
                     LEFT JOIN UserRoles r ON u.RoleId = r.Id 
-                    WHERE r.RoleName = 'Store Manager' AND u.IsActive = 1`);
+                    WHERE r.RoleName = 'Store Manager' AND u.IsActive = 1
+                    AND u.Id NOT IN (
+                        SELECT ura.UserId FROM UserRoleAssignments ura
+                        JOIN UserRoles r2 ON ura.RoleId = r2.Id
+                        WHERE r2.RoleName = 'OHS Manager'
+                    )`);
         
         // Get already submitted feedback for this week
         const submittedResult = await pool.request()
