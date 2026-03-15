@@ -337,6 +337,12 @@ router.get('/', async (req, res) => {
                             <div class="card-title">Cycle Dashboard</div>
                             <div class="card-desc">Track inspection progress per brand and cycle. View pending stores.</div>
                         </a>
+                        
+                        <a href="/oe-inspection/escalation" class="card" style="border-left-color: #f59e0b;">
+                            <div class="card-icon">🏢</div>
+                            <div class="card-title">Escalation</div>
+                            <div class="card-desc">View and manage items escalated to departments. Track department responses.</div>
+                        </a>
                     </div>
                 </div>
             </body>
@@ -2857,14 +2863,14 @@ router.get('/api/audits/:auditId/department-report/:department', async (req, res
 router.put('/api/audits/response/:responseId', async (req, res) => {
     try {
         const { responseId } = req.params;
-        const { selectedChoice, coeff, finding, comment, cr, priority, escalate, department, quantity, actualQuantity } = req.body;
+        const { selectedChoice, coeff, finding, comment, cr, priority, escalate, department, quantity, actualQuantity, deadline } = req.body;
         
         const pool = await sql.connect(dbConfig);
         
         // First get current values to preserve unset fields
         const currentResult = await pool.request()
             .input('id', sql.Int, responseId)
-            .query(`SELECT Answer, Score, Finding, Comment, CorrectedAction, Priority, Escalate, Department, Quantity, ActualQuantity FROM OE_InspectionItems WHERE Id = @id`);
+            .query(`SELECT Answer, Score, Finding, Comment, CorrectedAction, Priority, Escalate, Department, Quantity, ActualQuantity, Deadline FROM OE_InspectionItems WHERE Id = @id`);
         
         const current = currentResult.recordset[0] || {};
         
@@ -2885,6 +2891,7 @@ router.put('/api/audits/response/:responseId', async (req, res) => {
         const finalPriority = priority !== undefined ? (priority || null) : current.Priority;
         const finalQuantity = quantity !== undefined ? (quantity || null) : current.Quantity;
         const finalActualQuantity = actualQuantity !== undefined ? (actualQuantity || null) : current.ActualQuantity;
+        const finalDeadline = deadline !== undefined ? (deadline || null) : current.Deadline;
         
         await pool.request()
             .input('id', sql.Int, responseId)
@@ -2898,6 +2905,7 @@ router.put('/api/audits/response/:responseId', async (req, res) => {
             .input('department', sql.NVarChar, finalDepartment)
             .input('quantity', sql.Int, finalQuantity)
             .input('actualQuantity', sql.Int, finalActualQuantity)
+            .input('deadline', sql.Date, finalDeadline)
             .query(`
                 UPDATE OE_InspectionItems 
                 SET Answer = @selectedChoice,
@@ -2909,9 +2917,33 @@ router.put('/api/audits/response/:responseId', async (req, res) => {
                     Escalate = @escalate,
                     Department = @department,
                     Quantity = @quantity,
-                    ActualQuantity = @actualQuantity
+                    ActualQuantity = @actualQuantity,
+                    Deadline = @deadline
                 WHERE Id = @id
             `);
+        
+        // Handle department escalation
+        if (escalate !== undefined && finalDepartment) {
+            try {
+                const deptEscalationService = require('../../services/department-escalation-service');
+                const user = req.session?.user || {};
+                
+                if (finalEscalate && finalDepartment) {
+                    // Create or update department escalation
+                    await deptEscalationService.escalateToDepepartment('OE', responseId, finalDepartment, {
+                        id: user.id,
+                        name: user.displayName || user.email,
+                        email: user.email
+                    }, finalDeadline);
+                } else if (!finalEscalate) {
+                    // Remove escalation if checkbox unchecked
+                    await deptEscalationService.removeEscalation('OE', responseId);
+                }
+            } catch (escErr) {
+                console.error('Department escalation error:', escErr.message);
+                // Don't fail the whole request for escalation errors
+            }
+        }
         
         await pool.close();
         res.json({ success: true, data: { score: value } });
@@ -5383,6 +5415,106 @@ router.get('/api/cycle/store/:storeId', async (req, res) => {
         });
     } catch (error) {
         console.error('Error getting store cycle info:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ==========================================
+// Department Escalation Page and API Routes
+// ==========================================
+
+// Escalation Page
+router.get('/escalation', (req, res) => {
+    res.sendFile(path.join(__dirname, 'pages', 'escalation.html'));
+});
+
+// Get all department escalations for OE
+router.get('/api/department-escalations', async (req, res) => {
+    try {
+        const pool = await sql.connect(dbConfig);
+        const result = await pool.request().query(`
+            SELECT * FROM DepartmentEscalations 
+            WHERE Module = 'OE'
+            ORDER BY EscalatedAt DESC
+        `);
+        
+        res.json({ success: true, data: result.recordset });
+    } catch (error) {
+        console.error('Error getting OE department escalations:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Get OE department escalation stats
+router.get('/api/department-escalations/stats', async (req, res) => {
+    try {
+        const pool = await sql.connect(dbConfig);
+        const result = await pool.request().query(`
+            SELECT 
+                SUM(CASE WHEN Status = 'Pending' THEN 1 ELSE 0 END) as pending,
+                SUM(CASE WHEN Status = 'Pending' AND Deadline < GETDATE() THEN 1 ELSE 0 END) as overdue,
+                SUM(CASE WHEN Status = 'InProgress' OR Status = 'Acknowledged' THEN 1 ELSE 0 END) as inProgress,
+                SUM(CASE WHEN Status = 'Resolved' THEN 1 ELSE 0 END) as resolved
+            FROM DepartmentEscalations
+            WHERE Module = 'OE'
+        `);
+        
+        res.json({ success: true, stats: result.recordset[0] });
+    } catch (error) {
+        console.error('Error getting OE escalation stats:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Acknowledge OE escalation
+router.put('/api/department-escalations/:id/acknowledge', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const pool = await sql.connect(dbConfig);
+        const userName = req.session?.user?.name || 'Unknown';
+        
+        await pool.request()
+            .input('id', sql.Int, id)
+            .input('acknowledgedBy', sql.NVarChar, userName)
+            .query(`
+                UPDATE DepartmentEscalations 
+                SET Status = 'Acknowledged',
+                    AcknowledgedAt = GETDATE(),
+                    AcknowledgedBy = @acknowledgedBy
+                WHERE Id = @id AND Module = 'OE'
+            `);
+        
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Error acknowledging OE escalation:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Resolve OE escalation
+router.put('/api/department-escalations/:id/resolve', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { notes } = req.body;
+        const pool = await sql.connect(dbConfig);
+        const userName = req.session?.user?.name || 'Unknown';
+        
+        await pool.request()
+            .input('id', sql.Int, id)
+            .input('resolvedBy', sql.NVarChar, userName)
+            .input('notes', sql.NVarChar, notes)
+            .query(`
+                UPDATE DepartmentEscalations 
+                SET Status = 'Resolved',
+                    ResolvedAt = GETDATE(),
+                    ResolvedBy = @resolvedBy,
+                    ResolutionNotes = @notes
+                WHERE Id = @id AND Module = 'OE'
+            `);
+        
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Error resolving OE escalation:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });

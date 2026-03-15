@@ -210,6 +210,10 @@ app.get('/dashboard', requireAuth, async (req, res) => {
         'OE_INSPECTION_SETTINGS': 'oe-inspection', 'OE_INSPECTION_REPORT': 'oe-inspection',
         'OE_TEMPLATE_BUILDER': 'oe-inspection',
         
+        // Department Tasks (Escalations)
+        'OE_ESCALATION': 'oe-escalation',
+        'OHS_ASSIGNED_DEPT': 'ohs-assigned-dept',
+        
         // Third-Party module (also in personnel)
         
         // Security / Facility Management module
@@ -866,6 +870,8 @@ if (USE_HTTPS) {
 // ==========================================
 // Escalation Scheduler
 // ==========================================
+const departmentEscalationService = require('./services/department-escalation-service');
+
 function startEscalationScheduler() {
     console.log('[Escalation Scheduler] Starting action plan escalation scheduler...');
     
@@ -874,6 +880,8 @@ function startEscalationScheduler() {
         try {
             await actionPlanEscalation.sendDeadlineReminders();
             await actionPlanEscalation.checkOverdueActionPlans();
+            // Also check department escalations
+            await departmentEscalationService.checkDepartmentEscalations();
         } catch (err) {
             console.error('[Escalation Scheduler] Initial run error:', err.message);
         }
@@ -885,6 +893,8 @@ function startEscalationScheduler() {
             console.log('[Escalation Scheduler] Running scheduled escalation check...');
             await actionPlanEscalation.sendDeadlineReminders();
             await actionPlanEscalation.checkOverdueActionPlans();
+            // Also check department escalations
+            await departmentEscalationService.checkDepartmentEscalations();
         } catch (err) {
             console.error('[Escalation Scheduler] Scheduled run error:', err.message);
         }

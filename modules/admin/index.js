@@ -6,6 +6,7 @@ const config = require('../../config/default');
 const SharePointUsersService = require('../../gmrl-auth/admin/services/sharepoint-users-service');
 const escalationService = require('../../services/action-plan-escalation');
 const fiveDaysReminderService = require('../../services/five-days-reminder-service');
+const departmentEscalationService = require('../../services/department-escalation-service');
 
 const dbConfig = {
     server: config.database.server,
@@ -366,6 +367,151 @@ router.get('/api/job-monitor/five-days/active-cycle', async (req, res) => {
     } catch (err) {
         console.error('Error getting active cycle:', err);
         res.json({ success: true, cycleKey: null, sentSteps: [] });
+    } finally {
+        if (pool) await pool.close();
+    }
+});
+
+// ============================================================================
+// DEPARTMENT ESCALATION API ROUTES
+// ============================================================================
+
+// Get department escalation stats
+router.get('/api/job-monitor/department-escalations', async (req, res) => {
+    try {
+        const stats = await departmentEscalationService.getDepartmentEscalationStats();
+        const serviceStatus = departmentEscalationService.getServiceStatus();
+        
+        res.json({
+            success: true,
+            stats: stats,
+            serviceStatus: serviceStatus
+        });
+    } catch (err) {
+        console.error('Error getting department escalation stats:', err);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// Get pending department escalations list
+router.get('/api/job-monitor/department-escalations/pending', async (req, res) => {
+    try {
+        const { module, limit } = req.query;
+        const escalations = await departmentEscalationService.getPendingDepartmentEscalations(
+            module || null,
+            parseInt(limit) || 50
+        );
+        
+        res.json({
+            success: true,
+            data: escalations
+        });
+    } catch (err) {
+        console.error('Error getting pending department escalations:', err);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// Run department escalation check now
+router.post('/api/job-monitor/department-escalations/run-now', async (req, res) => {
+    try {
+        const result = await departmentEscalationService.checkDepartmentEscalations();
+        
+        res.json({
+            success: true,
+            message: 'Department escalation check completed',
+            result: result
+        });
+    } catch (err) {
+        console.error('Error running department escalation check:', err);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// Get department contacts
+router.get('/api/job-monitor/department-contacts', async (req, res) => {
+    let pool;
+    try {
+        pool = await sql.connect(dbConfig);
+        
+        const result = await pool.request().query(`
+            SELECT * FROM DepartmentContacts
+            WHERE IsActive = 1
+            ORDER BY DepartmentName, SortOrder
+        `);
+        
+        res.json({
+            success: true,
+            data: result.recordset
+        });
+    } catch (err) {
+        console.error('Error getting department contacts:', err);
+        res.status(500).json({ success: false, error: err.message });
+    } finally {
+        if (pool) await pool.close();
+    }
+});
+
+// Update department contact
+router.put('/api/job-monitor/department-contacts/:id', async (req, res) => {
+    let pool;
+    try {
+        const { id } = req.params;
+        const { contactEmail, contactName, contactRole, receiveOverdueAlerts, receiveEscalationAlerts, isActive } = req.body;
+        
+        pool = await sql.connect(dbConfig);
+        
+        await pool.request()
+            .input('id', sql.Int, id)
+            .input('contactEmail', sql.NVarChar, contactEmail)
+            .input('contactName', sql.NVarChar, contactName)
+            .input('contactRole', sql.NVarChar, contactRole)
+            .input('receiveOverdueAlerts', sql.Bit, receiveOverdueAlerts ? 1 : 0)
+            .input('receiveEscalationAlerts', sql.Bit, receiveEscalationAlerts ? 1 : 0)
+            .input('isActive', sql.Bit, isActive !== false ? 1 : 0)
+            .query(`
+                UPDATE DepartmentContacts
+                SET ContactEmail = @contactEmail,
+                    ContactName = @contactName,
+                    ContactRole = @contactRole,
+                    ReceiveOverdueAlerts = @receiveOverdueAlerts,
+                    ReceiveEscalationAlerts = @receiveEscalationAlerts,
+                    IsActive = @isActive,
+                    UpdatedAt = GETDATE()
+                WHERE Id = @id
+            `);
+        
+        res.json({ success: true, message: 'Contact updated' });
+    } catch (err) {
+        console.error('Error updating department contact:', err);
+        res.status(500).json({ success: false, error: err.message });
+    } finally {
+        if (pool) await pool.close();
+    }
+});
+
+// Add new department contact
+router.post('/api/job-monitor/department-contacts', async (req, res) => {
+    let pool;
+    try {
+        const { departmentName, contactEmail, contactName, contactRole } = req.body;
+        
+        pool = await sql.connect(dbConfig);
+        
+        await pool.request()
+            .input('departmentName', sql.NVarChar, departmentName)
+            .input('contactEmail', sql.NVarChar, contactEmail)
+            .input('contactName', sql.NVarChar, contactName)
+            .input('contactRole', sql.NVarChar, contactRole)
+            .query(`
+                INSERT INTO DepartmentContacts (DepartmentName, ContactEmail, ContactName, ContactRole)
+                VALUES (@departmentName, @contactEmail, @contactName, @contactRole)
+            `);
+        
+        res.json({ success: true, message: 'Contact added' });
+    } catch (err) {
+        console.error('Error adding department contact:', err);
+        res.status(500).json({ success: false, error: err.message });
     } finally {
         if (pool) await pool.close();
     }
@@ -6475,7 +6621,9 @@ router.get('/job-monitor', async (req, res) => {
                     <!-- Tabs -->
                     <div class="tabs">
                         <div class="tab active" data-tab="oe-tab">📋 OE Inspections (${oeInspections.length})</div>
+                        <div class="tab" data-tab="oe-dept-esc-tab">🏢 OE Dept Esc</div>
                         <div class="tab" data-tab="ohs-tab">📋 OHS Inspections (${ohsInspections.length})</div>
+                        <div class="tab" data-tab="ohs-dept-esc-tab">🏢 OHS Dept Esc</div>
                         <div class="tab" data-tab="theft-tab">🚨 Theft Incidents (${theftIncidents.length})</div>
                         <div class="tab" data-tab="fivedays-tab">📅 5 Days Reminders</div>
                         <div class="tab" data-tab="templates-tab">📧 Email Templates</div>
@@ -6504,6 +6652,90 @@ router.get('/job-monitor', async (req, res) => {
                                     <tbody>${ohsInspections.map((i, idx, arr) => renderRow(i, idx, arr, 'OHS')).join('')}</tbody>
                                 </table>
                             ` : `<div class="empty-state"><div class="icon">✅</div><p>No pending action plans</p></div>`}
+                        </div>
+                    </div>
+                    
+                    <!-- OE Department Escalations Tab -->
+                    <div class="tab-content" id="oe-dept-esc-tab">
+                        <div class="section">
+                            <div class="section-header">
+                                <h2><span class="badge oe">OE</span> Department Escalations</h2>
+                                <div style="display: flex; gap: 10px;">
+                                    <button class="btn btn-primary btn-sm" onclick="runDeptEscalationCheck()">🔄 Check Now</button>
+                                    <button class="btn btn-outline btn-sm" onclick="refreshDeptEscalations('OE')">🔃 Refresh</button>
+                                </div>
+                            </div>
+                            
+                            <!-- Stats Cards -->
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                                <div class="summary-card" style="padding: 15px; text-align: center;">
+                                    <div style="font-size: 24px; font-weight: bold; color: #10b981;" id="oe-dept-esc-pending">-</div>
+                                    <div style="font-size: 12px; color: #64748b;">Pending</div>
+                                </div>
+                                <div class="summary-card" style="padding: 15px; text-align: center;">
+                                    <div style="font-size: 24px; font-weight: bold; color: #ef4444;" id="oe-dept-esc-overdue">-</div>
+                                    <div style="font-size: 12px; color: #64748b;">Overdue</div>
+                                </div>
+                                <div class="summary-card" style="padding: 15px; text-align: center;">
+                                    <div style="font-size: 24px; font-weight: bold; color: #f59e0b;" id="oe-dept-esc-inprogress">-</div>
+                                    <div style="font-size: 12px; color: #64748b;">In Progress</div>
+                                </div>
+                                <div class="summary-card" style="padding: 15px; text-align: center;">
+                                    <div style="font-size: 24px; font-weight: bold; color: #8b5cf6;" id="oe-dept-esc-resolved">-</div>
+                                    <div style="font-size: 12px; color: #64748b;">Resolved</div>
+                                </div>
+                            </div>
+                            
+                            <!-- Pending Escalations Table -->
+                            <h4 style="font-size: 14px; margin: 20px 0 10px; color: #333;">📋 OE Pending Department Escalations</h4>
+                            <div id="oe-dept-esc-table">
+                                <div class="empty-state"><div class="icon">⏳</div><p>Loading...</p></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- OHS Department Escalations Tab -->
+                    <div class="tab-content" id="ohs-dept-esc-tab">
+                        <div class="section">
+                            <div class="section-header">
+                                <h2><span class="badge ohs">OHS</span> Department Escalations</h2>
+                                <div style="display: flex; gap: 10px;">
+                                    <button class="btn btn-primary btn-sm" onclick="runDeptEscalationCheck()">🔄 Check Now</button>
+                                    <button class="btn btn-outline btn-sm" onclick="refreshDeptEscalations('OHS')">🔃 Refresh</button>
+                                </div>
+                            </div>
+                            
+                            <!-- Stats Cards -->
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                                <div class="summary-card" style="padding: 15px; text-align: center;">
+                                    <div style="font-size: 24px; font-weight: bold; color: #f97316;" id="ohs-dept-esc-pending">-</div>
+                                    <div style="font-size: 12px; color: #64748b;">Pending</div>
+                                </div>
+                                <div class="summary-card" style="padding: 15px; text-align: center;">
+                                    <div style="font-size: 24px; font-weight: bold; color: #ef4444;" id="ohs-dept-esc-overdue">-</div>
+                                    <div style="font-size: 12px; color: #64748b;">Overdue</div>
+                                </div>
+                                <div class="summary-card" style="padding: 15px; text-align: center;">
+                                    <div style="font-size: 24px; font-weight: bold; color: #f59e0b;" id="ohs-dept-esc-inprogress">-</div>
+                                    <div style="font-size: 12px; color: #64748b;">In Progress</div>
+                                </div>
+                                <div class="summary-card" style="padding: 15px; text-align: center;">
+                                    <div style="font-size: 24px; font-weight: bold; color: #8b5cf6;" id="ohs-dept-esc-resolved">-</div>
+                                    <div style="font-size: 12px; color: #64748b;">Resolved</div>
+                                </div>
+                            </div>
+                            
+                            <!-- Pending Escalations Table -->
+                            <h4 style="font-size: 14px; margin: 20px 0 10px; color: #333;">📋 OHS Pending Department Escalations</h4>
+                            <div id="ohs-dept-esc-table">
+                                <div class="empty-state"><div class="icon">⏳</div><p>Loading...</p></div>
+                            </div>
+                            
+                            <!-- Department Contacts (show only on OHS tab) -->
+                            <h4 style="font-size: 14px; margin: 30px 0 10px; color: #333;">📧 Department Contacts</h4>
+                            <div id="dept-contacts-container">
+                                <div class="empty-state"><div class="icon">⏳</div><p>Loading...</p></div>
+                            </div>
                         </div>
                     </div>
                     
@@ -7085,6 +7317,150 @@ router.get('/job-monitor', async (req, res) => {
                     ['previewModal', 'dryrunModal'].forEach(id => {
                         document.getElementById(id).addEventListener('click', function(e) { if (e.target === this) closeModal(id); });
                     });
+                    
+                    // ==========================================
+                    // DEPARTMENT ESCALATION FUNCTIONS
+                    // ==========================================
+                    
+                    // Load OE department escalation data when tab is clicked
+                    document.querySelector('[data-tab="oe-dept-esc-tab"]').addEventListener('click', function() {
+                        loadDeptEscalationStats('OE');
+                        loadPendingDeptEscalations('OE');
+                    });
+                    
+                    // Load OHS department escalation data when tab is clicked
+                    document.querySelector('[data-tab="ohs-dept-esc-tab"]').addEventListener('click', function() {
+                        loadDeptEscalationStats('OHS');
+                        loadPendingDeptEscalations('OHS');
+                        loadDeptContacts();
+                    });
+                    
+                    async function loadDeptEscalationStats(module) {
+                        try {
+                            const res = await fetch('/admin/api/job-monitor/department-escalations');
+                            const data = await res.json();
+                            
+                            if (data.success) {
+                                const stats = data.stats[module] || { pending: 0, overdue: 0, inProgress: 0, resolved: 0 };
+                                const prefix = module.toLowerCase();
+                                document.getElementById(prefix + '-dept-esc-pending').textContent = stats.pending || 0;
+                                document.getElementById(prefix + '-dept-esc-overdue').textContent = stats.overdue || 0;
+                                document.getElementById(prefix + '-dept-esc-inprogress').textContent = stats.inProgress || 0;
+                                document.getElementById(prefix + '-dept-esc-resolved').textContent = stats.resolved || 0;
+                            }
+                        } catch (e) {
+                            console.error('Error loading dept escalation stats:', e);
+                        }
+                    }
+                    
+                    async function loadPendingDeptEscalations(module) {
+                        const containerId = module.toLowerCase() + '-dept-esc-table';
+                        try {
+                            const res = await fetch('/admin/api/job-monitor/department-escalations/pending?module=' + module + '&limit=50');
+                            const data = await res.json();
+                            
+                            if (data.success && data.data.length > 0) {
+                                let html = '<table class="tracking-table"><thead><tr>';
+                                html += '<th>Department</th><th>Store</th><th>Document #</th>';
+                                html += '<th>Finding</th><th>Priority</th><th>Deadline</th><th>Status</th><th>Escalated</th>';
+                                html += '</tr></thead><tbody>';
+                                
+                                data.data.forEach(e => {
+                                    const isOverdue = e.DaysOverdue > 0;
+                                    const statusClass = isOverdue ? 'overdue' : (e.Status === 'Pending' ? 'due-soon' : 'on-track');
+                                    const deadline = e.Deadline ? new Date(e.Deadline).toLocaleDateString('en-GB') : 'Not set';
+                                    const escalatedAt = new Date(e.EscalatedAt).toLocaleDateString('en-GB');
+                                    
+                                    html += '<tr>';
+                                    html += '<td><strong>' + e.Department + '</strong></td>';
+                                    html += '<td>' + (e.StoreName || '-') + '</td>';
+                                    html += '<td>' + (e.DocumentNumber || '-') + '</td>';
+                                    html += '<td style="max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="' + (e.Finding || '') + '">' + (e.Finding || '-') + '</td>';
+                                    html += '<td><span class="priority-' + (e.Priority || 'medium').toLowerCase() + '">' + (e.Priority || 'Medium') + '</span></td>';
+                                    html += '<td>' + deadline + (isOverdue ? ' <span class="status-pill overdue">(' + e.DaysOverdue + 'd overdue)</span>' : '') + '</td>';
+                                    html += '<td><span class="status-pill ' + statusClass + '">' + e.Status + '</span></td>';
+                                    html += '<td>' + escalatedAt + '</td>';
+                                    html += '</tr>';
+                                });
+                                
+                                html += '</tbody></table>';
+                                document.getElementById(containerId).innerHTML = html;
+                            } else {
+                                document.getElementById(containerId).innerHTML = '<div class="empty-state"><div class="icon">✅</div><p>No pending ' + module + ' department escalations</p></div>';
+                            }
+                        } catch (e) {
+                            document.getElementById(containerId).innerHTML = '<div class="empty-state"><div class="icon">❌</div><p>Error: ' + e.message + '</p></div>';
+                        }
+                    }
+                    
+                    async function loadDeptContacts() {
+                        try {
+                            const res = await fetch('/admin/api/job-monitor/department-contacts');
+                            const data = await res.json();
+                            
+                            if (data.success && data.data.length > 0) {
+                                let html = '<table class="tracking-table"><thead><tr>';
+                                html += '<th>Department</th><th>Contact Name</th><th>Email</th><th>Role</th>';
+                                html += '<th>Escalation Alerts</th><th>Overdue Alerts</th><th>Active</th>';
+                                html += '</tr></thead><tbody>';
+                                
+                                data.data.forEach(c => {
+                                    html += '<tr>';
+                                    html += '<td><strong>' + c.DepartmentName + '</strong></td>';
+                                    html += '<td>' + (c.ContactName || '-') + '</td>';
+                                    html += '<td>' + c.ContactEmail + '</td>';
+                                    html += '<td>' + (c.ContactRole || '-') + '</td>';
+                                    html += '<td>' + (c.ReceiveEscalationAlerts ? '✅' : '❌') + '</td>';
+                                    html += '<td>' + (c.ReceiveOverdueAlerts ? '✅' : '❌') + '</td>';
+                                    html += '<td>' + (c.IsActive ? '✅ Active' : '❌ Inactive') + '</td>';
+                                    html += '</tr>';
+                                });
+                                
+                                html += '</tbody></table>';
+                                document.getElementById('dept-contacts-container').innerHTML = html;
+                            } else {
+                                document.getElementById('dept-contacts-container').innerHTML = '<div class="empty-state"><div class="icon">📭</div><p>No department contacts configured</p></div>';
+                            }
+                        } catch (e) {
+                            document.getElementById('dept-contacts-container').innerHTML = '<div class="empty-state"><div class="icon">❌</div><p>Error: ' + e.message + '</p></div>';
+                        }
+                    }
+                    
+                    async function runDeptEscalationCheck() {
+                        if (!confirm('Run department escalation check now? This will send reminder emails to departments with pending items.')) return;
+                        
+                        try {
+                            const res = await fetch('/admin/api/job-monitor/department-escalations/run-now', { method: 'POST' });
+                            const data = await res.json();
+                            
+                            if (data.success) {
+                                showToast('✅ Check completed! ' + (data.result.remindersSent || 0) + ' reminders sent.', 'success');
+                                loadDeptEscalationStats('OE');
+                                loadDeptEscalationStats('OHS');
+                                loadPendingDeptEscalations('OE');
+                                loadPendingDeptEscalations('OHS');
+                            } else {
+                                showToast(data.error || 'Check failed', 'error');
+                            }
+                        } catch (e) {
+                            showToast('Error: ' + e.message, 'error');
+                        }
+                    }
+                    
+                    function refreshDeptEscalations(module) {
+                        if (module) {
+                            loadDeptEscalationStats(module);
+                            loadPendingDeptEscalations(module);
+                            if (module === 'OHS') loadDeptContacts();
+                        } else {
+                            loadDeptEscalationStats('OE');
+                            loadDeptEscalationStats('OHS');
+                            loadPendingDeptEscalations('OE');
+                            loadPendingDeptEscalations('OHS');
+                            loadDeptContacts();
+                        }
+                        showToast('✅ Refreshed!', 'success');
+                    }
                     
                     // ==========================================
                     // 5 DAYS REMINDER FUNCTIONS

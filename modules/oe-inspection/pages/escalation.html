@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Department Escalation - OE Inspection</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+            min-height: 100vh;
+            color: #1e293b;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            padding: 1.5rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+        }
+
+        .header h1 { font-size: 1.5rem; display: flex; align-items: center; gap: 0.75rem; }
+        .header-actions { display: flex; gap: 1rem; }
+
+        .btn {
+            padding: 0.6rem 1.2rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.3s;
+            text-decoration: none;
+        }
+
+        .btn-secondary { background: rgba(255,255,255,0.2); color: white; }
+        .btn-secondary:hover { background: rgba(255,255,255,0.3); }
+        .btn-primary { background: white; color: #10b981; }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+        .btn-success { background: #22c55e; color: white; }
+        .btn-warning { background: #f59e0b; color: white; }
+
+        .container { max-width: 1400px; margin: 0 auto; padding: 2rem; }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 16px;
+            padding: 1.5rem;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            border: 1px solid rgba(16, 185, 129, 0.1);
+        }
+
+        .stat-card .value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-card .label { color: #64748b; font-size: 0.9rem; }
+        .stat-card.pending .value { color: #f59e0b; }
+        .stat-card.overdue .value { color: #ef4444; }
+        .stat-card.inprogress .value { color: #3b82f6; }
+        .stat-card.resolved .value { color: #22c55e; }
+
+        .filters {
+            background: white;
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .filters select, .filters input {
+            padding: 0.6rem 1rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            min-width: 150px;
+        }
+
+        .table-container {
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        }
+
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 1rem; text-align: left; border-bottom: 1px solid #f1f5f9; }
+        th { background: #f8fafc; font-weight: 600; color: #475569; font-size: 0.85rem; text-transform: uppercase; }
+        tr:hover { background: #f8fafc; }
+
+        .badge {
+            padding: 0.35rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .badge-pending { background: #fef3c7; color: #92400e; }
+        .badge-overdue { background: #fee2e2; color: #dc2626; }
+        .badge-inprogress { background: #dbeafe; color: #1d4ed8; }
+        .badge-resolved { background: #d1fae5; color: #059669; }
+        .badge-acknowledged { background: #e0e7ff; color: #4338ca; }
+
+        .priority-critical { color: #7c3aed; font-weight: 700; }
+        .priority-high { color: #dc2626; font-weight: 600; }
+        .priority-medium { color: #f59e0b; }
+        .priority-low { color: #3b82f6; }
+
+        .action-btns { display: flex; gap: 0.5rem; }
+        .action-btn {
+            padding: 0.4rem 0.8rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .action-btn:hover { transform: translateY(-1px); }
+        .action-btn.acknowledge { background: #dbeafe; color: #1d4ed8; }
+        .action-btn.resolve { background: #d1fae5; color: #059669; }
+        .action-btn.view { background: #f1f5f9; color: #475569; }
+
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: #64748b;
+        }
+
+        .empty-state .icon { font-size: 4rem; margin-bottom: 1rem; }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal.show { display: flex; }
+
+        .modal-content {
+            background: white;
+            border-radius: 16px;
+            padding: 2rem;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-header h2 { font-size: 1.25rem; }
+        .modal-close { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #64748b; }
+
+        .form-group { margin-bottom: 1rem; }
+        .form-group label { display: block; margin-bottom: 0.5rem; font-weight: 500; color: #374151; }
+        .form-group textarea, .form-group input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+
+        .form-group textarea { min-height: 100px; resize: vertical; }
+
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            padding: 1rem 1.5rem;
+            border-radius: 10px;
+            color: white;
+            font-weight: 500;
+            z-index: 2000;
+            animation: slideIn 0.3s ease;
+        }
+
+        .toast.success { background: #22c55e; }
+        .toast.error { background: #ef4444; }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .department-filter {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .dept-chip {
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            border: 2px solid #e2e8f0;
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.85rem;
+        }
+
+        .dept-chip:hover { border-color: #10b981; }
+        .dept-chip.active { background: #10b981; color: white; border-color: #10b981; }
+
+        .finding-text {
+            max-width: 250px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🏢 Department Escalation</h1>
+        <div class="header-actions">
+            <button class="btn btn-secondary" onclick="refreshData()">🔄 Refresh</button>
+            <a href="/oe-inspection" class="btn btn-primary">← Back to OE Inspection</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Stats -->
+        <div class="stats-grid">
+            <div class="stat-card pending">
+                <div class="value" id="stat-pending">-</div>
+                <div class="label">⏳ Pending</div>
+            </div>
+            <div class="stat-card overdue">
+                <div class="value" id="stat-overdue">-</div>
+                <div class="label">⚠️ Overdue</div>
+            </div>
+            <div class="stat-card inprogress">
+                <div class="value" id="stat-inprogress">-</div>
+                <div class="label">🔄 In Progress</div>
+            </div>
+            <div class="stat-card resolved">
+                <div class="value" id="stat-resolved">-</div>
+                <div class="label">✅ Resolved</div>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="filters">
+            <strong>Filter by Department:</strong>
+            <div class="department-filter" id="deptFilter">
+                <span class="dept-chip active" data-dept="all">All</span>
+            </div>
+            <select id="statusFilter" onchange="applyFilters()">
+                <option value="all">All Statuses</option>
+                <option value="Pending">Pending</option>
+                <option value="Acknowledged">Acknowledged</option>
+                <option value="InProgress">In Progress</option>
+                <option value="Resolved">Resolved</option>
+            </select>
+            <select id="priorityFilter" onchange="applyFilters()">
+                <option value="all">All Priorities</option>
+                <option value="Critical">Critical</option>
+                <option value="High">High</option>
+                <option value="Medium">Medium</option>
+                <option value="Low">Low</option>
+            </select>
+        </div>
+
+        <!-- Table -->
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Department</th>
+                        <th>Store</th>
+                        <th>Document #</th>
+                        <th>Finding</th>
+                        <th>Priority</th>
+                        <th>Deadline</th>
+                        <th>Status</th>
+                        <th>Escalated</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="escalationTable">
+                    <tr><td colspan="9" class="empty-state"><div class="icon">⏳</div><p>Loading...</p></td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Resolve Modal -->
+    <div class="modal" id="resolveModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>✅ Resolve Escalation</h2>
+                <button class="modal-close" onclick="closeModal('resolveModal')">&times;</button>
+            </div>
+            <div class="form-group">
+                <label>Resolution Notes</label>
+                <textarea id="resolutionNotes" placeholder="Describe how this issue was resolved..."></textarea>
+            </div>
+            <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+                <button class="btn btn-secondary" onclick="closeModal('resolveModal')">Cancel</button>
+                <button class="btn btn-success" onclick="submitResolve()">✅ Mark Resolved</button>
+            </div>
+            <input type="hidden" id="resolveEscalationId">
+        </div>
+    </div>
+
+    <script>
+        let allEscalations = [];
+        let currentFilter = { dept: 'all', status: 'all', priority: 'all' };
+        const MODULE = 'OE';
+
+        // Load data on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadStats();
+            loadEscalations();
+        });
+
+        async function loadStats() {
+            try {
+                const res = await fetch('/oe-inspection/api/department-escalations/stats');
+                const data = await res.json();
+                
+                if (data.success) {
+                    document.getElementById('stat-pending').textContent = data.stats.pending || 0;
+                    document.getElementById('stat-overdue').textContent = data.stats.overdue || 0;
+                    document.getElementById('stat-inprogress').textContent = data.stats.inProgress || 0;
+                    document.getElementById('stat-resolved').textContent = data.stats.resolved || 0;
+                }
+            } catch (e) {
+                console.error('Error loading stats:', e);
+            }
+        }
+
+        async function loadEscalations() {
+            try {
+                const res = await fetch('/oe-inspection/api/department-escalations');
+                const data = await res.json();
+                
+                if (data.success) {
+                    allEscalations = data.data;
+                    
+                    // Build department filter chips
+                    const departments = [...new Set(allEscalations.map(e => e.Department))].filter(Boolean);
+                    const deptFilter = document.getElementById('deptFilter');
+                    deptFilter.innerHTML = '<span class="dept-chip active" data-dept="all" onclick="filterByDept(\'all\')">All</span>';
+                    departments.forEach(dept => {
+                        deptFilter.innerHTML += `<span class="dept-chip" data-dept="${dept}" onclick="filterByDept('${dept}')">${dept}</span>`;
+                    });
+                    
+                    renderTable();
+                }
+            } catch (e) {
+                console.error('Error loading escalations:', e);
+                document.getElementById('escalationTable').innerHTML = 
+                    '<tr><td colspan="9" class="empty-state"><div class="icon">❌</div><p>Error loading data</p></td></tr>';
+            }
+        }
+
+        function filterByDept(dept) {
+            currentFilter.dept = dept;
+            document.querySelectorAll('.dept-chip').forEach(c => c.classList.remove('active'));
+            document.querySelector(`[data-dept="${dept}"]`).classList.add('active');
+            renderTable();
+        }
+
+        function applyFilters() {
+            currentFilter.status = document.getElementById('statusFilter').value;
+            currentFilter.priority = document.getElementById('priorityFilter').value;
+            renderTable();
+        }
+
+        function renderTable() {
+            let filtered = allEscalations;
+            
+            if (currentFilter.dept !== 'all') {
+                filtered = filtered.filter(e => e.Department === currentFilter.dept);
+            }
+            if (currentFilter.status !== 'all') {
+                filtered = filtered.filter(e => e.Status === currentFilter.status);
+            }
+            if (currentFilter.priority !== 'all') {
+                filtered = filtered.filter(e => e.Priority === currentFilter.priority);
+            }
+            
+            if (filtered.length === 0) {
+                document.getElementById('escalationTable').innerHTML = 
+                    '<tr><td colspan="9" class="empty-state"><div class="icon">✅</div><p>No escalations found</p></td></tr>';
+                return;
+            }
+            
+            let html = '';
+            filtered.forEach(e => {
+                const isOverdue = e.Deadline && new Date(e.Deadline) < new Date() && e.Status !== 'Resolved';
+                const deadline = e.Deadline ? new Date(e.Deadline).toLocaleDateString('en-GB') : 'Not set';
+                const escalatedAt = new Date(e.EscalatedAt).toLocaleDateString('en-GB');
+                const statusClass = e.Status.toLowerCase().replace(' ', '');
+                const priorityClass = (e.Priority || 'medium').toLowerCase();
+                
+                html += `
+                    <tr>
+                        <td><strong>${e.Department || '-'}</strong></td>
+                        <td>${e.StoreName || '-'}</td>
+                        <td><a href="/oe-inspection/action-plan/${e.InspectionId}" target="_blank">${e.DocumentNumber || '-'}</a></td>
+                        <td class="finding-text" title="${e.Finding || ''}">${e.Finding || '-'}</td>
+                        <td><span class="priority-${priorityClass}">${e.Priority || 'Medium'}</span></td>
+                        <td>${deadline} ${isOverdue ? '<span class="badge badge-overdue">Overdue</span>' : ''}</td>
+                        <td><span class="badge badge-${statusClass}">${e.Status}</span></td>
+                        <td>${escalatedAt}</td>
+                        <td class="action-btns">
+                            ${e.Status === 'Pending' ? `<button class="action-btn acknowledge" onclick="acknowledgeEscalation(${e.Id})">👁️ Ack</button>` : ''}
+                            ${e.Status !== 'Resolved' ? `<button class="action-btn resolve" onclick="openResolveModal(${e.Id})">✅ Resolve</button>` : ''}
+                            <a href="/oe-inspection/action-plan/${e.InspectionId}" target="_blank" class="action-btn view">👁️ View</a>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            document.getElementById('escalationTable').innerHTML = html;
+        }
+
+        async function acknowledgeEscalation(id) {
+            try {
+                const res = await fetch(`/oe-inspection/api/department-escalations/${id}/acknowledge`, { method: 'PUT' });
+                const data = await res.json();
+                
+                if (data.success) {
+                    showToast('✅ Escalation acknowledged!', 'success');
+                    refreshData();
+                } else {
+                    showToast(data.error || 'Error', 'error');
+                }
+            } catch (e) {
+                showToast('Error: ' + e.message, 'error');
+            }
+        }
+
+        function openResolveModal(id) {
+            document.getElementById('resolveEscalationId').value = id;
+            document.getElementById('resolutionNotes').value = '';
+            document.getElementById('resolveModal').classList.add('show');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('show');
+        }
+
+        async function submitResolve() {
+            const id = document.getElementById('resolveEscalationId').value;
+            const notes = document.getElementById('resolutionNotes').value;
+            
+            try {
+                const res = await fetch(`/oe-inspection/api/department-escalations/${id}/resolve`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ notes })
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    showToast('✅ Escalation resolved!', 'success');
+                    closeModal('resolveModal');
+                    refreshData();
+                } else {
+                    showToast(data.error || 'Error', 'error');
+                }
+            } catch (e) {
+                showToast('Error: ' + e.message, 'error');
+            }
+        }
+
+        function refreshData() {
+            loadStats();
+            loadEscalations();
+        }
+
+        function showToast(msg, type) {
+            const t = document.createElement('div');
+            t.className = 'toast ' + type;
+            t.textContent = msg;
+            document.body.appendChild(t);
+            setTimeout(() => t.remove(), 3000);
+        }
+
+        // Close modal on outside click
+        document.getElementById('resolveModal').addEventListener('click', function(e) {
+            if (e.target === this) closeModal('resolveModal');
+        });
+    </script>
+</body>
+</html>

@@ -306,6 +306,12 @@ router.get('/', async (req, res) => {
                             <div class="card-title">Store Management</div>
                             <div class="card-desc">Add, edit, and manage stores. Assign store managers.</div>
                         </a>
+                        
+                        <a href="/ohs-inspection/assigned-department" class="card" style="border-left-color: #3b82f6;">
+                            <div class="card-icon">🏢</div>
+                            <div class="card-title">Assigned Department</div>
+                            <div class="card-desc">View and manage items assigned to departments. Track department responses.</div>
+                        </a>
                     </div>
                 </div>
             </body>
@@ -1872,13 +1878,13 @@ router.put('/api/audits/:auditId/departments/:departmentId/toggle-na', async (re
 router.put('/api/audits/response/:responseId', async (req, res) => {
     try {
         const { responseId } = req.params;
-        const { selectedChoice, coeff, finding, comment, cr, priority, escalate, department, isRepetitive } = req.body;
+        const { selectedChoice, coeff, finding, comment, cr, priority, escalate, department, isRepetitive, deadline } = req.body;
         
         const pool = await sql.connect(dbConfig);
         
         const currentResult = await pool.request()
             .input('id', sql.Int, responseId)
-            .query(`SELECT Answer, Score, Finding, Comment, CorrectedAction, Priority, Escalate, Department, IsRepetitive FROM OHS_InspectionItems WHERE Id = @id`);
+            .query(`SELECT Answer, Score, Finding, Comment, CorrectedAction, Priority, Escalate, Department, IsRepetitive, Deadline FROM OHS_InspectionItems WHERE Id = @id`);
         
         const current = currentResult.recordset[0] || {};
         
@@ -1897,6 +1903,7 @@ router.put('/api/audits/response/:responseId', async (req, res) => {
         const finalCr = cr !== undefined ? (cr || null) : current.CorrectedAction;
         const finalPriority = priority !== undefined ? (priority || null) : current.Priority;
         const finalIsRepetitive = isRepetitive !== undefined ? (isRepetitive ? 1 : 0) : current.IsRepetitive;
+        const finalDeadline = deadline !== undefined ? (deadline || null) : current.Deadline;
         
         await pool.request()
             .input('id', sql.Int, responseId)
@@ -1909,6 +1916,7 @@ router.put('/api/audits/response/:responseId', async (req, res) => {
             .input('escalate', sql.Bit, finalEscalate)
             .input('department', sql.NVarChar, finalDepartment)
             .input('isRepetitive', sql.Bit, finalIsRepetitive)
+            .input('deadline', sql.Date, finalDeadline)
             .query(`
                 UPDATE OHS_InspectionItems 
                 SET Answer = @selectedChoice,
@@ -1919,9 +1927,34 @@ router.put('/api/audits/response/:responseId', async (req, res) => {
                     Priority = @priority,
                     Escalate = @escalate,
                     Department = @department,
-                    IsRepetitive = @isRepetitive
+                    IsRepetitive = @isRepetitive,
+                    Deadline = @deadline
                 WHERE Id = @id
             `);
+        
+        // Handle department escalation
+        if (escalate !== undefined && finalDepartment) {
+            try {
+                const deptEscalationService = require('../../services/department-escalation-service');
+                const user = req.session?.user || {};
+                
+                if (finalEscalate && finalDepartment) {
+                    // Create or update department escalation
+                    await deptEscalationService.escalateToDepepartment('OHS', responseId, finalDepartment, {
+                        id: user.id,
+                        name: user.displayName || user.email,
+                        email: user.email
+                    }, finalDeadline);
+                } else if (!finalEscalate) {
+                    // Remove escalation if checkbox unchecked
+                    await deptEscalationService.removeEscalation('OHS', responseId);
+                }
+            } catch (escErr) {
+                console.error('Department escalation error:', escErr.message);
+                // Don't fail the whole request for escalation errors
+            }
+        }
+        
         res.json({ success: true });
     } catch (error) {
         console.error('Error updating response:', error);
@@ -5176,6 +5209,106 @@ router.get('/api/cycle/store/:storeId', async (req, res) => {
         });
     } catch (error) {
         console.error('Error getting OHS store cycle info:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ==========================================
+// Assigned Department Page and API Routes
+// ==========================================
+
+// Assigned Department Page
+router.get('/assigned-department', (req, res) => {
+    res.sendFile(path.join(__dirname, 'pages', 'assigned-department.html'));
+});
+
+// Get all department assignments for OHS
+router.get('/api/department-assignments', async (req, res) => {
+    try {
+        const pool = await sql.connect(dbConfig);
+        const result = await pool.request().query(`
+            SELECT * FROM DepartmentEscalations 
+            WHERE Module = 'OHS'
+            ORDER BY EscalatedAt DESC
+        `);
+        
+        res.json({ success: true, data: result.recordset });
+    } catch (error) {
+        console.error('Error getting OHS department assignments:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Get OHS department assignment stats
+router.get('/api/department-assignments/stats', async (req, res) => {
+    try {
+        const pool = await sql.connect(dbConfig);
+        const result = await pool.request().query(`
+            SELECT 
+                SUM(CASE WHEN Status = 'Pending' THEN 1 ELSE 0 END) as pending,
+                SUM(CASE WHEN Status = 'Pending' AND Deadline < GETDATE() THEN 1 ELSE 0 END) as overdue,
+                SUM(CASE WHEN Status = 'InProgress' OR Status = 'Acknowledged' THEN 1 ELSE 0 END) as inProgress,
+                SUM(CASE WHEN Status = 'Resolved' THEN 1 ELSE 0 END) as resolved
+            FROM DepartmentEscalations
+            WHERE Module = 'OHS'
+        `);
+        
+        res.json({ success: true, stats: result.recordset[0] });
+    } catch (error) {
+        console.error('Error getting OHS assignment stats:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Acknowledge OHS assignment
+router.put('/api/department-assignments/:id/acknowledge', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const pool = await sql.connect(dbConfig);
+        const userName = req.session?.user?.name || 'Unknown';
+        
+        await pool.request()
+            .input('id', sql.Int, id)
+            .input('acknowledgedBy', sql.NVarChar, userName)
+            .query(`
+                UPDATE DepartmentEscalations 
+                SET Status = 'Acknowledged',
+                    AcknowledgedAt = GETDATE(),
+                    AcknowledgedBy = @acknowledgedBy
+                WHERE Id = @id AND Module = 'OHS'
+            `);
+        
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Error acknowledging OHS assignment:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Resolve OHS assignment
+router.put('/api/department-assignments/:id/resolve', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { notes } = req.body;
+        const pool = await sql.connect(dbConfig);
+        const userName = req.session?.user?.name || 'Unknown';
+        
+        await pool.request()
+            .input('id', sql.Int, id)
+            .input('resolvedBy', sql.NVarChar, userName)
+            .input('notes', sql.NVarChar, notes)
+            .query(`
+                UPDATE DepartmentEscalations 
+                SET Status = 'Resolved',
+                    ResolvedAt = GETDATE(),
+                    ResolvedBy = @resolvedBy,
+                    ResolutionNotes = @notes
+                WHERE Id = @id AND Module = 'OHS'
+            `);
+        
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Error resolving OHS assignment:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });
