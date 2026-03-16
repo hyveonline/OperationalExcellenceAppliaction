@@ -894,18 +894,9 @@
                                 </div>
                             </div>
                             <div class="form-row">
-                                <div class="form-group" style="flex: 2;">
+                                <div class="form-group" style="flex: 1;">
                                     <label>CR (Criterion)</label>
                                     <textarea id="itemCR" placeholder="Enter the criterion/requirement..."></textarea>
-                                </div>
-                                <div class="form-group">
-                                    <label>Default Severity</label>
-                                    <select id="itemDefaultSeverity">
-                                        <option value="">-- Select --</option>
-                                        <option value="Low">🟢 Low</option>
-                                        <option value="Medium">🟡 Medium</option>
-                                        <option value="High">🔴 High</option>
-                                    </select>
                                 </div>
                             </div>
                             <!-- Quantitative Section -->
@@ -1758,7 +1749,7 @@
 
                 container.innerHTML = `
                     <table class="items-table">
-                        <thead><tr><th>Ref</th><th>Title</th><th>Coeff</th><th>Qty</th><th>Severity</th><th>Ranges</th><th>Answer</th><th>Actions</th></tr></thead>
+                        <thead><tr><th>Ref</th><th>Title</th><th>Coeff</th><th>Qty</th><th>Ranges</th><th>Answer</th><th>Actions</th></tr></thead>
                         <tbody>
                             ${sortedItems.map(item => `
                                 <tr>
@@ -1766,7 +1757,6 @@
                                     <td>${item.title}</td>
                                     <td><span class="coeff-badge">${item.coeff}</span></td>
                                     <td>${item.quantity || '-'}</td>
-                                    <td>${item.defaultSeverity ? `<span class="severity-tag severity-${item.defaultSeverity.toLowerCase()}">${item.defaultSeverity}</span>` : '-'}</td>
                                     <td>${item.isQuantitative ? `<span style="font-size: 11px;">✅${item.range1From}-${item.range1To} ⚠️${item.range2From}-${item.range2To} ❌${item.range3From}+</span>` : '-'}</td>
                                     <td>${item.answer}</td>
                                     <td style="display: flex; gap: 5px;">

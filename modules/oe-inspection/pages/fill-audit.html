@@ -546,6 +546,10 @@
             background: #fee2e2;
             color: #991b1b;
         }
+        .severity-badge.severity-very-high {
+            background: #fecaca;
+            color: #7f1d1d;
+        }
         .severity-badge.severity-critical {
             background: #7c3aed;
             color: white;
@@ -1971,9 +1975,14 @@
                         <div class="finding-group">
                             <div class="finding-label">⚠️ Severity</div>
                             <div class="priority-options">
-                                ${item.defaultSeverity ? `<span class="severity-badge severity-${(item.priority || item.defaultSeverity).toLowerCase()}" style="padding: 6px 12px; border-radius: 6px; font-weight: 600; margin-right: 10px;">
-                                    ${item.priority || item.defaultSeverity}
-                                </span>` : ''}
+                                ${(() => {
+                                    const autoSeverity = item.coeff >= 8 ? 'Very High' : item.coeff >= 6 ? 'High' : item.coeff >= 4 ? 'Medium' : 'Low';
+                                    const displaySeverity = item.priority || autoSeverity;
+                                    const severityClass = displaySeverity.toLowerCase().replace(' ', '-');
+                                    return `<span class="severity-badge severity-${severityClass}" style="padding: 6px 12px; border-radius: 6px; font-weight: 600; margin-right: 10px;">
+                                        ${displaySeverity}
+                                    </span>`;
+                                })()}
                                 <button class="priority-btn ${item.priority === 'Critical' ? 'selected-critical' : ''}" 
                                     onclick="setPriority(${item.responseId}, 'Critical')" title="Override to Critical">🚨 Critical</button>
                             </div>
@@ -2241,6 +2250,14 @@
                 console.error('Error updating quantity:', error);
                 showToast('Failed to save quantity', 'error');
             }
+        }
+
+        // Calculate severity from coefficient
+        function getSeverityFromCoeff(coeff) {
+            if (coeff >= 8) return 'Very High';
+            if (coeff >= 6) return 'High';
+            if (coeff >= 4) return 'Medium';
+            return 'Low';
         }
 
         // Set priority
