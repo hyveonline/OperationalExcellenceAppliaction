@@ -1251,6 +1251,11 @@ router.get('/view/:id', async (req, res) => {
                                 <p>${entry.Notes}</p>
                             </div>
                         ` : ''}
+                        
+                        <div style="margin-top: 25px; text-align: right;">
+                            <a href="/security-services/security-checklist/${entryId}/edit" style="background: #1565c0; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; margin-right: 10px;">✏️ Edit</a>
+                            <button onclick="window.print()" style="background: white; border: 2px solid #1565c0; color: #1565c0; padding: 12px 24px; border-radius: 8px; cursor: pointer;">🖨️ Print</button>
+                        </div>
                     </div>
                 </div>
             </body>
@@ -1260,6 +1265,234 @@ router.get('/view/:id', async (req, res) => {
         console.error('Error viewing checklist:', err);
         if (pool) await pool.close();
         res.status(500).send('Error: ' + err.message);
+    }
+});
+
+// Edit Security Checklist Entry
+router.get('/:id/edit', async (req, res) => {
+    try {
+        const entryId = req.params.id;
+        let pool = await sql.connect(dbConfig);
+        
+        // Get entry details
+        const entryResult = await pool.request()
+            .input('id', sql.Int, entryId)
+            .query(\`
+                SELECT e.*, l.Name as LocationName, sc.Name as SubCategoryName
+                FROM Security_Checklist_Entries e
+                JOIN Security_Checklist_Locations l ON e.LocationId = l.Id
+                JOIN Security_Checklist_SubCategories sc ON e.SubCategoryId = sc.Id
+                WHERE e.Id = @id
+            \`);
+        
+        if (entryResult.recordset.length === 0) {
+            await pool.close();
+            return res.status(404).send('Entry not found');
+        }
+        
+        const entry = entryResult.recordset[0];
+        const weekStart = new Date(entry.WeekStartDate).toISOString().split('T')[0];
+        
+        // Get items for this subcategory
+        const itemsResult = await pool.request()
+            .input('subCategoryId', sql.Int, entry.SubCategoryId)
+            .query('SELECT * FROM Security_Checklist_Items WHERE SubCategoryId = @subCategoryId AND IsActive = 1 ORDER BY SortOrder');
+        
+        // Get existing details
+        const detailsResult = await pool.request()
+            .input('entryId', sql.Int, entryId)
+            .query('SELECT * FROM Security_Checklist_EntryDetails WHERE EntryId = @entryId');
+        
+        await pool.close();
+        
+        const items = itemsResult.recordset;
+        const details = detailsResult.recordset;
+        
+        // Create lookup for existing details
+        const detailsMap = {};
+        details.forEach(d => {
+            const key = d.ItemId + '_' + d.DayIndex + '_' + d.ShiftId;
+            detailsMap[key] = d;
+        });
+        
+        const days = ['Sat', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+        const shifts = [
+            { id: 1, name: 'A (7-15)' },
+            { id: 2, name: 'B (15-23)' },
+            { id: 3, name: 'C (23-7)' }
+        ];
+        
+        res.send(\`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <title>Edit Security Checklist - \${process.env.APP_NAME}</title>
+                <style>
+                    * { margin: 0; padding: 0; box-sizing: border-box; }
+                    body { font-family: 'Segoe UI', Arial; background: #f0f2f5; min-height: 100vh; }
+                    .header { background: linear-gradient(135deg, #1565c0 0%, #0d47a1 100%); color: white; padding: 20px 40px; display: flex; justify-content: space-between; align-items: center; }
+                    .header h1 { font-size: 22px; }
+                    .header a { color: white; text-decoration: none; opacity: 0.8; }
+                    .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+                    .card { background: white; border-radius: 15px; padding: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); margin-bottom: 20px; }
+                    .info-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 20px; }
+                    .info-item label { display: block; font-size: 12px; color: #888; }
+                    .info-item span { font-size: 16px; font-weight: 600; }
+                    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+                    th, td { border: 1px solid #e0e0e0; padding: 8px; text-align: center; }
+                    th { background: #f8f9fa; font-weight: 600; }
+                    .item-cell { text-align: left; background: #fafafa; min-width: 180px; }
+                    .day-header { background: #e3f2fd; }
+                    .shift-cell { padding: 5px; }
+                    .shift-cell label { display: block; font-size: 11px; cursor: pointer; }
+                    .shift-cell input { margin-right: 3px; }
+                    .actions { display: flex; justify-content: space-between; margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; }
+                    .btn { padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; text-decoration: none; }
+                    .btn-success { background: #2e7d32; color: white; }
+                    .btn-outline { background: white; border: 2px solid #1565c0; color: #1565c0; }
+                    textarea { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; resize: vertical; min-height: 80px; margin-top: 10px; }
+                    .alert { padding: 15px; border-radius: 8px; margin-bottom: 20px; display: none; background: #ffebee; color: #c62828; }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h1>✏️ Edit Security Checklist</h1>
+                    <a href="/security-services/security-checklist/\${entryId}">← Cancel</a>
+                </div>
+                
+                <div class="container">
+                    <div id="alertBox" class="alert"></div>
+                    
+                    <div class="card">
+                        <div class="info-grid">
+                            <div class="info-item"><label>Location</label><span>\${entry.LocationName}</span></div>
+                            <div class="info-item"><label>Sub-Category</label><span>\${entry.SubCategoryName}</span></div>
+                            <div class="info-item"><label>Week Starting</label><span>\${weekStart}</span></div>
+                            <div class="info-item"><label>Filled By</label><span>\${entry.FilledBy}</span></div>
+                        </div>
+                    </div>
+                    
+                    <form id="editForm">
+                        <input type="hidden" id="entryId" value="\${entryId}">
+                        
+                        <div class="card">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th rowspan="2">Checklist Item</th>
+                                        \${days.map(d => '<th class="day-header" colspan="3">' + d + '</th>').join('')}
+                                    </tr>
+                                    <tr>
+                                        \${days.map(() => shifts.map(s => '<th style="font-size:10px;">' + s.name + '</th>').join('')).join('')}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    \${items.map(item => \`
+                                        <tr>
+                                            <td class="item-cell">\${item.Name}</td>
+                                            \${days.map((_, dayIdx) => 
+                                                shifts.map(shift => {
+                                                    const key = item.Id + '_' + dayIdx + '_' + shift.id;
+                                                    const detail = detailsMap[key];
+                                                    const isChecked = detail ? detail.IsChecked : false;
+                                                    return '<td class="shift-cell"><input type="checkbox" name="checks" data-item="'+item.Id+'" data-day="'+dayIdx+'" data-shift="'+shift.id+'" '+(isChecked ? 'checked' : '')+'></td>';
+                                                }).join('')
+                                            ).join('')}
+                                        </tr>
+                                    \`).join('')}
+                                </tbody>
+                            </table>
+                            
+                            <div style="margin-top: 20px;">
+                                <label style="font-weight: 600;">📝 Notes</label>
+                                <textarea id="notes">\${entry.Notes || ''}</textarea>
+                            </div>
+                        </div>
+                        
+                        <div class="actions">
+                            <a href="/security-services/security-checklist/\${entryId}" class="btn btn-outline">Cancel</a>
+                            <button type="submit" class="btn btn-success">💾 Save Changes</button>
+                        </div>
+                    </form>
+                </div>
+                
+                <script>
+                    document.getElementById('editForm').addEventListener('submit', async (e) => {
+                        e.preventDefault();
+                        
+                        const checks = [];
+                        document.querySelectorAll('input[name="checks"]').forEach(cb => {
+                            checks.push({
+                                itemId: parseInt(cb.dataset.item),
+                                dayIndex: parseInt(cb.dataset.day),
+                                shiftId: parseInt(cb.dataset.shift),
+                                isChecked: cb.checked
+                            });
+                        });
+                        
+                        try {
+                            const res = await fetch('/security-services/security-checklist/update', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    entryId: document.getElementById('entryId').value,
+                                    notes: document.getElementById('notes').value,
+                                    checks: checks
+                                })
+                            });
+                            const result = await res.json();
+                            if (result.success) window.location.href = '/security-services/security-checklist/' + document.getElementById('entryId').value;
+                            else { document.getElementById('alertBox').textContent = result.error; document.getElementById('alertBox').style.display = 'block'; }
+                        } catch (err) { document.getElementById('alertBox').textContent = err.message; document.getElementById('alertBox').style.display = 'block'; }
+                    });
+                </script>
+            </body>
+            </html>
+        \`);
+    } catch (err) {
+        console.error('Error loading edit page:', err);
+        res.status(500).send('Error: ' + err.message);
+    }
+});
+
+// API: Update Security Checklist
+router.post('/update', async (req, res) => {
+    try {
+        const { entryId, notes, checks } = req.body;
+        const user = req.currentUser;
+        let pool = await sql.connect(dbConfig);
+        
+        // Update entry notes
+        await pool.request()
+            .input('id', sql.Int, entryId)
+            .input('notes', sql.NVarChar, notes || '')
+            .input('updatedBy', sql.Int, user.id)
+            .query('UPDATE Security_Checklist_Entries SET Notes = @notes, UpdatedAt = GETDATE(), UpdatedBy = @updatedBy WHERE Id = @id');
+        
+        // Delete existing details and re-insert
+        await pool.request()
+            .input('entryId', sql.Int, entryId)
+            .query('DELETE FROM Security_Checklist_EntryDetails WHERE EntryId = @entryId');
+        
+        // Insert checked items
+        for (const check of checks) {
+            if (check.isChecked) {
+                await pool.request()
+                    .input('entryId', sql.Int, entryId)
+                    .input('itemId', sql.Int, check.itemId)
+                    .input('dayIndex', sql.Int, check.dayIndex)
+                    .input('shiftId', sql.Int, check.shiftId)
+                    .input('isChecked', sql.Bit, 1)
+                    .query('INSERT INTO Security_Checklist_EntryDetails (EntryId, ItemId, DayIndex, ShiftId, IsChecked) VALUES (@entryId, @itemId, @dayIndex, @shiftId, @isChecked)');
+            }
+        }
+        
+        await pool.close();
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Error updating security checklist:', err);
+        res.json({ success: false, error: err.message });
     }
 });
 
