@@ -56,9 +56,10 @@ async function escalateToDepepartment(module, responseId, department, escalatedB
     try {
         pool = await sql.connect(dbConfig);
         
-        const responseTable = module === 'OHS' ? 'OHS_InspectionResponses' : 'OE_InspectionResponses';
+        // OE uses OE_InspectionItems, OHS uses OHS_InspectionResponses
+        const responseTable = module === 'OHS' ? 'OHS_InspectionResponses' : 'OE_InspectionItems';
         const inspectionTable = module === 'OHS' ? 'OHS_Inspections' : 'OE_Inspections';
-        const itemsTable = module === 'OHS' ? 'OHS_TemplateItems' : 'OE_TemplateItems';
+        const itemsTable = module === 'OHS' ? 'OHS_TemplateItems' : 'OE_InspectionTemplateItems';
         const inspectionPath = module === 'OHS' ? 'ohs-inspection' : 'oe-inspection';
         
         // Get response details with inspection info
@@ -68,9 +69,9 @@ async function escalateToDepepartment(module, responseId, department, escalatedB
                 SELECT 
                     r.Id as ResponseId,
                     r.InspectionId,
-                    r.ItemId,
+                    ${module === 'OHS' ? 'r.ItemId' : 'r.TemplateItemId as ItemId'},
                     r.Finding,
-                    r.CR as CorrectiveAction,
+                    ${module === 'OHS' ? 'r.CR' : 'r.CorrectedAction'} as CorrectiveAction,
                     r.Priority,
                     r.Department,
                     r.Deadline,
@@ -83,7 +84,7 @@ async function escalateToDepepartment(module, responseId, department, escalatedB
                 FROM ${responseTable} r
                 INNER JOIN ${inspectionTable} i ON r.InspectionId = i.Id
                 INNER JOIN Stores s ON i.StoreId = s.Id
-                LEFT JOIN ${itemsTable} ti ON r.ItemId = ti.Id
+                LEFT JOIN ${itemsTable} ti ON ${module === 'OHS' ? 'r.ItemId = ti.Id' : 'r.TemplateItemId = ti.Id'}
                 WHERE r.Id = @responseId
             `);
         
