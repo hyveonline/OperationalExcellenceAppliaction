@@ -4196,11 +4196,19 @@ router.get('/api/verification/inspection/:inspectionId', async (req, res) => {
                     v.VerificationNotes,
                     v.VerificationPictureUrl,
                     v.VerifiedAt,
-                    u.DisplayName as VerifiedByName
+                    u.DisplayName as VerifiedByName,
+                    de.TicketNumber as DeptTicketNumber,
+                    de.Status as DeptStatus,
+                    de.ResolutionNotes as DeptResolutionNotes,
+                    de.AcknowledgedAt as DeptAcknowledgedAt,
+                    de.AcknowledgedBy as DeptAcknowledgedBy,
+                    de.ResolvedAt as DeptResolvedAt,
+                    de.ResolvedBy as DeptResolvedBy
                 FROM OE_InspectionActionItems ai
                 LEFT JOIN OE_InspectionItems ii ON ii.InspectionId = ai.InspectionId AND ii.ReferenceValue = ai.ReferenceValue
                 LEFT JOIN OE_ActionItemVerification v ON v.ActionItemId = ai.Id
                 LEFT JOIN Users u ON v.VerifiedBy = u.Id
+                LEFT JOIN DepartmentEscalations de ON de.InspectionId = ai.InspectionId AND de.ReferenceValue = ai.ReferenceValue AND de.Module = 'OE'
                 WHERE ai.InspectionId = @inspectionId
                 ORDER BY ai.SectionName, ai.Id
             `);

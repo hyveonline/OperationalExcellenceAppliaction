@@ -802,6 +802,50 @@
                                 </div>
                             </div>
 
+                            <!-- Department Response (if escalated) -->
+                            ${item.Department ? `
+                            <div class="store-response" style="border-color: #8b5cf6; background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);">
+                                <h4>🏢 Department Response (${item.Department})</h4>
+                                <div class="response-grid">
+                                    ${item.Department === 'Maintenance' && item.DeptTicketNumber ? `
+                                    <div class="response-item">
+                                        <div class="response-label">Ticket Number</div>
+                                        <div class="response-value" style="color: #7c3aed; font-weight: 600;">${item.DeptTicketNumber}</div>
+                                    </div>
+                                    ` : ''}
+                                    <div class="response-item">
+                                        <div class="response-label">Status</div>
+                                        <div class="response-value">
+                                            <span style="padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;
+                                                ${item.DeptStatus === 'Resolved' ? 'background: #d1fae5; color: #059669;' : 
+                                                  item.DeptStatus === 'Acknowledged' ? 'background: #e0e7ff; color: #4338ca;' : 
+                                                  'background: #fef3c7; color: #92400e;'}">
+                                                ${item.DeptStatus || 'Pending'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    ${item.DeptAcknowledgedAt ? `
+                                    <div class="response-item">
+                                        <div class="response-label">Acknowledged</div>
+                                        <div class="response-value">${new Date(item.DeptAcknowledgedAt).toLocaleString()} by ${item.DeptAcknowledgedBy || '-'}</div>
+                                    </div>
+                                    ` : ''}
+                                    ${item.DeptResolvedAt ? `
+                                    <div class="response-item">
+                                        <div class="response-label">Resolved</div>
+                                        <div class="response-value">${new Date(item.DeptResolvedAt).toLocaleString()} by ${item.DeptResolvedBy || '-'}</div>
+                                    </div>
+                                    ` : ''}
+                                    ${item.DeptResolutionNotes ? `
+                                    <div class="response-item" style="grid-column: span 2;">
+                                        <div class="response-label">Resolution Notes</div>
+                                        <div class="response-value">${item.DeptResolutionNotes}</div>
+                                    </div>
+                                    ` : ''}
+                                </div>
+                            </div>
+                            ` : ''}
+
                             <!-- Verification Form -->
                             <div class="verification-form ${isVerified ? 'verified' : ''}" id="form-${item.Id}">
                                 <h4>${isVerified ? '✅ Verification Complete' : '🔍 Your Verification'}</h4>
