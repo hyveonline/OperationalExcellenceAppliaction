@@ -78,6 +78,17 @@
             padding: 25px;
             box-shadow: 0 10px 40px rgba(0,0,0,0.2);
             text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 50px rgba(0,0,0,0.25);
+        }
+
+        .stat-card.active {
+            border: 3px solid #10b981;
         }
 
         .stat-value {
@@ -453,19 +464,19 @@
 
         <!-- Stats -->
         <div class="stats-grid">
-            <div class="stat-card">
+            <div class="stat-card" onclick="filterByCard('pending')" data-filter="pending" title="Click to filter">
                 <div class="stat-value" style="color: #f59e0b;" id="statPending">-</div>
                 <div class="stat-label">Pending Verification</div>
             </div>
-            <div class="stat-card">
+            <div class="stat-card" onclick="filterByCard('verified')" data-filter="verified" title="Click to filter">
                 <div class="stat-value" style="color: #10b981;" id="statVerified">-</div>
                 <div class="stat-label">Verified Inspections</div>
             </div>
-            <div class="stat-card">
+            <div class="stat-card" onclick="filterByCard('complete')" data-filter="complete" title="Click to filter">
                 <div class="stat-value" style="color: #3b82f6;" id="statComplete">-</div>
                 <div class="stat-label">Verified Complete</div>
             </div>
-            <div class="stat-card">
+            <div class="stat-card" onclick="filterByCard('notcomplete')" data-filter="notcomplete" title="Click to filter">
                 <div class="stat-value" style="color: #ef4444;" id="statNotComplete">-</div>
                 <div class="stat-label">Verified Not Complete</div>
             </div>
@@ -669,8 +680,55 @@
                 }
             });
             
+            // Clear card active state
+            document.querySelectorAll('.stat-card').forEach(card => card.classList.remove('active'));
+            
             // Reload data
             loadInspections();
+        }
+
+        let currentCardFilter = null;
+
+        function filterByCard(filter) {
+            // Update card active state
+            document.querySelectorAll('.stat-card').forEach(card => {
+                card.classList.remove('active');
+                if (card.dataset.filter === filter) {
+                    card.classList.add('active');
+                }
+            });
+            
+            currentCardFilter = filter;
+            
+            // Map card filter to tab status
+            if (filter === 'pending') {
+                switchTab('pending');
+            } else if (filter === 'verified') {
+                switchTab('verified');
+            } else {
+                // For complete/notcomplete, load all and filter client-side
+                switchTab('all');
+                setTimeout(() => filterTableByVerificationStatus(filter), 100);
+            }
+        }
+
+        function filterTableByVerificationStatus(filter) {
+            const tbody = document.getElementById('inspectionsBody');
+            const rows = tbody.querySelectorAll('tr');
+            
+            rows.forEach(row => {
+                const completeText = row.innerHTML || '';
+                
+                if (filter === 'complete') {
+                    // Show only rows with VerifiedComplete > 0
+                    const hasComplete = completeText.includes('✅') && !completeText.includes('✅ 0 complete');
+                    row.style.display = hasComplete ? '' : 'none';
+                } else if (filter === 'notcomplete') {
+                    // Show only rows with VerifiedNotComplete > 0
+                    const hasNotComplete = completeText.includes('❌') && !completeText.includes('❌ 0 not complete');
+                    row.style.display = hasNotComplete ? '' : 'none';
+                }
+            });
         }
 
         function openVerification(inspectionId) {
