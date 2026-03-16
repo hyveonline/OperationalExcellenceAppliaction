@@ -835,8 +835,8 @@ class TemplateEngine {
 
         return `
             <div class="all-good-pictures-section">
-                <h2>✅ Good Observation Gallery (${allGoodPictures.length})</h2>
-                <p class="good-gallery-subtitle">All good observation pictures collected for easy reference. Click on any image to enlarge.</p>
+                <h2>📷 Observation Gallery (${allGoodPictures.length})</h2>
+                <p class="good-gallery-subtitle">All observation pictures collected for easy reference. Click on any image to enlarge.</p>
                 <div class="good-pictures-gallery">
                     ${pictureCards}
                 </div>
@@ -845,16 +845,16 @@ class TemplateEngine {
                 .all-good-pictures-section {
                     margin: 30px 0;
                     padding: 20px;
-                    background: #d1fae5;
-                    border: 2px solid #10b981;
+                    background: #f3f4f6;
+                    border: 2px solid #9ca3af;
                     border-radius: 12px;
                 }
                 .all-good-pictures-section h2 {
-                    color: #065f46;
+                    color: #374151;
                     margin-bottom: 10px;
                 }
                 .good-gallery-subtitle {
-                    color: #047857;
+                    color: #6b7280;
                     font-size: 0.9rem;
                     margin-bottom: 20px;
                 }
@@ -868,18 +868,18 @@ class TemplateEngine {
                     border-radius: 10px;
                     overflow: hidden;
                     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                    border: 1px solid #a7f3d0;
+                    border: 1px solid #d1d5db;
                 }
                 .good-picture-header {
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
                     padding: 10px 15px;
-                    background: #d1fae5;
-                    border-bottom: 1px solid #6ee7b7;
+                    background: #f3f4f6;
+                    border-bottom: 1px solid #d1d5db;
                 }
                 .good-ref-badge {
-                    background: #059669;
+                    background: #4b5563;
                     color: white;
                     font-weight: bold;
                     font-size: 1.1rem;
@@ -889,10 +889,10 @@ class TemplateEngine {
                 }
                 .good-ref-badge:hover {
                     transform: scale(1.1);
-                    box-shadow: 0 4px 12px rgba(5, 150, 105, 0.4);
+                    box-shadow: 0 4px 12px rgba(75, 85, 99, 0.4);
                 }
                 .good-section-badge {
-                    background: #10b981;
+                    background: #6b7280;
                     color: white;
                     font-size: 0.75rem;
                     padding: 3px 8px;
@@ -901,7 +901,7 @@ class TemplateEngine {
                 .good-picture-image {
                     width: 100%;
                     text-align: center;
-                    background: #f0fdf4;
+                    background: #f9fafb;
                     padding: 10px;
                 }
                 .good-picture-image img {
