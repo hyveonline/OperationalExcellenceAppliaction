@@ -2926,7 +2926,7 @@ router.put('/api/audits/response/:responseId', async (req, res) => {
         if (escalate !== undefined && finalDepartment) {
             try {
                 const deptEscalationService = require('../../services/department-escalation-service');
-                const user = req.session?.user || {};
+                const user = req.currentUser || {};
                 
                 if (finalEscalate && finalDepartment) {
                     // Create or update department escalation
@@ -5505,7 +5505,7 @@ router.put('/api/department-escalations/:id/acknowledge', async (req, res) => {
     try {
         const { id } = req.params;
         const pool = await sql.connect(dbConfig);
-        const userName = req.session?.user?.displayName || req.session?.user?.name || req.session?.user?.email || 'Unknown';
+        const userName = req.currentUser?.displayName || req.currentUser?.email || 'Unknown';
         
         await pool.request()
             .input('id', sql.Int, id)
@@ -5531,7 +5531,7 @@ router.put('/api/department-escalations/:id/resolve', async (req, res) => {
         const { id } = req.params;
         const { notes } = req.body;
         const pool = await sql.connect(dbConfig);
-        const userName = req.session?.user?.displayName || req.session?.user?.name || req.session?.user?.email || 'Unknown';
+        const userName = req.currentUser?.displayName || req.currentUser?.email || 'Unknown';
         
         await pool.request()
             .input('id', sql.Int, id)
