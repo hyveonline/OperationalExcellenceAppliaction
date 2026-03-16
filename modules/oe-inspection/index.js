@@ -2256,21 +2256,21 @@ function generateReportHTML(data) {
         /* Gallery Styles */
         .gallery-section { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 25px; overflow: hidden; }
         .gallery-title { margin: 0; padding: 15px 20px; font-size: 18px; font-weight: 600; color: white; }
-        .gallery-title.good { background: linear-gradient(135deg, #10b981 0%, #059669 100%); }
+        .gallery-title.good { background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%); }
         .gallery-title.findings { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); }
         .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; padding: 20px; }
         .gallery-card { background: #f8fafc; border-radius: 10px; overflow: hidden; border: 1px solid #e2e8f0; transition: transform 0.2s, box-shadow 0.2s; }
         .gallery-card:hover { transform: translateY(-3px); box-shadow: 0 4px 15px rgba(0,0,0,0.15); }
-        .gallery-card.good { border-left: 4px solid #10b981; }
+        .gallery-card.good { border-left: 4px solid #6b7280; }
         .gallery-card.finding { border-left: 4px solid #ef4444; }
         .gallery-img { width: 100%; height: 180px; object-fit: cover; cursor: pointer; background: #e2e8f0; }
         .gallery-info { padding: 12px; }
         .gallery-ref { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
-        .gallery-ref.good { color: #059669; }
+        .gallery-ref.good { color: #4b5563; }
         .gallery-ref.finding { color: #dc2626; }
         .gallery-section-name { font-size: 12px; color: #64748b; margin-bottom: 4px; }
         .gallery-type { font-size: 11px; padding: 2px 8px; border-radius: 10px; display: inline-block; }
-        .gallery-type.good { background: #d1fae5; color: #065f46; }
+        .gallery-type.good { background: #e5e7eb; color: #374151; }
         .gallery-type.issue { background: #fee2e2; color: #991b1b; }
         .gallery-type.corrective { background: #d1fae5; color: #065f46; }
         .gallery-empty { text-align: center; padding: 40px 20px; color: #94a3b8; font-size: 16px; }
@@ -2584,23 +2584,23 @@ function generateReportHTML(data) {
         </div>
         ` : ''}
         
-        <!-- Good Observations Gallery -->
+        <!-- Observation Gallery -->
         <div class="gallery-section">
-            <h2 class="gallery-title good">✅ Good Observations Gallery (${goodObsItems.length})</h2>
+            <h2 class="gallery-title good">📷 Observation Gallery (${goodObsItems.length})</h2>
             ${goodObsItems.length > 0 ? `
             <div class="gallery-grid">
                 ${goodObsItems.map(item => `
                 <div class="gallery-card good">
-                    <img src="${item.dataUrl}" alt="Good Observation" class="gallery-img" onclick="openLightbox(this.src)">
+                    <img src="${item.dataUrl}" alt="Observation" class="gallery-img" onclick="openLightbox(this.src)">
                     <div class="gallery-info">
                         <div class="gallery-ref good">[${item.ref}]</div>
                         <div class="gallery-section-name">📋 ${item.section}</div>
-                        <span class="gallery-type good">✅ Good Observation</span>
+                        <span class="gallery-type good">📷 Observation</span>
                     </div>
                 </div>
                 `).join('')}
             </div>
-            ` : `<div class="gallery-empty">No good observations captured</div>`}
+            ` : `<div class="gallery-empty">No observations captured</div>`}
         </div>
         
         <!-- Findings Gallery -->
