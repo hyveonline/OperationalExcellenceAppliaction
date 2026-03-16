@@ -5545,4 +5545,28 @@ router.put('/api/department-escalations/:id/resolve', async (req, res) => {
     }
 });
 
+// Update ticket number for OE escalation (Maintenance department)
+router.put('/api/department-escalations/:id/ticket', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { ticketNumber } = req.body;
+        const pool = await sql.connect(dbConfig);
+        
+        await pool.request()
+            .input('id', sql.Int, id)
+            .input('ticketNumber', sql.NVarChar(100), ticketNumber || null)
+            .query(`
+                UPDATE DepartmentEscalations 
+                SET TicketNumber = @ticketNumber,
+                    UpdatedAt = GETDATE()
+                WHERE Id = @id AND Module = 'OE'
+            `);
+        
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Error updating ticket number:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 module.exports = router;

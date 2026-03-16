@@ -306,6 +306,7 @@
                         <th>Document #</th>
                         <th>Finding</th>
                         <th>Priority</th>
+                        <th>Ticket #</th>
                         <th>Deadline</th>
                         <th>Status</th>
                         <th>Escalated</th>
@@ -313,7 +314,7 @@
                     </tr>
                 </thead>
                 <tbody id="escalationTable">
-                    <tr><td colspan="9" class="empty-state"><div class="icon">⏳</div><p>Loading...</p></td></tr>
+                    <tr><td colspan="10" class="empty-state"><div class="icon">⏳</div><p>Loading...</p></td></tr>
                 </tbody>
             </table>
         </div>
@@ -418,7 +419,7 @@
             
             if (filtered.length === 0) {
                 document.getElementById('escalationTable').innerHTML = 
-                    '<tr><td colspan="9" class="empty-state"><div class="icon">✅</div><p>No escalations found</p></td></tr>';
+                    '<tr><td colspan="10" class="empty-state"><div class="icon">✅</div><p>No escalations found</p></td></tr>';
                 return;
             }
             
@@ -429,6 +430,7 @@
                 const escalatedAt = new Date(e.EscalatedAt).toLocaleDateString('en-GB');
                 const statusClass = e.Status.toLowerCase().replace(' ', '');
                 const priorityClass = (e.Priority || 'medium').toLowerCase();
+                const isMaintenance = e.Department === 'Maintenance';
                 
                 html += `
                     <tr>
@@ -437,6 +439,15 @@
                         <td><a href="/oe-inspection/action-plan/${e.InspectionId}" target="_blank">${e.DocumentNumber || '-'}</a></td>
                         <td class="finding-text" title="${e.Finding || ''}">${e.Finding || '-'}</td>
                         <td><span class="priority-${priorityClass}">${e.Priority || 'Medium'}</span></td>
+                        <td>
+                            ${isMaintenance ? `
+                                <input type="text" class="ticket-input" 
+                                    value="${e.TicketNumber || ''}" 
+                                    placeholder="Enter ticket #"
+                                    onchange="updateTicketNumber(${e.Id}, this.value)"
+                                    style="width: 100px; padding: 4px 8px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 0.85rem;">
+                            ` : '<span style="color: #9ca3af;">-</span>'}
+                        </td>
                         <td>${deadline} ${isOverdue ? '<span class="badge badge-overdue">Overdue</span>' : ''}</td>
                         <td><span class="badge badge-${statusClass}">${e.Status}</span></td>
                         <td>${escalatedAt}</td>
@@ -462,6 +473,25 @@
                     refreshData();
                 } else {
                     showToast(data.error || 'Error', 'error');
+                }
+            } catch (e) {
+                showToast('Error: ' + e.message, 'error');
+            }
+        }
+
+        async function updateTicketNumber(id, ticketNumber) {
+            try {
+                const res = await fetch(`/oe-inspection/api/department-escalations/${id}/ticket`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ticketNumber })
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    showToast('✅ Ticket number saved!', 'success');
+                } else {
+                    showToast(data.error || 'Error saving ticket number', 'error');
                 }
             } catch (e) {
                 showToast('Error: ' + e.message, 'error');
