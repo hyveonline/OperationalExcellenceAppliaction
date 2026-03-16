@@ -953,6 +953,7 @@ router.get('/:id', async (req, res) => {
                         </table>
                         
                         <div style="margin-top: 25px; text-align: right;">
+                            <a href="/security-services/patrol-sheet/${sheetId}/edit" class="btn btn-primary" style="margin-right: 10px;">✏️ Edit</a>
                             <button class="btn btn-outline" onclick="window.print()">🖨️ Print</button>
                         </div>
                     </div>
@@ -963,6 +964,288 @@ router.get('/:id', async (req, res) => {
     } catch (err) {
         console.error('Error viewing patrol sheet:', err);
         res.status(500).send('Error: ' + err.message);
+    }
+});
+
+// Edit Patrol Sheet
+router.get('/:id/edit', async (req, res) => {
+    try {
+        const sheetId = req.params.id;
+        const user = req.currentUser;
+        const pool = await sql.connect(dbConfig);
+        
+        const sheetResult = await pool.request()
+            .input('id', sql.Int, sheetId)
+            .query('SELECT * FROM Security_PatrolSheets WHERE Id = @id');
+        
+        if (sheetResult.recordset.length === 0) {
+            await pool.close();
+            return res.status(404).send('Patrol sheet not found');
+        }
+        
+        const sheet = sheetResult.recordset[0];
+        const sheetDate = new Date(sheet.SheetDate).toISOString().split('T')[0];
+        
+        const entriesResult = await pool.request()
+            .input('sheetId', sql.Int, sheetId)
+            .query('SELECT * FROM Security_PatrolEntries WHERE PatrolSheetId = @sheetId ORDER BY EntryOrder');
+        
+        await pool.close();
+        
+        const entries = entriesResult.recordset;
+        
+        const formatTimeForInput = (timeValue) => {
+            if (!timeValue) return '';
+            if (timeValue instanceof Date) {
+                return timeValue.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+            }
+            const timeStr = timeValue.toString();
+            const match = timeStr.match(/(\d{2}:\d{2})/);
+            return match ? match[1] : timeStr.substring(0, 5);
+        };
+        
+        const entryRows = entries.map((entry, index) => \`
+            <tr data-row="\${index + 1}">
+                <td>\${index + 1}</td>
+                <td><input type="text" name="entries[\${index}][guardName]" value="\${entry.GuardName || ''}" required></td>
+                <td><input type="text" name="entries[\${index}][patrolName]" value="\${entry.PatrolName || ''}"></td>
+                <td><input type="time" name="entries[\${index}][timeIn]" value="\${formatTimeForInput(entry.TimeIn)}" required></td>
+                <td><input type="time" name="entries[\${index}][timeOut]" value="\${formatTimeForInput(entry.TimeOut)}"></td>
+                <td>\${index > 0 ? '<button type="button" class="btn btn-danger" onclick="removeEntry(this)">✕</button>' : ''}</td>
+            </tr>
+        \`).join('');
+        
+        res.send(\`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <title>Edit Patrol Sheet - \${process.env.APP_NAME}</title>
+                <style>
+                    * { margin: 0; padding: 0; box-sizing: border-box; }
+                    body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; min-height: 100vh; }
+                    .header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: white; padding: 20px 40px; display: flex; justify-content: space-between; align-items: center; }
+                    .header h1 { font-size: 24px; }
+                    .header-nav a { color: white; text-decoration: none; margin-left: 20px; opacity: 0.8; }
+                    .header-nav a:hover { opacity: 1; }
+                    .container { max-width: 1000px; margin: 0 auto; padding: 30px 20px; }
+                    .card { background: white; border-radius: 15px; padding: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
+                    .form-section { margin-bottom: 25px; padding-bottom: 25px; border-bottom: 1px solid #eee; }
+                    .section-title { font-size: 16px; font-weight: 600; color: #333; margin-bottom: 15px; display: flex; align-items: center; gap: 8px; }
+                    .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 15px; }
+                    .form-group { display: flex; flex-direction: column; }
+                    .form-group label { font-size: 13px; font-weight: 500; color: #555; margin-bottom: 6px; }
+                    .form-group input, .form-group select { padding: 12px 15px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
+                    .entries-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+                    .entries-table th { background: #f8f9fa; padding: 12px; text-align: left; font-size: 13px; font-weight: 600; }
+                    .entries-table td { padding: 10px 12px; border-bottom: 1px solid #eee; }
+                    .entries-table input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; }
+                    .btn { padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; text-decoration: none; display: inline-block; }
+                    .btn-primary { background: #2e7d32; color: white; }
+                    .btn-success { background: #2e7d32; color: white; }
+                    .btn-danger { background: #c62828; color: white; padding: 8px 12px; }
+                    .btn-outline { background: white; border: 2px solid #2e7d32; color: #2e7d32; }
+                    .actions-bar { display: flex; justify-content: space-between; align-items: center; margin-top: 25px; padding-top: 25px; border-top: 1px solid #eee; }
+                    .alert { padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; display: none; }
+                    .alert-success { background: #e8f5e9; color: #2e7d32; }
+                    .alert-error { background: #ffebee; color: #c62828; }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h1>✏️ Edit Patrol Sheet</h1>
+                    <div class="header-nav">
+                        <a href="/security-services/patrol-sheet/\${sheetId}">← Cancel</a>
+                    </div>
+                </div>
+                
+                <div class="container">
+                    <div id="alertBox" class="alert"></div>
+                    <div class="card">
+                        <form id="editForm">
+                            <input type="hidden" id="sheetId" value="\${sheetId}">
+                            
+                            <div class="form-section">
+                                <div class="section-title">📋 Sheet Information</div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Date *</label>
+                                        <input type="date" id="sheetDate" value="\${sheetDate}" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Location *</label>
+                                        <select id="location" required>
+                                            <option value="HO Dbayeh Block A" \${sheet.Location === 'HO Dbayeh Block A' ? 'selected' : ''}>HO Dbayeh Block A</option>
+                                            <option value="HO Dbayeh Block B" \${sheet.Location === 'HO Dbayeh Block B' ? 'selected' : ''}>HO Dbayeh Block B</option>
+                                            <option value="Zouk HO" \${sheet.Location === 'Zouk HO' ? 'selected' : ''}>Zouk HO</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="form-section">
+                                <div class="section-title">
+                                    🚶 Patrol Entries
+                                    <button type="button" class="btn btn-outline" onclick="addEntry()" style="margin-left: auto; padding: 8px 16px; font-size: 13px;">+ Add Entry</button>
+                                </div>
+                                <table class="entries-table">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>Guard Name</th>
+                                            <th>Patrol Name</th>
+                                            <th>Time In</th>
+                                            <th>Time Out</th>
+                                            <th></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="entriesBody">\${entryRows}</tbody>
+                                </table>
+                            </div>
+                            
+                            <div class="actions-bar">
+                                <a href="/security-services/patrol-sheet/\${sheetId}" class="btn btn-outline">Cancel</a>
+                                <button type="submit" class="btn btn-success">💾 Save Changes</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                
+                <script>
+                    let entryCount = \${entries.length};
+                    
+                    function addEntry() {
+                        entryCount++;
+                        const tbody = document.getElementById('entriesBody');
+                        const row = document.createElement('tr');
+                        row.innerHTML = '<td>' + entryCount + '</td>' +
+                            '<td><input type="text" name="entries[' + (entryCount-1) + '][guardName]" required></td>' +
+                            '<td><input type="text" name="entries[' + (entryCount-1) + '][patrolName]"></td>' +
+                            '<td><input type="time" name="entries[' + (entryCount-1) + '][timeIn]" required></td>' +
+                            '<td><input type="time" name="entries[' + (entryCount-1) + '][timeOut]"></td>' +
+                            '<td><button type="button" class="btn btn-danger" onclick="removeEntry(this)">✕</button></td>';
+                        tbody.appendChild(row);
+                    }
+                    
+                    function removeEntry(btn) { btn.closest('tr').remove(); renumberEntries(); }
+                    
+                    function renumberEntries() {
+                        const rows = document.querySelectorAll('#entriesBody tr');
+                        rows.forEach((row, index) => {
+                            row.querySelector('td:first-child').textContent = index + 1;
+                            row.querySelectorAll('input').forEach(input => {
+                                input.name = input.name.replace(/entries\\[\\d+\\]/, 'entries[' + index + ']');
+                            });
+                        });
+                        entryCount = rows.length;
+                    }
+                    
+                    function showAlert(message, type) {
+                        const alertBox = document.getElementById('alertBox');
+                        alertBox.textContent = message;
+                        alertBox.className = 'alert alert-' + type;
+                        alertBox.style.display = 'block';
+                    }
+                    
+                    document.getElementById('editForm').addEventListener('submit', async (e) => {
+                        e.preventDefault();
+                        
+                        const entries = [];
+                        document.querySelectorAll('#entriesBody tr').forEach((row, index) => {
+                            const guardName = row.querySelector('input[name="entries[' + index + '][guardName]"]')?.value?.trim();
+                            const patrolName = row.querySelector('input[name="entries[' + index + '][patrolName]"]')?.value;
+                            const timeIn = row.querySelector('input[name="entries[' + index + '][timeIn]"]')?.value;
+                            const timeOut = row.querySelector('input[name="entries[' + index + '][timeOut]"]')?.value;
+                            
+                            if (guardName && timeIn) {
+                                entries.push({ guardName, patrolName, timeIn, timeOut });
+                            }
+                        });
+                        
+                        if (entries.length === 0) {
+                            showAlert('Please add at least one entry', 'error');
+                            return;
+                        }
+                        
+                        const data = {
+                            sheetId: document.getElementById('sheetId').value,
+                            sheetDate: document.getElementById('sheetDate').value,
+                            location: document.getElementById('location').value,
+                            entries: entries
+                        };
+                        
+                        try {
+                            const res = await fetch('/security-services/patrol-sheet/update', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(data)
+                            });
+                            
+                            const result = await res.json();
+                            if (result.success) {
+                                window.location.href = '/security-services/patrol-sheet/' + data.sheetId;
+                            } else {
+                                showAlert(result.error || 'Failed to update', 'error');
+                            }
+                        } catch (err) {
+                            showAlert('Error: ' + err.message, 'error');
+                        }
+                    });
+                </script>
+            </body>
+            </html>
+        \`);
+    } catch (err) {
+        console.error('Error loading edit page:', err);
+        res.status(500).send('Error: ' + err.message);
+    }
+});
+
+// API: Update Patrol Sheet
+router.post('/update', async (req, res) => {
+    try {
+        const { sheetId, sheetDate, location, entries } = req.body;
+        const user = req.currentUser;
+        
+        const pool = await sql.connect(dbConfig);
+        
+        await pool.request()
+            .input('id', sql.Int, sheetId)
+            .input('sheetDate', sql.Date, sheetDate)
+            .input('location', sql.NVarChar, location)
+            .input('updatedBy', sql.Int, user.id)
+            .query(\`
+                UPDATE Security_PatrolSheets 
+                SET SheetDate = @sheetDate, Location = @location, UpdatedAt = GETDATE(), UpdatedBy = @updatedBy
+                WHERE Id = @id
+            \`);
+        
+        await pool.request()
+            .input('sheetId', sql.Int, sheetId)
+            .query('DELETE FROM Security_PatrolEntries WHERE PatrolSheetId = @sheetId');
+        
+        for (let i = 0; i < entries.length; i++) {
+            const entry = entries[i];
+            const timeIn = entry.timeIn ? (entry.timeIn.length === 5 ? entry.timeIn + ':00' : entry.timeIn) : null;
+            const timeOut = entry.timeOut ? (entry.timeOut.length === 5 ? entry.timeOut + ':00' : entry.timeOut) : null;
+            await pool.request()
+                .input('sheetId', sql.Int, sheetId)
+                .input('guardName', sql.NVarChar, entry.guardName)
+                .input('patrolName', sql.NVarChar, entry.patrolName || '')
+                .input('timeIn', sql.NVarChar, timeIn)
+                .input('timeOut', sql.NVarChar, timeOut)
+                .input('entryOrder', sql.Int, i + 1)
+                .query(\`
+                    INSERT INTO Security_PatrolEntries (PatrolSheetId, GuardName, PatrolName, TimeIn, TimeOut, EntryOrder)
+                    VALUES (@sheetId, @guardName, @patrolName, CAST(@timeIn AS TIME), \${timeOut ? 'CAST(@timeOut AS TIME)' : 'NULL'}, @entryOrder)
+                \`);
+        }
+        
+        await pool.close();
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Error updating patrol sheet:', err);
+        res.json({ success: false, error: err.message });
     }
 });
 

@@ -775,6 +775,10 @@ router.get('/:id', async (req, res) => {
                         
                         <div class="footer-info">
                             Report created on ${new Date(violation.CreatedAt).toLocaleString('en-GB')}
+                            <div style="margin-top: 15px;">
+                                <a href="/security-services/parking-violation/${violationId}/edit" style="background: #ff5722; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; margin-right: 10px;">✏️ Edit</a>
+                                <button onclick="window.print()" style="background: white; border: 2px solid #ff5722; color: #ff5722; padding: 10px 20px; border-radius: 8px; cursor: pointer;">🖨️ Print</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -803,6 +807,159 @@ router.get('/:id', async (req, res) => {
         console.error('Error loading parking violation:', err);
         if (pool) await pool.close();
         res.status(500).send('Error: ' + err.message);
+    }
+});
+
+// Edit Parking Violation
+router.get('/:id/edit', async (req, res) => {
+    try {
+        const violationId = req.params.id;
+        const pool = await sql.connect(dbConfig);
+        
+        const violationResult = await pool.request()
+            .input('id', sql.Int, violationId)
+            .query('SELECT * FROM Security_ParkingViolations WHERE Id = @id');
+        
+        if (violationResult.recordset.length === 0) {
+            await pool.close();
+            return res.status(404).send('Violation not found');
+        }
+        
+        const violation = violationResult.recordset[0];
+        const violationDate = new Date(violation.ViolationDate).toISOString().split('T')[0];
+        
+        await pool.close();
+        
+        res.send(\`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <title>Edit Parking Violation - \${process.env.APP_NAME}</title>
+                <style>
+                    * { margin: 0; padding: 0; box-sizing: border-box; }
+                    body { font-family: 'Segoe UI', Arial; background: #f0f2f5; min-height: 100vh; }
+                    .container { max-width: 800px; margin: 0 auto; padding: 30px 20px; }
+                    .header { background: linear-gradient(135deg, #ff5722 0%, #e64a19 100%); color: white; padding: 20px 30px; border-radius: 15px 15px 0 0; display: flex; justify-content: space-between; align-items: center; }
+                    .header h1 { font-size: 22px; }
+                    .header a { color: white; text-decoration: none; opacity: 0.8; }
+                    .card { background: white; border-radius: 0 0 15px 15px; padding: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
+                    .form-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 20px; }
+                    .form-group { margin-bottom: 20px; }
+                    .form-group label { display: block; font-size: 13px; font-weight: 500; color: #555; margin-bottom: 6px; }
+                    .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
+                    .form-group textarea { resize: vertical; min-height: 100px; }
+                    .actions { display: flex; justify-content: space-between; margin-top: 25px; padding-top: 25px; border-top: 1px solid #eee; }
+                    .btn { padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; text-decoration: none; }
+                    .btn-success { background: #2e7d32; color: white; }
+                    .btn-outline { background: white; border: 2px solid #ff5722; color: #ff5722; }
+                    .alert { padding: 15px; border-radius: 8px; margin-bottom: 20px; display: none; background: #ffebee; color: #c62828; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>✏️ Edit Parking Violation</h1>
+                        <a href="/security-services/parking-violation/\${violationId}">← Cancel</a>
+                    </div>
+                    <div class="card">
+                        <div id="alertBox" class="alert"></div>
+                        <form id="editForm">
+                            <input type="hidden" id="violationId" value="\${violationId}">
+                            
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Date *</label>
+                                    <input type="date" id="violationDate" value="\${violationDate}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Location *</label>
+                                    <select id="location" required>
+                                        <option value="HO Dbayeh" \${violation.Location === 'HO Dbayeh' ? 'selected' : ''}>HO Dbayeh</option>
+                                        <option value="Zouk HO" \${violation.Location === 'Zouk HO' ? 'selected' : ''}>Zouk HO</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Violator Name</label>
+                                    <input type="text" id="violatorName" value="\${violation.ViolatorName || ''}">
+                                </div>
+                                <div class="form-group">
+                                    <label>Car Plate Number *</label>
+                                    <input type="text" id="carPlateNumber" value="\${violation.CarPlateNumber || ''}" required style="text-transform: uppercase;">
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Parking Lot Information</label>
+                                <textarea id="parkingLotInfo">\${violation.ParkingLotInfo || ''}</textarea>
+                            </div>
+                            
+                            <p style="color: #888; font-size: 13px; margin-bottom: 10px;">Note: Photo evidence cannot be modified. To update photos, create a new violation report.</p>
+                            
+                            <div class="actions">
+                                <a href="/security-services/parking-violation/\${violationId}" class="btn btn-outline">Cancel</a>
+                                <button type="submit" class="btn btn-success">💾 Save Changes</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                <script>
+                    document.getElementById('editForm').addEventListener('submit', async (e) => {
+                        e.preventDefault();
+                        
+                        try {
+                            const res = await fetch('/security-services/parking-violation/update', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    violationId: document.getElementById('violationId').value,
+                                    violationDate: document.getElementById('violationDate').value,
+                                    location: document.getElementById('location').value,
+                                    violatorName: document.getElementById('violatorName').value,
+                                    carPlateNumber: document.getElementById('carPlateNumber').value,
+                                    parkingLotInfo: document.getElementById('parkingLotInfo').value
+                                })
+                            });
+                            const result = await res.json();
+                            if (result.success) window.location.href = '/security-services/parking-violation/' + document.getElementById('violationId').value;
+                            else { document.getElementById('alertBox').textContent = result.error; document.getElementById('alertBox').style.display = 'block'; }
+                        } catch (err) { document.getElementById('alertBox').textContent = err.message; document.getElementById('alertBox').style.display = 'block'; }
+                    });
+                </script>
+            </body>
+            </html>
+        \`);
+    } catch (err) {
+        console.error('Error loading edit page:', err);
+        res.status(500).send('Error: ' + err.message);
+    }
+});
+
+// API: Update Parking Violation
+router.post('/update', async (req, res) => {
+    try {
+        const { violationId, violationDate, location, violatorName, carPlateNumber, parkingLotInfo } = req.body;
+        const user = req.currentUser;
+        const pool = await sql.connect(dbConfig);
+        
+        await pool.request()
+            .input('id', sql.Int, violationId)
+            .input('violationDate', sql.Date, violationDate)
+            .input('location', sql.NVarChar, location)
+            .input('violatorName', sql.NVarChar, violatorName || '')
+            .input('carPlateNumber', sql.NVarChar, carPlateNumber)
+            .input('parkingLotInfo', sql.NVarChar, parkingLotInfo || '')
+            .input('updatedBy', sql.Int, user.id)
+            .query('UPDATE Security_ParkingViolations SET ViolationDate = @violationDate, Location = @location, ViolatorName = @violatorName, CarPlateNumber = @carPlateNumber, ParkingLotInfo = @parkingLotInfo, UpdatedAt = GETDATE(), UpdatedBy = @updatedBy WHERE Id = @id');
+        
+        await pool.close();
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Error updating parking violation:', err);
+        res.json({ success: false, error: err.message });
     }
 });
 

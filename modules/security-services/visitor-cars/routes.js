@@ -617,6 +617,10 @@ router.get('/:id', async (req, res) => {
                         
                         <div class="footer-info">
                             Record created on ${new Date(record.CreatedAt).toLocaleString('en-GB')}
+                            <div style="margin-top: 15px;">
+                                <a href="/security-services/visitor-cars/${recordId}/edit" style="background: #0d47a1; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; margin-right: 10px;">✏️ Edit</a>
+                                <button onclick="window.print()" style="background: white; border: 2px solid #0d47a1; color: #0d47a1; padding: 10px 20px; border-radius: 8px; cursor: pointer;">🖨️ Print</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -626,6 +630,191 @@ router.get('/:id', async (req, res) => {
     } catch (err) {
         console.error('Error loading visitor cars record:', err);
         res.status(500).send('Error: ' + err.message);
+    }
+});
+
+// Edit Visitor Cars Record
+router.get('/:id/edit', async (req, res) => {
+    try {
+        const recordId = req.params.id;
+        const pool = await sql.connect(dbConfig);
+        
+        const recordResult = await pool.request()
+            .input('id', sql.Int, recordId)
+            .query('SELECT * FROM Security_VisitorCars WHERE Id = @id');
+        
+        if (recordResult.recordset.length === 0) {
+            await pool.close();
+            return res.status(404).send('Record not found');
+        }
+        
+        const record = recordResult.recordset[0];
+        const recordDate = new Date(record.RecordDate).toISOString().split('T')[0];
+        
+        const entriesResult = await pool.request()
+            .input('recordId', sql.Int, recordId)
+            .query('SELECT * FROM Security_VisitorCarEntries WHERE VisitorCarsId = @recordId ORDER BY EntryOrder');
+        
+        await pool.close();
+        
+        const entries = entriesResult.recordset;
+        
+        const entryRows = entries.map((entry, index) => \`
+            <tr>
+                <td>\${index + 1}</td>
+                <td><input type="text" name="entries[\${index}][visitorName]" value="\${entry.VisitorName || ''}" required></td>
+                <td><input type="text" name="entries[\${index}][company]" value="\${entry.Company || ''}"></td>
+                <td><input type="text" name="entries[\${index}][plateNumber]" value="\${entry.PlateNumber || ''}"></td>
+                <td><input type="text" name="entries[\${index}][guardName]" value="\${entry.GuardName || ''}"></td>
+                <td>\${index > 0 ? '<button type="button" onclick="this.closest(\\'tr\\').remove()" style="background:#c62828;color:white;border:none;padding:5px 10px;border-radius:4px;cursor:pointer;">✕</button>' : ''}</td>
+            </tr>
+        \`).join('');
+        
+        res.send(\`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <title>Edit Visitor Cars - \${process.env.APP_NAME}</title>
+                <style>
+                    * { margin: 0; padding: 0; box-sizing: border-box; }
+                    body { font-family: 'Segoe UI', Arial; background: #f0f2f5; min-height: 100vh; }
+                    .container { max-width: 1100px; margin: 0 auto; padding: 30px 20px; }
+                    .header { background: linear-gradient(135deg, #0d47a1 0%, #1565c0 100%); color: white; padding: 20px 30px; border-radius: 15px 15px 0 0; display: flex; justify-content: space-between; align-items: center; }
+                    .header h1 { font-size: 22px; }
+                    .header a { color: white; text-decoration: none; opacity: 0.8; }
+                    .card { background: white; border-radius: 0 0 15px 15px; padding: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
+                    .form-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 25px; }
+                    .form-group label { display: block; font-size: 13px; font-weight: 500; color: #555; margin-bottom: 6px; }
+                    .form-group input, .form-group select { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
+                    table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+                    th { background: #f8f9fa; padding: 12px; text-align: left; font-size: 13px; }
+                    td { padding: 10px; border-bottom: 1px solid #eee; }
+                    td input { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px; }
+                    .actions { display: flex; justify-content: space-between; margin-top: 25px; padding-top: 25px; border-top: 1px solid #eee; }
+                    .btn { padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; text-decoration: none; }
+                    .btn-success { background: #2e7d32; color: white; }
+                    .btn-outline { background: white; border: 2px solid #0d47a1; color: #0d47a1; }
+                    .alert { padding: 15px; border-radius: 8px; margin-bottom: 20px; display: none; background: #ffebee; color: #c62828; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>✏️ Edit Visitor Cars Record</h1>
+                        <a href="/security-services/visitor-cars/\${recordId}">← Cancel</a>
+                    </div>
+                    <div class="card">
+                        <div id="alertBox" class="alert"></div>
+                        <form id="editForm">
+                            <input type="hidden" id="recordId" value="\${recordId}">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Location *</label>
+                                    <select id="location" required>
+                                        <option value="HO Dbayeh" \${record.Location === 'HO Dbayeh' ? 'selected' : ''}>HO Dbayeh</option>
+                                        <option value="Zouk HO" \${record.Location === 'Zouk HO' ? 'selected' : ''}>Zouk HO</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Date *</label>
+                                    <input type="date" id="recordDate" value="\${recordDate}" required>
+                                </div>
+                            </div>
+                            
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                                <h3>🚗 Visitor Entries</h3>
+                                <button type="button" onclick="addEntry()" style="background:#0d47a1;color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;">+ Add Entry</button>
+                            </div>
+                            
+                            <table>
+                                <thead><tr><th>#</th><th>Visitor Name</th><th>Company</th><th>Plate Number</th><th>Guard Name</th><th></th></tr></thead>
+                                <tbody id="entriesBody">\${entryRows}</tbody>
+                            </table>
+                            
+                            <div class="actions">
+                                <a href="/security-services/visitor-cars/\${recordId}" class="btn btn-outline">Cancel</a>
+                                <button type="submit" class="btn btn-success">💾 Save Changes</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                <script>
+                    let entryCount = \${entries.length};
+                    function addEntry() {
+                        entryCount++;
+                        const row = document.createElement('tr');
+                        row.innerHTML = '<td>'+entryCount+'</td><td><input type="text" name="entries['+(entryCount-1)+'][visitorName]" required></td><td><input type="text" name="entries['+(entryCount-1)+'][company]"></td><td><input type="text" name="entries['+(entryCount-1)+'][plateNumber]"></td><td><input type="text" name="entries['+(entryCount-1)+'][guardName]"></td><td><button type="button" onclick="this.closest(\\'tr\\').remove()" style="background:#c62828;color:white;border:none;padding:5px 10px;border-radius:4px;cursor:pointer;">✕</button></td>';
+                        document.getElementById('entriesBody').appendChild(row);
+                    }
+                    
+                    document.getElementById('editForm').addEventListener('submit', async (e) => {
+                        e.preventDefault();
+                        const entries = [];
+                        document.querySelectorAll('#entriesBody tr').forEach((row, index) => {
+                            const visitorName = row.querySelector('input[name="entries['+index+'][visitorName]"]')?.value?.trim();
+                            const company = row.querySelector('input[name="entries['+index+'][company]"]')?.value;
+                            const plateNumber = row.querySelector('input[name="entries['+index+'][plateNumber]"]')?.value;
+                            const guardName = row.querySelector('input[name="entries['+index+'][guardName]"]')?.value;
+                            if (visitorName) entries.push({ visitorName, company, plateNumber, guardName });
+                        });
+                        
+                        if (entries.length === 0) { document.getElementById('alertBox').textContent = 'Add at least one entry'; document.getElementById('alertBox').style.display = 'block'; return; }
+                        
+                        try {
+                            const res = await fetch('/security-services/visitor-cars/update', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ recordId: document.getElementById('recordId').value, recordDate: document.getElementById('recordDate').value, location: document.getElementById('location').value, entries })
+                            });
+                            const result = await res.json();
+                            if (result.success) window.location.href = '/security-services/visitor-cars/' + document.getElementById('recordId').value;
+                            else { document.getElementById('alertBox').textContent = result.error; document.getElementById('alertBox').style.display = 'block'; }
+                        } catch (err) { document.getElementById('alertBox').textContent = err.message; document.getElementById('alertBox').style.display = 'block'; }
+                    });
+                </script>
+            </body>
+            </html>
+        \`);
+    } catch (err) {
+        console.error('Error loading edit page:', err);
+        res.status(500).send('Error: ' + err.message);
+    }
+});
+
+// API: Update Visitor Cars Record
+router.post('/update', async (req, res) => {
+    try {
+        const { recordId, recordDate, location, entries } = req.body;
+        const user = req.currentUser;
+        const pool = await sql.connect(dbConfig);
+        
+        await pool.request()
+            .input('id', sql.Int, recordId)
+            .input('recordDate', sql.Date, recordDate)
+            .input('location', sql.NVarChar, location)
+            .input('updatedBy', sql.Int, user.id)
+            .query('UPDATE Security_VisitorCars SET RecordDate = @recordDate, Location = @location, UpdatedAt = GETDATE(), UpdatedBy = @updatedBy WHERE Id = @id');
+        
+        await pool.request().input('recordId', sql.Int, recordId).query('DELETE FROM Security_VisitorCarEntries WHERE VisitorCarsId = @recordId');
+        
+        for (let i = 0; i < entries.length; i++) {
+            const entry = entries[i];
+            await pool.request()
+                .input('recordId', sql.Int, recordId)
+                .input('visitorName', sql.NVarChar, entry.visitorName)
+                .input('company', sql.NVarChar, entry.company || '')
+                .input('plateNumber', sql.NVarChar, entry.plateNumber || '')
+                .input('guardName', sql.NVarChar, entry.guardName || '')
+                .input('entryOrder', sql.Int, i + 1)
+                .query('INSERT INTO Security_VisitorCarEntries (VisitorCarsId, VisitorName, Company, PlateNumber, GuardName, EntryOrder) VALUES (@recordId, @visitorName, @company, @plateNumber, @guardName, @entryOrder)');
+        }
+        
+        await pool.close();
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Error updating visitor cars:', err);
+        res.json({ success: false, error: err.message });
     }
 });
 
