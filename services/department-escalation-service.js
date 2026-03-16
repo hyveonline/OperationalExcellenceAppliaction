@@ -56,37 +56,61 @@ async function escalateToDepepartment(module, responseId, department, escalatedB
     try {
         pool = await sql.connect(dbConfig);
         
-        // OE uses OE_InspectionItems, OHS uses OHS_InspectionResponses
-        const responseTable = module === 'OHS' ? 'OHS_InspectionResponses' : 'OE_InspectionItems';
-        const inspectionTable = module === 'OHS' ? 'OHS_Inspections' : 'OE_Inspections';
-        const itemsTable = module === 'OHS' ? 'OHS_TemplateItems' : 'OE_InspectionTemplateItems';
         const inspectionPath = module === 'OHS' ? 'ohs-inspection' : 'oe-inspection';
+        let responseResult;
         
-        // Get response details with inspection info
-        const responseResult = await pool.request()
-            .input('responseId', sql.Int, responseId)
-            .query(`
-                SELECT 
-                    r.Id as ResponseId,
-                    r.InspectionId,
-                    ${module === 'OHS' ? 'r.ItemId' : 'r.TemplateItemId as ItemId'},
-                    r.Finding,
-                    ${module === 'OHS' ? 'r.CR' : 'r.CorrectedAction'} as CorrectiveAction,
-                    r.Priority,
-                    r.Department,
-                    r.Deadline,
-                    i.StoreId,
-                    i.DocumentNumber,
-                    i.ActionPlanDeadline,
-                    s.StoreName,
-                    ti.Title as QuestionTitle,
-                    ti.ReferenceValue
-                FROM ${responseTable} r
-                INNER JOIN ${inspectionTable} i ON r.InspectionId = i.Id
-                INNER JOIN Stores s ON i.StoreId = s.Id
-                LEFT JOIN ${itemsTable} ti ON ${module === 'OHS' ? 'r.ItemId = ti.Id' : 'r.TemplateItemId = ti.Id'}
-                WHERE r.Id = @responseId
-            `);
+        if (module === 'OHS') {
+            // OHS uses OHS_InspectionResponses with join to template items
+            responseResult = await pool.request()
+                .input('responseId', sql.Int, responseId)
+                .query(`
+                    SELECT 
+                        r.Id as ResponseId,
+                        r.InspectionId,
+                        r.ItemId,
+                        r.Finding,
+                        r.CR as CorrectiveAction,
+                        r.Priority,
+                        r.Department,
+                        r.Deadline,
+                        i.StoreId,
+                        i.DocumentNumber,
+                        i.ActionPlanDeadline,
+                        s.StoreName,
+                        ti.Title as QuestionTitle,
+                        ti.ReferenceValue
+                    FROM OHS_InspectionResponses r
+                    INNER JOIN OHS_Inspections i ON r.InspectionId = i.Id
+                    INNER JOIN Stores s ON i.StoreId = s.Id
+                    LEFT JOIN OHS_TemplateItems ti ON r.ItemId = ti.Id
+                    WHERE r.Id = @responseId
+                `);
+        } else {
+            // OE uses OE_InspectionItems - data is directly in the table
+            responseResult = await pool.request()
+                .input('responseId', sql.Int, responseId)
+                .query(`
+                    SELECT 
+                        r.Id as ResponseId,
+                        r.InspectionId,
+                        r.Id as ItemId,
+                        r.Finding,
+                        r.CorrectedAction as CorrectiveAction,
+                        r.Priority,
+                        r.Department,
+                        r.Deadline,
+                        i.StoreId,
+                        i.DocumentNumber,
+                        i.ActionPlanDeadline,
+                        s.StoreName,
+                        r.Question as QuestionTitle,
+                        r.ReferenceValue
+                    FROM OE_InspectionItems r
+                    INNER JOIN OE_Inspections i ON r.InspectionId = i.Id
+                    INNER JOIN Stores s ON i.StoreId = s.Id
+                    WHERE r.Id = @responseId
+                `);
+        }
         
         if (responseResult.recordset.length === 0) {
             throw new Error(`Response ${responseId} not found`);
