@@ -4145,7 +4145,7 @@ router.get('/api/verification/inspections', async (req, res) => {
                 WHERE i.Status = 'Completed'
                   AND EXISTS (SELECT 1 FROM OE_InspectionActionItems ai WHERE ai.InspectionId = i.Id)
                   ${statusFilter}
-                ORDER BY i.InspectionDate DESC
+                ORDER BY i.Id DESC
             `);
         
         await pool.close();
