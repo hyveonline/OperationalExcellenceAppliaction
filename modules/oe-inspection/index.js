@@ -5505,7 +5505,7 @@ router.put('/api/department-escalations/:id/acknowledge', async (req, res) => {
     try {
         const { id } = req.params;
         const pool = await sql.connect(dbConfig);
-        const userName = req.session?.user?.name || 'Unknown';
+        const userName = req.session?.user?.displayName || req.session?.user?.name || req.session?.user?.email || 'Unknown';
         
         await pool.request()
             .input('id', sql.Int, id)
@@ -5531,7 +5531,7 @@ router.put('/api/department-escalations/:id/resolve', async (req, res) => {
         const { id } = req.params;
         const { notes } = req.body;
         const pool = await sql.connect(dbConfig);
-        const userName = req.session?.user?.name || 'Unknown';
+        const userName = req.session?.user?.displayName || req.session?.user?.name || req.session?.user?.email || 'Unknown';
         
         await pool.request()
             .input('id', sql.Int, id)
