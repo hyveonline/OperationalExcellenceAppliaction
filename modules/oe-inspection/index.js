@@ -5507,6 +5507,8 @@ router.put('/api/department-escalations/:id/acknowledge', async (req, res) => {
         const pool = await sql.connect(dbConfig);
         const userName = req.currentUser?.displayName || req.currentUser?.email || 'Unknown';
         
+        console.log(`[Escalation] Acknowledging ID ${id} by: ${userName} (currentUser:`, req.currentUser ? { displayName: req.currentUser.displayName, email: req.currentUser.email } : 'NULL', ')');
+        
         await pool.request()
             .input('id', sql.Int, id)
             .input('acknowledgedBy', sql.NVarChar, userName)
@@ -5518,6 +5520,8 @@ router.put('/api/department-escalations/:id/acknowledge', async (req, res) => {
                 WHERE Id = @id AND Module = 'OE'
             `);
         
+        await pool.close();
+        console.log(`[Escalation] Successfully acknowledged ID ${id}`);
         res.json({ success: true });
     } catch (error) {
         console.error('Error acknowledging OE escalation:', error);
