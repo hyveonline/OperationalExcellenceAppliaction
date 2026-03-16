@@ -944,6 +944,7 @@ router.get('/:id', async (req, res) => {
                         </table>
                         
                         <div style="margin-top: 25px; text-align: right;">
+                            <a href="/security-services/delivery-log/${logId}/edit" class="btn btn-primary" style="margin-right: 10px;">✏️ Edit</a>
                             <button class="btn btn-outline" onclick="window.print()">🖨️ Print</button>
                         </div>
                     </div>
@@ -954,6 +955,326 @@ router.get('/:id', async (req, res) => {
     } catch (err) {
         console.error('Error viewing delivery log:', err);
         res.status(500).send('Error: ' + err.message);
+    }
+});
+
+// Edit Delivery Log
+router.get('/:id/edit', async (req, res) => {
+    try {
+        const logId = req.params.id;
+        const user = req.currentUser;
+        const pool = await sql.connect(dbConfig);
+        
+        // Get log details
+        const logResult = await pool.request()
+            .input('id', sql.Int, logId)
+            .query('SELECT * FROM Security_DeliveryLogs WHERE Id = @id');
+        
+        if (logResult.recordset.length === 0) {
+            await pool.close();
+            return res.status(404).send('Delivery log not found');
+        }
+        
+        const log = logResult.recordset[0];
+        const logDate = new Date(log.LogDate).toISOString().split('T')[0];
+        
+        // Get items
+        const itemsResult = await pool.request()
+            .input('logId', sql.Int, logId)
+            .query('SELECT * FROM Security_DeliveryLogItems WHERE DeliveryLogId = @logId ORDER BY ItemOrder');
+        
+        await pool.close();
+        
+        const items = itemsResult.recordset;
+        
+        // Format time for input
+        const formatTimeForInput = (timeValue) => {
+            if (!timeValue) return '';
+            if (timeValue instanceof Date) {
+                return timeValue.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+            }
+            const timeStr = timeValue.toString();
+            const match = timeStr.match(/(\d{2}:\d{2})/);
+            return match ? match[1] : timeStr.substring(0, 5);
+        };
+        
+        const itemRows = items.map((item, index) => \`
+            <tr data-row="\${index + 1}">
+                <td>\${index + 1}</td>
+                <td><input type="text" name="items[\${index}][employeeName]" value="\${item.EmployeeName || ''}" required></td>
+                <td><input type="text" name="items[\${index}][receivedFrom]" value="\${item.ReceivedFrom || ''}"></td>
+                <td><input type="time" name="items[\${index}][time]" value="\${formatTimeForInput(item.DeliveryTime)}" required></td>
+                <td><input type="text" name="items[\${index}][notes]" value="\${item.Notes || ''}"></td>
+                <td>\${index > 0 ? '<button type="button" class="btn btn-danger" onclick="removeItem(this)">✕</button>' : ''}</td>
+            </tr>
+        \`).join('');
+        
+        res.send(\`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <title>Edit Delivery Log - \${process.env.APP_NAME}</title>
+                <style>
+                    * { margin: 0; padding: 0; box-sizing: border-box; }
+                    body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; min-height: 100vh; }
+                    .header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: white; padding: 20px 40px; display: flex; justify-content: space-between; align-items: center; }
+                    .header h1 { font-size: 24px; }
+                    .header-nav a { color: white; text-decoration: none; margin-left: 20px; opacity: 0.8; }
+                    .header-nav a:hover { opacity: 1; }
+                    .container { max-width: 1000px; margin: 0 auto; padding: 30px 20px; }
+                    .card { background: white; border-radius: 15px; padding: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
+                    .form-section { margin-bottom: 25px; padding-bottom: 25px; border-bottom: 1px solid #eee; }
+                    .form-section:last-child { border-bottom: none; }
+                    .section-title { font-size: 16px; font-weight: 600; color: #333; margin-bottom: 15px; display: flex; align-items: center; gap: 8px; }
+                    .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 15px; }
+                    .form-group { display: flex; flex-direction: column; }
+                    .form-group label { font-size: 13px; font-weight: 500; color: #555; margin-bottom: 6px; }
+                    .form-group input, .form-group select { padding: 12px 15px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
+                    .form-group input:focus, .form-group select:focus { outline: none; border-color: #1976d2; }
+                    .items-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+                    .items-table th { background: #f8f9fa; padding: 12px; text-align: left; font-size: 13px; font-weight: 600; color: #555; border-bottom: 2px solid #dee2e6; }
+                    .items-table td { padding: 10px 12px; border-bottom: 1px solid #eee; }
+                    .items-table input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+                    .items-table input:focus { outline: none; border-color: #1976d2; }
+                    .btn { padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.3s; text-decoration: none; display: inline-block; }
+                    .btn-primary { background: #1976d2; color: white; }
+                    .btn-primary:hover { background: #1565c0; }
+                    .btn-success { background: #2e7d32; color: white; }
+                    .btn-success:hover { background: #1b5e20; }
+                    .btn-danger { background: #c62828; color: white; padding: 8px 12px; }
+                    .btn-danger:hover { background: #b71c1c; }
+                    .btn-outline { background: white; border: 2px solid #1976d2; color: #1976d2; }
+                    .btn-outline:hover { background: #e3f2fd; }
+                    .actions-bar { display: flex; justify-content: space-between; align-items: center; margin-top: 25px; padding-top: 25px; border-top: 1px solid #eee; }
+                    .alert { padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; display: none; }
+                    .alert-success { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
+                    .alert-error { background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h1>✏️ Edit Delivery Log</h1>
+                    <div class="header-nav">
+                        <a href="/security-services/delivery-log/\${logId}">← Cancel</a>
+                        <a href="/security-services/delivery-log">Delivery Logs</a>
+                    </div>
+                </div>
+                
+                <div class="container">
+                    <div id="alertBox" class="alert"></div>
+                    
+                    <div class="card">
+                        <form id="editForm">
+                            <input type="hidden" id="logId" value="\${logId}">
+                            
+                            <div class="form-section">
+                                <div class="section-title">📋 Log Information</div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Date *</label>
+                                        <input type="date" id="logDate" name="logDate" value="\${logDate}" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Premises *</label>
+                                        <select id="premises" name="premises" required>
+                                            <option value="">-- Select Premises --</option>
+                                            <option value="HO Dbayeh Block A" \${log.Premises === 'HO Dbayeh Block A' ? 'selected' : ''}>HO Dbayeh Block A</option>
+                                            <option value="HO Dbayeh Block B" \${log.Premises === 'HO Dbayeh Block B' ? 'selected' : ''}>HO Dbayeh Block B</option>
+                                            <option value="Zouk HO" \${log.Premises === 'Zouk HO' ? 'selected' : ''}>Zouk HO</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Filled By *</label>
+                                        <input type="text" id="filledBy" name="filledBy" value="\${log.FilledBy}" required>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="form-section">
+                                <div class="section-title">
+                                    📦 Delivery Items
+                                    <button type="button" class="btn btn-outline" onclick="addItem()" style="margin-left: auto; padding: 8px 16px; font-size: 13px;">+ Add Item</button>
+                                </div>
+                                <table class="items-table">
+                                    <thead>
+                                        <tr>
+                                            <th style="width: 5%;">#</th>
+                                            <th style="width: 25%;">Employee Name</th>
+                                            <th style="width: 25%;">Received From</th>
+                                            <th style="width: 15%;">Time</th>
+                                            <th style="width: 25%;">Notes</th>
+                                            <th style="width: 5%;"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="itemsBody">
+                                        \${itemRows}
+                                    </tbody>
+                                </table>
+                            </div>
+                            
+                            <div class="actions-bar">
+                                <a href="/security-services/delivery-log/\${logId}" class="btn btn-outline">Cancel</a>
+                                <button type="submit" class="btn btn-success">💾 Save Changes</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                
+                <script>
+                    let itemCount = \${items.length};
+                    
+                    function addItem() {
+                        itemCount++;
+                        const tbody = document.getElementById('itemsBody');
+                        const row = document.createElement('tr');
+                        row.dataset.row = itemCount;
+                        row.innerHTML = '<td>' + itemCount + '</td>' +
+                            '<td><input type="text" name="items[' + (itemCount-1) + '][employeeName]" required></td>' +
+                            '<td><input type="text" name="items[' + (itemCount-1) + '][receivedFrom]"></td>' +
+                            '<td><input type="time" name="items[' + (itemCount-1) + '][time]" required></td>' +
+                            '<td><input type="text" name="items[' + (itemCount-1) + '][notes]"></td>' +
+                            '<td><button type="button" class="btn btn-danger" onclick="removeItem(this)">✕</button></td>';
+                        tbody.appendChild(row);
+                    }
+                    
+                    function removeItem(btn) {
+                        btn.closest('tr').remove();
+                        renumberItems();
+                    }
+                    
+                    function renumberItems() {
+                        const rows = document.querySelectorAll('#itemsBody tr');
+                        rows.forEach((row, index) => {
+                            row.querySelector('td:first-child').textContent = index + 1;
+                            row.querySelectorAll('input').forEach(input => {
+                                input.name = input.name.replace(/items\\[\\d+\\]/, 'items[' + index + ']');
+                            });
+                        });
+                        itemCount = rows.length;
+                    }
+                    
+                    function showAlert(message, type) {
+                        const alertBox = document.getElementById('alertBox');
+                        alertBox.textContent = message;
+                        alertBox.className = 'alert alert-' + type;
+                        alertBox.style.display = 'block';
+                        window.scrollTo(0, 0);
+                    }
+                    
+                    document.getElementById('editForm').addEventListener('submit', async (e) => {
+                        e.preventDefault();
+                        
+                        const items = [];
+                        document.querySelectorAll('#itemsBody tr').forEach((row, index) => {
+                            const employeeName = row.querySelector('input[name="items[' + index + '][employeeName]"]')?.value?.trim();
+                            const receivedFrom = row.querySelector('input[name="items[' + index + '][receivedFrom]"]')?.value;
+                            const time = row.querySelector('input[name="items[' + index + '][time]"]')?.value;
+                            const notes = row.querySelector('input[name="items[' + index + '][notes]"]')?.value;
+                            
+                            if (employeeName && time) {
+                                items.push({ employeeName, receivedFrom, time, notes });
+                            }
+                        });
+                        
+                        if (items.length === 0) {
+                            showAlert('Please add at least one delivery item', 'error');
+                            return;
+                        }
+                        
+                        const data = {
+                            logId: document.getElementById('logId').value,
+                            logDate: document.getElementById('logDate').value,
+                            premises: document.getElementById('premises').value,
+                            filledBy: document.getElementById('filledBy').value,
+                            items: items
+                        };
+                        
+                        try {
+                            const res = await fetch('/security-services/delivery-log/update', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(data)
+                            });
+                            
+                            const result = await res.json();
+                            
+                            if (result.success) {
+                                window.location.href = '/security-services/delivery-log/' + data.logId;
+                            } else {
+                                showAlert(result.error || 'Failed to update', 'error');
+                            }
+                        } catch (err) {
+                            showAlert('Error: ' + err.message, 'error');
+                        }
+                    });
+                </script>
+            </body>
+            </html>
+        \`);
+    } catch (err) {
+        console.error('Error loading edit page:', err);
+        res.status(500).send('Error: ' + err.message);
+    }
+});
+
+// API: Update Delivery Log
+router.post('/update', async (req, res) => {
+    try {
+        const { logId, logDate, premises, filledBy, items } = req.body;
+        const user = req.currentUser;
+        
+        if (!logId || !logDate || !premises || !filledBy) {
+            return res.json({ success: false, error: 'Missing required fields' });
+        }
+        
+        if (!items || !Array.isArray(items) || items.length === 0) {
+            return res.json({ success: false, error: 'Please add at least one delivery item' });
+        }
+        
+        const pool = await sql.connect(dbConfig);
+        
+        // Update main log
+        await pool.request()
+            .input('id', sql.Int, logId)
+            .input('logDate', sql.Date, logDate)
+            .input('premises', sql.NVarChar, premises)
+            .input('filledBy', sql.NVarChar, filledBy)
+            .input('updatedBy', sql.Int, user.id)
+            .query(\`
+                UPDATE Security_DeliveryLogs 
+                SET LogDate = @logDate, Premises = @premises, FilledBy = @filledBy, 
+                    UpdatedAt = GETDATE(), UpdatedBy = @updatedBy
+                WHERE Id = @id
+            \`);
+        
+        // Delete old items
+        await pool.request()
+            .input('logId', sql.Int, logId)
+            .query('DELETE FROM Security_DeliveryLogItems WHERE DeliveryLogId = @logId');
+        
+        // Insert new items
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            const timeValue = item.time.includes(':') ? (item.time.length === 5 ? item.time + ':00' : item.time) : item.time;
+            await pool.request()
+                .input('deliveryLogId', sql.Int, logId)
+                .input('employeeName', sql.NVarChar, item.employeeName)
+                .input('receivedFrom', sql.NVarChar, item.receivedFrom || '')
+                .input('deliveryTime', sql.NVarChar, timeValue)
+                .input('notes', sql.NVarChar, item.notes || '')
+                .input('itemOrder', sql.Int, i + 1)
+                .query(\`
+                    INSERT INTO Security_DeliveryLogItems (DeliveryLogId, EmployeeName, ReceivedFrom, DeliveryTime, Notes, ItemOrder)
+                    VALUES (@deliveryLogId, @employeeName, @receivedFrom, CAST(@deliveryTime AS TIME), @notes, @itemOrder)
+                \`);
+        }
+        
+        await pool.close();
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Error updating delivery log:', err);
+        res.json({ success: false, error: err.message });
     }
 });
 
