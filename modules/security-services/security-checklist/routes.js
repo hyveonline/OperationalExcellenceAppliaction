@@ -457,17 +457,8 @@ router.get('/', async (req, res) => {
                         
                         const formatDate = (d) => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
                         
-                        let html = \`
-                            <div class="week-info">
-                                <h3>📍 \${locationName}</h3>
-                                <span>Week: \${formatDate(startDate)} - \${formatDate(endDate)}</span>
-                            </div>
-                            <form id="checklistForm">
-                                <table class="checklist-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Checklist Item</th>
-                        \`;
+                        let html = '<div class="week-info"><h3>📍 ' + locationName + '</h3><span>Week: ' + formatDate(startDate) + ' - ' + formatDate(endDate) + '</span></div>' +
+                            '<form id="checklistForm"><table class="checklist-table"><thead><tr><th>Checklist Item</th>';
                         
                         // Add day headers
                         days.forEach(day => {
@@ -495,18 +486,12 @@ router.get('/', async (req, res) => {
                                 
                                 // AM checkbox
                                 if (hasAM) {
-                                    html += \`<label class="shift-checkbox">
-                                        <input type="checkbox" name="item_\${item.Id}_day_\${d}_am" \${amChecked ? 'checked' : ''}>
-                                        AM
-                                    </label>\`;
+                                    html += '<label class="shift-checkbox"><input type="checkbox" name="item_' + item.Id + '_day_' + d + '_am" ' + (amChecked ? 'checked' : '') + '> AM</label>';
                                 }
                                 
                                 // PM checkbox
                                 if (hasPM) {
-                                    html += \`<label class="shift-checkbox">
-                                        <input type="checkbox" name="item_\${item.Id}_day_\${d}_pm" \${pmChecked ? 'checked' : ''}>
-                                        PM
-                                    </label>\`;
+                                    html += '<label class="shift-checkbox"><input type="checkbox" name="item_' + item.Id + '_day_' + d + '_pm" ' + (pmChecked ? 'checked' : '') + '> PM</label>';
                                 }
                                 
                                 if (!hasAM && !hasPM) {
@@ -519,20 +504,9 @@ router.get('/', async (req, res) => {
                             html += '</tr>';
                         });
                         
-                        html += \`
-                                    </tbody>
-                                </table>
-                                
-                                <div class="submit-row">
-                                    <div class="notes-group">
-                                        <textarea id="notes" placeholder="Additional notes (optional)...">\${data.existingEntry?.Notes || ''}</textarea>
-                                    </div>
-                                    <button type="submit" class="btn-submit" id="submitBtn">
-                                        \${data.existingEntry ? 'Update Checklist' : 'Save Checklist'}
-                                    </button>
-                                </div>
-                            </form>
-                        \`;
+                        html += '</tbody></table><div class="submit-row"><div class="notes-group">' +
+                            '<textarea id="notes" placeholder="Additional notes (optional)...">' + (data.existingEntry?.Notes || '') + '</textarea></div>' +
+                            '<button type="submit" class="btn-submit" id="submitBtn">' + (data.existingEntry ? 'Update Checklist' : 'Save Checklist') + '</button></div></form>';
                         
                         content.innerHTML = html;
                         
@@ -1277,13 +1251,13 @@ router.get('/:id/edit', async (req, res) => {
         // Get entry details
         const entryResult = await pool.request()
             .input('id', sql.Int, entryId)
-            .query(\`
+            .query(`
                 SELECT e.*, l.Name as LocationName, sc.Name as SubCategoryName
                 FROM Security_Checklist_Entries e
                 JOIN Security_Checklist_Locations l ON e.LocationId = l.Id
                 JOIN Security_Checklist_SubCategories sc ON e.SubCategoryId = sc.Id
                 WHERE e.Id = @id
-            \`);
+            `);
         
         if (entryResult.recordset.length === 0) {
             await pool.close();
@@ -1322,12 +1296,28 @@ router.get('/:id/edit', async (req, res) => {
             { id: 3, name: 'C (23-7)' }
         ];
         
-        res.send(\`
+        // Build items HTML
+        let itemsHtml = '';
+        items.forEach(item => {
+            let row = '<tr><td class="item-cell">' + item.Name + '</td>';
+            days.forEach((_, dayIdx) => {
+                shifts.forEach(shift => {
+                    const key = item.Id + '_' + dayIdx + '_' + shift.id;
+                    const detail = detailsMap[key];
+                    const isChecked = detail ? detail.IsChecked : false;
+                    row += '<td class="shift-cell"><input type="checkbox" name="checks" data-item="'+item.Id+'" data-day="'+dayIdx+'" data-shift="'+shift.id+'" '+(isChecked ? 'checked' : '')+'></td>';
+                });
+            });
+            row += '</tr>';
+            itemsHtml += row;
+        });
+        
+        res.send(`
             <!DOCTYPE html>
             <html>
             <head>
                 <meta charset="UTF-8">
-                <title>Edit Security Checklist - \${process.env.APP_NAME}</title>
+                <title>Edit Security Checklist - ${process.env.APP_NAME}</title>
                 <style>
                     * { margin: 0; padding: 0; box-sizing: border-box; }
                     body { font-family: 'Segoe UI', Arial; background: #f0f2f5; min-height: 100vh; }
@@ -1345,8 +1335,6 @@ router.get('/:id/edit', async (req, res) => {
                     .item-cell { text-align: left; background: #fafafa; min-width: 180px; }
                     .day-header { background: #e3f2fd; }
                     .shift-cell { padding: 5px; }
-                    .shift-cell label { display: block; font-size: 11px; cursor: pointer; }
-                    .shift-cell input { margin-right: 3px; }
                     .actions { display: flex; justify-content: space-between; margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; }
                     .btn { padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; text-decoration: none; }
                     .btn-success { background: #2e7d32; color: white; }
@@ -1358,88 +1346,57 @@ router.get('/:id/edit', async (req, res) => {
             <body>
                 <div class="header">
                     <h1>✏️ Edit Security Checklist</h1>
-                    <a href="/security-services/security-checklist/\${entryId}">← Cancel</a>
+                    <a href="/security-services/security-checklist/${entryId}">← Cancel</a>
                 </div>
-                
                 <div class="container">
                     <div id="alertBox" class="alert"></div>
-                    
                     <div class="card">
                         <div class="info-grid">
-                            <div class="info-item"><label>Location</label><span>\${entry.LocationName}</span></div>
-                            <div class="info-item"><label>Sub-Category</label><span>\${entry.SubCategoryName}</span></div>
-                            <div class="info-item"><label>Week Starting</label><span>\${weekStart}</span></div>
-                            <div class="info-item"><label>Filled By</label><span>\${entry.FilledBy}</span></div>
+                            <div class="info-item"><label>Location</label><span>${entry.LocationName}</span></div>
+                            <div class="info-item"><label>Sub-Category</label><span>${entry.SubCategoryName}</span></div>
+                            <div class="info-item"><label>Week Starting</label><span>${weekStart}</span></div>
+                            <div class="info-item"><label>Filled By</label><span>${entry.FilledBy}</span></div>
                         </div>
                     </div>
-                    
                     <form id="editForm">
-                        <input type="hidden" id="entryId" value="\${entryId}">
-                        
+                        <input type="hidden" id="entryId" value="${entryId}">
                         <div class="card">
                             <table>
                                 <thead>
                                     <tr>
                                         <th rowspan="2">Checklist Item</th>
-                                        \${days.map(d => '<th class="day-header" colspan="3">' + d + '</th>').join('')}
+                                        ${days.map(d => '<th class="day-header" colspan="3">' + d + '</th>').join('')}
                                     </tr>
                                     <tr>
-                                        \${days.map(() => shifts.map(s => '<th style="font-size:10px;">' + s.name + '</th>').join('')).join('')}
+                                        ${days.map(() => shifts.map(s => '<th style="font-size:10px;">' + s.name + '</th>').join('')).join('')}
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    \${items.map(item => \`
-                                        <tr>
-                                            <td class="item-cell">\${item.Name}</td>
-                                            \${days.map((_, dayIdx) => 
-                                                shifts.map(shift => {
-                                                    const key = item.Id + '_' + dayIdx + '_' + shift.id;
-                                                    const detail = detailsMap[key];
-                                                    const isChecked = detail ? detail.IsChecked : false;
-                                                    return '<td class="shift-cell"><input type="checkbox" name="checks" data-item="'+item.Id+'" data-day="'+dayIdx+'" data-shift="'+shift.id+'" '+(isChecked ? 'checked' : '')+'></td>';
-                                                }).join('')
-                                            ).join('')}
-                                        </tr>
-                                    \`).join('')}
+                                    ${itemsHtml}
                                 </tbody>
                             </table>
-                            
                             <div style="margin-top: 20px;">
                                 <label style="font-weight: 600;">📝 Notes</label>
-                                <textarea id="notes">\${entry.Notes || ''}</textarea>
+                                <textarea id="notes">${entry.Notes || ''}</textarea>
                             </div>
                         </div>
-                        
                         <div class="actions">
-                            <a href="/security-services/security-checklist/\${entryId}" class="btn btn-outline">Cancel</a>
+                            <a href="/security-services/security-checklist/${entryId}" class="btn btn-outline">Cancel</a>
                             <button type="submit" class="btn btn-success">💾 Save Changes</button>
                         </div>
                     </form>
                 </div>
-                
                 <script>
                     document.getElementById('editForm').addEventListener('submit', async (e) => {
                         e.preventDefault();
-                        
                         const checks = [];
                         document.querySelectorAll('input[name="checks"]').forEach(cb => {
-                            checks.push({
-                                itemId: parseInt(cb.dataset.item),
-                                dayIndex: parseInt(cb.dataset.day),
-                                shiftId: parseInt(cb.dataset.shift),
-                                isChecked: cb.checked
-                            });
+                            checks.push({ itemId: parseInt(cb.dataset.item), dayIndex: parseInt(cb.dataset.day), shiftId: parseInt(cb.dataset.shift), isChecked: cb.checked });
                         });
-                        
                         try {
                             const res = await fetch('/security-services/security-checklist/update', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    entryId: document.getElementById('entryId').value,
-                                    notes: document.getElementById('notes').value,
-                                    checks: checks
-                                })
+                                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ entryId: document.getElementById('entryId').value, notes: document.getElementById('notes').value, checks: checks })
                             });
                             const result = await res.json();
                             if (result.success) window.location.href = '/security-services/security-checklist/' + document.getElementById('entryId').value;
@@ -1449,7 +1406,7 @@ router.get('/:id/edit', async (req, res) => {
                 </script>
             </body>
             </html>
-        \`);
+        `);
     } catch (err) {
         console.error('Error loading edit page:', err);
         res.status(500).send('Error: ' + err.message);
@@ -1463,19 +1420,14 @@ router.post('/update', async (req, res) => {
         const user = req.currentUser;
         let pool = await sql.connect(dbConfig);
         
-        // Update entry notes
         await pool.request()
             .input('id', sql.Int, entryId)
             .input('notes', sql.NVarChar, notes || '')
             .input('updatedBy', sql.Int, user.id)
             .query('UPDATE Security_Checklist_Entries SET Notes = @notes, UpdatedAt = GETDATE(), UpdatedBy = @updatedBy WHERE Id = @id');
         
-        // Delete existing details and re-insert
-        await pool.request()
-            .input('entryId', sql.Int, entryId)
-            .query('DELETE FROM Security_Checklist_EntryDetails WHERE EntryId = @entryId');
+        await pool.request().input('entryId', sql.Int, entryId).query('DELETE FROM Security_Checklist_EntryDetails WHERE EntryId = @entryId');
         
-        // Insert checked items
         for (const check of checks) {
             if (check.isChecked) {
                 await pool.request()
