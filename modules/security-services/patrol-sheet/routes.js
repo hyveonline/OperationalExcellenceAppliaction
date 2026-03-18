@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Patrol Sheet Routes
  * Security Services - Patrol Management
  */
@@ -424,7 +424,7 @@ router.get('/', async (req, res) => {
                         '<td><input type="text" name="entries[' + (entryCount-1) + '][patrolName]" placeholder="Patrol name" required></td>' +
                         '<td><input type="time" name="entries[' + (entryCount-1) + '][timeIn]" required></td>' +
                         '<td><input type="time" name="entries[' + (entryCount-1) + '][timeOut]" required></td>' +
-                        '<td><button type="button" class="btn btn-danger" onclick="removeEntry(this)">✕</button></td>';
+                        '<td><button type="button" class="btn btn-danger" onclick="removeEntry(this)">?</button></td>';
                     tbody.appendChild(row);
                 }
                 
@@ -573,17 +573,12 @@ router.get('/', async (req, res) => {
                         }
                         
                         container.innerHTML = data.sheets.map(sheet => {
-                            const sheetDate = new Date(sheet.PatrolDate).toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+                            const dateStr = sheet.PatrolDateFormatted || sheet.PatrolDate;
+                            const sheetDate = new Date(dateStr + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
                             const patrolNames = sheet.PatrolNames || '-';
                             const guardNames = sheet.GuardNames || '-';
-                            const formatTime = (t) => {
-                                if (!t) return '-';
-                                const str = t.toString();
-                                const match = str.match(/(\d{2}):(\d{2})/);
-                                return match ? match[0] : str.substring(0, 5);
-                            };
-                            const timeIn = formatTime(sheet.FirstTimeIn);
-                            const timeOut = formatTime(sheet.LastTimeOut);
+                            const timeIn = sheet.FirstTimeIn || '-';
+                            const timeOut = sheet.LastTimeOut || '-';
                             return '<div class="log-item" onclick="viewSheet(' + sheet.Id + ')">' +
                                 '<div class="log-item-header">' +
                                     '<span class="log-item-date">' + sheetDate + '</span>' +
@@ -697,11 +692,12 @@ router.get('/list', async (req, res) => {
         
         let query = `
             SELECT ps.*, 
+                   CONVERT(VARCHAR(10), ps.PatrolDate, 120) as PatrolDateFormatted,
                    (SELECT COUNT(*) FROM Security_PatrolEntries WHERE PatrolSheetId = ps.Id) as EntryCount,
                    (SELECT STRING_AGG(PatrolName, ', ') FROM Security_PatrolEntries WHERE PatrolSheetId = ps.Id) as PatrolNames,
                    (SELECT STRING_AGG(GuardName, ', ') FROM Security_PatrolEntries WHERE PatrolSheetId = ps.Id) as GuardNames,
-                   (SELECT MIN(TimeIn) FROM Security_PatrolEntries WHERE PatrolSheetId = ps.Id) as FirstTimeIn,
-                   (SELECT MAX(TimeOut) FROM Security_PatrolEntries WHERE PatrolSheetId = ps.Id) as LastTimeOut
+                   (SELECT CONVERT(VARCHAR(5), MIN(TimeIn), 108) FROM Security_PatrolEntries WHERE PatrolSheetId = ps.Id) as FirstTimeIn,
+                   (SELECT CONVERT(VARCHAR(5), MAX(TimeOut), 108) FROM Security_PatrolEntries WHERE PatrolSheetId = ps.Id) as LastTimeOut
             FROM Security_PatrolSheets ps
             WHERE ps.Status = 'Active'
         `;
@@ -742,7 +738,7 @@ router.get('/:id', async (req, res) => {
         // Get sheet details
         const sheetResult = await pool.request()
             .input('id', sql.Int, sheetId)
-            .query('SELECT * FROM Security_PatrolSheets WHERE Id = @id');
+            .query('SELECT *, CONVERT(VARCHAR(10), PatrolDate, 120) as PatrolDateFormatted FROM Security_PatrolSheets WHERE Id = @id');
         
         if (sheetResult.recordset.length === 0) {
             await pool.close();
@@ -759,7 +755,8 @@ router.get('/:id', async (req, res) => {
         await pool.close();
         
         const entries = entriesResult.recordset;
-        const sheetDateFormatted = new Date(sheet.PatrolDate).toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        const dateStr = sheet.PatrolDateFormatted || sheet.PatrolDate;
+        const sheetDateFormatted = new Date(dateStr + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
         
         // Helper function to format time
         const formatTime = (timeVal) => {
@@ -889,6 +886,13 @@ router.get('/:id', async (req, res) => {
                         text-decoration: none;
                         display: inline-block;
                     }
+                    .btn-primary {
+                        background: #2e7d32;
+                        color: white;
+                    }
+                    .btn-primary:hover {
+                        background: #1b5e20;
+                    }
                     .btn-outline {
                         background: white;
                         border: 2px solid #2e7d32;
@@ -953,6 +957,7 @@ router.get('/:id', async (req, res) => {
                         </table>
                         
                         <div style="margin-top: 25px; text-align: right;">
+                            <a href="/security-services/patrol-sheet/${sheetId}/edit" class="btn btn-primary" style="margin-right: 10px;">✏️ Edit</a>
                             <button class="btn btn-outline" onclick="window.print()">🖨️ Print</button>
                         </div>
                     </div>
@@ -963,6 +968,274 @@ router.get('/:id', async (req, res) => {
     } catch (err) {
         console.error('Error viewing patrol sheet:', err);
         res.status(500).send('Error: ' + err.message);
+    }
+});
+
+// Edit Patrol Sheet
+router.get('/:id/edit', async (req, res) => {
+    try {
+        const sheetId = req.params.id;
+        const user = req.currentUser;
+        const pool = await sql.connect(dbConfig);
+        
+        const sheetResult = await pool.request()
+            .input('id', sql.Int, sheetId)
+            .query('SELECT *, CONVERT(VARCHAR(10), PatrolDate, 120) as PatrolDateFormatted FROM Security_PatrolSheets WHERE Id = @id');
+        
+        if (sheetResult.recordset.length === 0) {
+            await pool.close();
+            return res.status(404).send('Patrol sheet not found');
+        }
+        
+        const sheet = sheetResult.recordset[0];
+        const patrolDate = sheet.PatrolDateFormatted || new Date(sheet.PatrolDate).toISOString().split('T')[0];
+        
+        const entriesResult = await pool.request()
+            .input('sheetId', sql.Int, sheetId)
+            .query('SELECT * FROM Security_PatrolEntries WHERE PatrolSheetId = @sheetId ORDER BY EntryOrder');
+        
+        await pool.close();
+        
+        const entries = entriesResult.recordset;
+        
+        const formatTimeForInput = (timeValue) => {
+            if (!timeValue) return '';
+            if (timeValue instanceof Date) {
+                return timeValue.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+            }
+            const timeStr = timeValue.toString();
+            const match = timeStr.match(/(\d{2}:\d{2})/);
+            return match ? match[1] : timeStr.substring(0, 5);
+        };
+        
+        const entryRows = entries.map((entry, index) => `
+            <tr data-row="${index + 1}">
+                <td>${index + 1}</td>
+                <td><input type="text" name="entries[${index}][guardName]" value="${entry.GuardName || ''}" required></td>
+                <td><input type="text" name="entries[${index}][patrolName]" value="${entry.PatrolName || ''}" required></td>
+                <td><input type="time" name="entries[${index}][timeIn]" value="${formatTimeForInput(entry.TimeIn)}" required></td>
+                <td><input type="time" name="entries[${index}][timeOut]" value="${formatTimeForInput(entry.TimeOut)}" required></td>
+                <td>${index > 0 ? '<button type="button" class="btn btn-danger" onclick="removeEntry(this)">?</button>' : ''}</td>
+            </tr>
+        `).join('');
+        
+        res.send(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <title>Edit Patrol Sheet - ${process.env.APP_NAME}</title>
+                <style>
+                    * { margin: 0; padding: 0; box-sizing: border-box; }
+                    body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; min-height: 100vh; }
+                    .header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: white; padding: 20px 40px; display: flex; justify-content: space-between; align-items: center; }
+                    .header h1 { font-size: 24px; }
+                    .header-nav a { color: white; text-decoration: none; margin-left: 20px; opacity: 0.8; }
+                    .container { max-width: 1000px; margin: 0 auto; padding: 30px 20px; }
+                    .card { background: white; border-radius: 15px; padding: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
+                    .form-section { margin-bottom: 25px; padding-bottom: 25px; border-bottom: 1px solid #eee; }
+                    .section-title { font-size: 16px; font-weight: 600; color: #333; margin-bottom: 15px; display: flex; align-items: center; gap: 8px; }
+                    .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 15px; }
+                    .form-group { display: flex; flex-direction: column; }
+                    .form-group label { font-size: 13px; font-weight: 500; color: #555; margin-bottom: 6px; }
+                    .form-group input, .form-group select { padding: 12px 15px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
+                    .entries-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+                    .entries-table th { background: #f8f9fa; padding: 12px; text-align: left; font-size: 13px; font-weight: 600; }
+                    .entries-table td { padding: 10px 12px; border-bottom: 1px solid #eee; }
+                    .entries-table input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; }
+                    .btn { padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; text-decoration: none; display: inline-block; }
+                    .btn-success { background: #2e7d32; color: white; }
+                    .btn-danger { background: #c62828; color: white; padding: 8px 12px; }
+                    .btn-outline { background: white; border: 2px solid #2e7d32; color: #2e7d32; }
+                    .actions-bar { display: flex; justify-content: space-between; margin-top: 25px; padding-top: 25px; border-top: 1px solid #eee; }
+                    .alert { padding: 15px; border-radius: 8px; margin-bottom: 20px; display: none; background: #ffebee; color: #c62828; }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h1>✏️ Edit Patrol Sheet</h1>
+                    <div class="header-nav">
+                        <a href="/security-services/patrol-sheet/${sheetId}">← Cancel</a>
+                    </div>
+                </div>
+                
+                <div class="container">
+                    <div id="alertBox" class="alert"></div>
+                    <div class="card">
+                        <form id="editForm">
+                            <input type="hidden" id="sheetId" value="${sheetId}">
+                            <div class="form-section">
+                                <div class="section-title">📋 Sheet Information</div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Date *</label>
+                                        <input type="date" id="patrolDate" value="${patrolDate}" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Location *</label>
+                                        <select id="location" required>
+                                            <option value="HO Dbayeh Block A" ${sheet.Location === 'HO Dbayeh Block A' ? 'selected' : ''}>HO Dbayeh Block A</option>
+                                            <option value="HO Dbayeh Block B" ${sheet.Location === 'HO Dbayeh Block B' ? 'selected' : ''}>HO Dbayeh Block B</option>
+                                            <option value="Zouk HO" ${sheet.Location === 'Zouk HO' ? 'selected' : ''}>Zouk HO</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="form-section">
+                                <div class="section-title">🚶 Patrol Entries <button type="button" class="btn btn-outline" onclick="addEntry()" style="margin-left:auto;padding:8px 16px;font-size:13px;">+ Add</button></div>
+                                <table class="entries-table">
+                                    <thead><tr><th>#</th><th>Guard Name</th><th>Patrol Name</th><th>Time In</th><th>Time Out</th><th></th></tr></thead>
+                                    <tbody id="entriesBody">${entryRows}</tbody>
+                                </table>
+                            </div>
+                            
+                            <div class="actions-bar">
+                                <a href="/security-services/patrol-sheet/${sheetId}" class="btn btn-outline">Cancel</a>
+                                <button type="submit" class="btn btn-success">💾 Save Changes</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                <script>
+                    let entryCount = ${entries.length};
+                    
+                    function addEntry() {
+                        entryCount++;
+                        const tbody = document.getElementById('entriesBody');
+                        const row = document.createElement('tr');
+                        row.dataset.row = entryCount;
+                        row.innerHTML = 
+                            '<td>' + entryCount + '</td>' +
+                            '<td><input type="text" name="entries[' + (entryCount-1) + '][guardName]" required></td>' +
+                            '<td><input type="text" name="entries[' + (entryCount-1) + '][patrolName]" required></td>' +
+                            '<td><input type="time" name="entries[' + (entryCount-1) + '][timeIn]" required></td>' +
+                            '<td><input type="time" name="entries[' + (entryCount-1) + '][timeOut]" required></td>' +
+                            '<td><button type="button" class="btn btn-danger" onclick="removeEntry(this)">?</button></td>';
+                        tbody.appendChild(row);
+                    }
+                    
+                    function removeEntry(btn) {
+                        btn.closest('tr').remove();
+                        renumberEntries();
+                    }
+                    
+                    function renumberEntries() {
+                        const rows = document.querySelectorAll('#entriesBody tr');
+                        rows.forEach((row, index) => {
+                            row.querySelector('td:first-child').textContent = index + 1;
+                            row.querySelectorAll('input').forEach(input => {
+                                input.name = input.name.replace(/entries\\[\\d+\\]/, 'entries[' + index + ']');
+                            });
+                        });
+                        entryCount = rows.length;
+                    }
+                    
+                    function showAlert(msg) {
+                        const box = document.getElementById('alertBox');
+                        box.textContent = msg;
+                        box.style.display = 'block';
+                        setTimeout(() => box.style.display = 'none', 5000);
+                    }
+                    
+                    document.getElementById('editForm').addEventListener('submit', async (e) => {
+                        e.preventDefault();
+                        
+                        const entries = [];
+                        document.querySelectorAll('#entriesBody tr').forEach((row, index) => {
+                            const guardName = row.querySelector('input[name="entries[' + index + '][guardName]"]')?.value?.trim();
+                            const patrolName = row.querySelector('input[name="entries[' + index + '][patrolName]"]')?.value?.trim();
+                            const timeIn = row.querySelector('input[name="entries[' + index + '][timeIn]"]')?.value;
+                            const timeOut = row.querySelector('input[name="entries[' + index + '][timeOut]"]')?.value;
+                            
+                            if (guardName && patrolName && timeIn && timeOut) {
+                                entries.push({ guardName, patrolName, timeIn, timeOut });
+                            }
+                        });
+                        
+                        if (entries.length === 0) {
+                            showAlert('Please add at least one patrol entry');
+                            return;
+                        }
+                        
+                        const data = {
+                            sheetId: document.getElementById('sheetId').value,
+                            patrolDate: document.getElementById('patrolDate').value,
+                            location: document.getElementById('location').value,
+                            entries: entries
+                        };
+                        
+                        try {
+                            const res = await fetch('/security-services/patrol-sheet/update', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(data)
+                            });
+                            const result = await res.json();
+                            if (result.success) {
+                                window.location.href = '/security-services/patrol-sheet/' + data.sheetId;
+                            } else {
+                                showAlert(result.error || 'Failed to save changes');
+                            }
+                        } catch (err) {
+                            showAlert('Error: ' + err.message);
+                        }
+                    });
+                </script>
+            </body>
+            </html>
+        `);
+    } catch (err) {
+        console.error('Error loading patrol sheet edit:', err);
+        res.status(500).send('Error: ' + err.message);
+    }
+});
+
+// API: Update Patrol Sheet
+router.post('/update', async (req, res) => {
+    try {
+        const { sheetId, patrolDate, location, entries } = req.body;
+        const user = req.currentUser;
+        
+        if (!sheetId || !patrolDate || !location) {
+            return res.json({ success: false, error: 'Missing required fields' });
+        }
+        
+        if (!entries || !Array.isArray(entries) || entries.length === 0) {
+            return res.json({ success: false, error: 'Please add at least one patrol entry' });
+        }
+        
+        const pool = await sql.connect(dbConfig);
+        
+        // Update main sheet
+        await pool.request()
+            .input('id', sql.Int, sheetId)
+            .input('patrolDate', sql.Date, patrolDate)
+            .input('location', sql.NVarChar, location)
+            .query(`UPDATE Security_PatrolSheets SET PatrolDate = @patrolDate, Location = @location, UpdatedAt = GETDATE() WHERE Id = @id`);
+        
+        // Delete old entries and insert new ones
+        await pool.request().input('sheetId', sql.Int, sheetId).query('DELETE FROM Security_PatrolEntries WHERE PatrolSheetId = @sheetId');
+        
+        for (let i = 0; i < entries.length; i++) {
+            const entry = entries[i];
+            const timeInValue = entry.timeIn.length === 5 ? entry.timeIn + ':00' : entry.timeIn;
+            const timeOutValue = entry.timeOut.length === 5 ? entry.timeOut + ':00' : entry.timeOut;
+            await pool.request()
+                .input('patrolSheetId', sql.Int, sheetId)
+                .input('guardName', sql.NVarChar, entry.guardName)
+                .input('patrolName', sql.NVarChar, entry.patrolName)
+                .input('timeIn', sql.NVarChar, timeInValue)
+                .input('timeOut', sql.NVarChar, timeOutValue)
+                .input('entryOrder', sql.Int, i + 1)
+                .query(`INSERT INTO Security_PatrolEntries (PatrolSheetId, GuardName, PatrolName, TimeIn, TimeOut, EntryOrder) VALUES (@patrolSheetId, @guardName, @patrolName, CAST(@timeIn AS TIME), CAST(@timeOut AS TIME), @entryOrder)`);
+        }
+        
+        await pool.close();
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Error updating patrol sheet:', err);
+        res.json({ success: false, error: err.message });
     }
 });
 

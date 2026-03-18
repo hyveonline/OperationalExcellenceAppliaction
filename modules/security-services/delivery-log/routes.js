@@ -581,7 +581,8 @@ router.get('/', async (req, res) => {
                         }
                         
                         container.innerHTML = data.logs.map(log => {
-                            const logDate = new Date(log.LogDate).toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+                            const dateStr = log.LogDateFormatted || log.LogDate;
+                            const logDate = new Date(dateStr + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
                             const employeeNames = log.EmployeeNames || '-';
                             const deliveryCompanies = log.DeliveryCompanies || '-';
                             const deliveryTimes = log.DeliveryTimes || '-';
@@ -694,6 +695,7 @@ router.get('/list', async (req, res) => {
         
         let query = `
             SELECT dl.*, 
+                   CONVERT(VARCHAR(10), dl.LogDate, 120) as LogDateFormatted,
                    (SELECT COUNT(*) FROM Security_DeliveryLogItems WHERE DeliveryLogId = dl.Id) as ItemCount,
                    (SELECT STRING_AGG(EmployeeName, ', ') FROM Security_DeliveryLogItems WHERE DeliveryLogId = dl.Id) as EmployeeNames,
                    (SELECT STRING_AGG(ReceivedFrom, ', ') FROM (SELECT DISTINCT ReceivedFrom FROM Security_DeliveryLogItems WHERE DeliveryLogId = dl.Id AND ReceivedFrom IS NOT NULL AND ReceivedFrom != '') AS rf) as DeliveryCompanies,
@@ -738,7 +740,7 @@ router.get('/:id', async (req, res) => {
         // Get log details
         const logResult = await pool.request()
             .input('id', sql.Int, logId)
-            .query('SELECT * FROM Security_DeliveryLogs WHERE Id = @id');
+            .query('SELECT *, CONVERT(VARCHAR(10), LogDate, 120) as LogDateFormatted FROM Security_DeliveryLogs WHERE Id = @id');
         
         if (logResult.recordset.length === 0) {
             await pool.close();
@@ -755,7 +757,8 @@ router.get('/:id', async (req, res) => {
         await pool.close();
         
         const items = itemsResult.recordset;
-        const logDateFormatted = new Date(log.LogDate).toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        const dateStr = log.LogDateFormatted || log.LogDate;
+        const logDateFormatted = new Date(dateStr + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
         
         // Helper function to format time correctly
         const formatTime = (timeValue) => {
@@ -972,7 +975,7 @@ router.get('/:id/edit', async (req, res) => {
         
         const logResult = await pool.request()
             .input('id', sql.Int, logId)
-            .query('SELECT * FROM Security_DeliveryLogs WHERE Id = @id');
+            .query('SELECT *, CONVERT(VARCHAR(10), LogDate, 120) as LogDateFormatted FROM Security_DeliveryLogs WHERE Id = @id');
         
         if (logResult.recordset.length === 0) {
             await pool.close();
@@ -980,7 +983,7 @@ router.get('/:id/edit', async (req, res) => {
         }
         
         const log = logResult.recordset[0];
-        const logDate = new Date(log.LogDate).toISOString().split('T')[0];
+        const logDate = log.LogDateFormatted || new Date(log.LogDate).toISOString().split('T')[0];
         
         const itemsResult = await pool.request()
             .input('logId', sql.Int, logId)

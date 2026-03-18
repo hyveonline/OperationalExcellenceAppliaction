@@ -570,18 +570,13 @@ router.get('/', async (req, res) => {
                         }
                         
                         container.innerHTML = data.forms.map(form => {
-                            const formDate = new Date(form.FormDate).toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+                            const dateStr = form.FormDateFormatted || form.FormDate;
+                            const formDate = new Date(dateStr + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
                             const workerNames = form.WorkerNames || '-';
                             const contractorNames = form.ContractorNames || '-';
                             const guardNames = form.GuardNames || '-';
-                            const formatTime = (t) => {
-                                if (!t) return '-';
-                                const str = t.toString();
-                                const match = str.match(/(\d{2}):(\d{2})/);
-                                return match ? match[0] : str.substring(0, 5);
-                            };
-                            const timeIn = formatTime(form.FirstTimeIn);
-                            const timeOut = formatTime(form.LastTimeOut);
+                            const timeIn = form.FirstTimeIn || '-';
+                            const timeOut = form.LastTimeOut || '-';
                             return '<div class="log-item" onclick="viewForm(' + form.Id + ')">' +
                                 '<div class="log-item-header">' +
                                     '<span class="log-item-date">' + formDate + '</span>' +
@@ -698,12 +693,13 @@ router.get('/list', async (req, res) => {
         
         let query = `
             SELECT ef.*, 
+                   CONVERT(VARCHAR(10), ef.FormDate, 120) as FormDateFormatted,
                    (SELECT COUNT(*) FROM Security_EntranceEntries WHERE EntranceFormId = ef.Id) as EntryCount,
                    (SELECT STRING_AGG(FullName, ', ') FROM Security_EntranceEntries WHERE EntranceFormId = ef.Id) as WorkerNames,
                    (SELECT STRING_AGG(Contractor, ', ') FROM (SELECT DISTINCT Contractor FROM Security_EntranceEntries WHERE EntranceFormId = ef.Id AND Contractor IS NOT NULL AND Contractor != '') AS c) as ContractorNames,
                    (SELECT STRING_AGG(GuardName, ', ') FROM (SELECT DISTINCT GuardName FROM Security_EntranceEntries WHERE EntranceFormId = ef.Id) AS g) as GuardNames,
-                   (SELECT MIN(TimeIn) FROM Security_EntranceEntries WHERE EntranceFormId = ef.Id) as FirstTimeIn,
-                   (SELECT MAX(TimeOut) FROM Security_EntranceEntries WHERE EntranceFormId = ef.Id) as LastTimeOut
+                   (SELECT CONVERT(VARCHAR(5), MIN(TimeIn), 108) FROM Security_EntranceEntries WHERE EntranceFormId = ef.Id) as FirstTimeIn,
+                   (SELECT CONVERT(VARCHAR(5), MAX(TimeOut), 108) FROM Security_EntranceEntries WHERE EntranceFormId = ef.Id) as LastTimeOut
             FROM Security_EntranceForms ef
             WHERE ef.Status = 'Active'
         `;
@@ -892,6 +888,13 @@ router.get('/:id', async (req, res) => {
                         text-decoration: none;
                         display: inline-block;
                     }
+                    .btn-primary {
+                        background: #6a1b9a;
+                        color: white;
+                    }
+                    .btn-primary:hover {
+                        background: #4a148c;
+                    }
                     .btn-outline {
                         background: white;
                         border: 2px solid #6a1b9a;
@@ -961,6 +964,7 @@ router.get('/:id', async (req, res) => {
                         </table>
                         
                         <div style="margin-top: 25px; text-align: right;">
+                            <a href="/security-services/entrance-form/${formId}/edit" class="btn btn-primary" style="margin-right: 10px;">✏️ Edit</a>
                             <button class="btn btn-outline" onclick="window.print()">🖨️ Print</button>
                         </div>
                     </div>
@@ -971,6 +975,288 @@ router.get('/:id', async (req, res) => {
     } catch (err) {
         console.error('Error viewing entrance form:', err);
         res.status(500).send('Error: ' + err.message);
+    }
+});
+
+// Edit Entrance Form
+router.get('/:id/edit', async (req, res) => {
+    try {
+        const formId = req.params.id;
+        const user = req.currentUser;
+        const pool = await sql.connect(dbConfig);
+        
+        const formResult = await pool.request()
+            .input('id', sql.Int, formId)
+            .query('SELECT *, CONVERT(VARCHAR(10), FormDate, 120) as FormDateFormatted FROM Security_EntranceForms WHERE Id = @id');
+        
+        if (formResult.recordset.length === 0) {
+            await pool.close();
+            return res.status(404).send('Entrance form not found');
+        }
+        
+        const form = formResult.recordset[0];
+        const formDate = form.FormDateFormatted || new Date(form.FormDate).toISOString().split('T')[0];
+        
+        const entriesResult = await pool.request()
+            .input('formId', sql.Int, formId)
+            .query('SELECT * FROM Security_EntranceEntries WHERE EntranceFormId = @formId ORDER BY EntryOrder');
+        
+        await pool.close();
+        
+        const entries = entriesResult.recordset;
+        
+        const formatTimeForInput = (timeValue) => {
+            if (!timeValue) return '';
+            if (timeValue instanceof Date) {
+                return timeValue.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+            }
+            const timeStr = timeValue.toString();
+            const match = timeStr.match(/(\d{2}:\d{2})/);
+            return match ? match[1] : timeStr.substring(0, 5);
+        };
+        
+        const entryRows = entries.map((entry, index) => `
+            <tr data-row="${index + 1}">
+                <td>${index + 1}</td>
+                <td><input type="text" name="entries[${index}][fullName]" value="${entry.FullName || ''}" required></td>
+                <td><input type="text" name="entries[${index}][contractor]" value="${entry.Contractor || ''}"></td>
+                <td><input type="time" name="entries[${index}][timeIn]" value="${formatTimeForInput(entry.TimeIn)}" required></td>
+                <td><input type="time" name="entries[${index}][timeOut]" value="${formatTimeForInput(entry.TimeOut)}"></td>
+                <td><input type="text" name="entries[${index}][guardName]" value="${entry.GuardName || ''}" required></td>
+                <td>${index > 0 ? '<button type="button" class="btn btn-danger" onclick="removeEntry(this)">✕</button>' : ''}</td>
+            </tr>
+        `).join('');
+        
+        res.send(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <title>Edit Entrance Form - ${process.env.APP_NAME}</title>
+                <style>
+                    * { margin: 0; padding: 0; box-sizing: border-box; }
+                    body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; min-height: 100vh; }
+                    .header { background: linear-gradient(135deg, #6a1b9a 0%, #4a148c 100%); color: white; padding: 20px 40px; display: flex; justify-content: space-between; align-items: center; }
+                    .header h1 { font-size: 24px; }
+                    .header-nav a { color: white; text-decoration: none; margin-left: 20px; opacity: 0.8; }
+                    .container { max-width: 1100px; margin: 0 auto; padding: 30px 20px; }
+                    .card { background: white; border-radius: 15px; padding: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
+                    .form-section { margin-bottom: 25px; padding-bottom: 25px; border-bottom: 1px solid #eee; }
+                    .section-title { font-size: 16px; font-weight: 600; color: #333; margin-bottom: 15px; display: flex; align-items: center; gap: 8px; }
+                    .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 15px; }
+                    .form-group { display: flex; flex-direction: column; }
+                    .form-group label { font-size: 13px; font-weight: 500; color: #555; margin-bottom: 6px; }
+                    .form-group input, .form-group select { padding: 12px 15px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
+                    .entries-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+                    .entries-table th { background: #f8f9fa; padding: 12px; text-align: left; font-size: 13px; font-weight: 600; }
+                    .entries-table td { padding: 10px 12px; border-bottom: 1px solid #eee; }
+                    .entries-table input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; }
+                    .btn { padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; text-decoration: none; display: inline-block; }
+                    .btn-success { background: #6a1b9a; color: white; }
+                    .btn-danger { background: #c62828; color: white; padding: 8px 12px; }
+                    .btn-outline { background: white; border: 2px solid #6a1b9a; color: #6a1b9a; }
+                    .actions-bar { display: flex; justify-content: space-between; margin-top: 25px; padding-top: 25px; border-top: 1px solid #eee; }
+                    .alert { padding: 15px; border-radius: 8px; margin-bottom: 20px; display: none; background: #ffebee; color: #c62828; }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h1>✏️ Edit Entrance Form</h1>
+                    <div class="header-nav">
+                        <a href="/security-services/entrance-form/${formId}">← Cancel</a>
+                    </div>
+                </div>
+                
+                <div class="container">
+                    <div id="alertBox" class="alert"></div>
+                    <div class="card">
+                        <form id="editForm">
+                            <input type="hidden" id="formId" value="${formId}">
+                            <div class="form-section">
+                                <div class="section-title">📋 Form Information</div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Date *</label>
+                                        <input type="date" id="formDate" value="${formDate}" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Entrance *</label>
+                                        <select id="entrance" required>
+                                            <option value="Main Gate" ${form.Entrance === 'Main Gate' ? 'selected' : ''}>Main Gate</option>
+                                            <option value="Back Gate" ${form.Entrance === 'Back Gate' ? 'selected' : ''}>Back Gate</option>
+                                            <option value="Side Gate" ${form.Entrance === 'Side Gate' ? 'selected' : ''}>Side Gate</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Location *</label>
+                                        <select id="location" required>
+                                            <option value="HO Dbayeh Block A" ${form.Location === 'HO Dbayeh Block A' ? 'selected' : ''}>HO Dbayeh Block A</option>
+                                            <option value="HO Dbayeh Block B" ${form.Location === 'HO Dbayeh Block B' ? 'selected' : ''}>HO Dbayeh Block B</option>
+                                            <option value="Zouk HO" ${form.Location === 'Zouk HO' ? 'selected' : ''}>Zouk HO</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="form-section">
+                                <div class="section-title">👷 Worker Entries <button type="button" class="btn btn-outline" onclick="addEntry()" style="margin-left:auto;padding:8px 16px;font-size:13px;">+ Add</button></div>
+                                <table class="entries-table">
+                                    <thead><tr><th>#</th><th>Full Name</th><th>Contractor</th><th>Time In</th><th>Time Out</th><th>Guard Name</th><th></th></tr></thead>
+                                    <tbody id="entriesBody">${entryRows}</tbody>
+                                </table>
+                            </div>
+                            
+                            <div class="actions-bar">
+                                <a href="/security-services/entrance-form/${formId}" class="btn btn-outline">Cancel</a>
+                                <button type="submit" class="btn btn-success">💾 Save Changes</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                <script>
+                    let entryCount = ${entries.length};
+                    
+                    function addEntry() {
+                        entryCount++;
+                        const tbody = document.getElementById('entriesBody');
+                        const row = document.createElement('tr');
+                        row.dataset.row = entryCount;
+                        row.innerHTML = 
+                            '<td>' + entryCount + '</td>' +
+                            '<td><input type="text" name="entries[' + (entryCount-1) + '][fullName]" required></td>' +
+                            '<td><input type="text" name="entries[' + (entryCount-1) + '][contractor]"></td>' +
+                            '<td><input type="time" name="entries[' + (entryCount-1) + '][timeIn]" required></td>' +
+                            '<td><input type="time" name="entries[' + (entryCount-1) + '][timeOut]"></td>' +
+                            '<td><input type="text" name="entries[' + (entryCount-1) + '][guardName]" required></td>' +
+                            '<td><button type="button" class="btn btn-danger" onclick="removeEntry(this)">✕</button></td>';
+                        tbody.appendChild(row);
+                    }
+                    
+                    function removeEntry(btn) {
+                        btn.closest('tr').remove();
+                        renumberEntries();
+                    }
+                    
+                    function renumberEntries() {
+                        const rows = document.querySelectorAll('#entriesBody tr');
+                        rows.forEach((row, index) => {
+                            row.querySelector('td:first-child').textContent = index + 1;
+                            row.querySelectorAll('input').forEach(input => {
+                                input.name = input.name.replace(/entries\\[\\d+\\]/, 'entries[' + index + ']');
+                            });
+                        });
+                        entryCount = rows.length;
+                    }
+                    
+                    function showAlert(msg) {
+                        const box = document.getElementById('alertBox');
+                        box.textContent = msg;
+                        box.style.display = 'block';
+                        setTimeout(() => box.style.display = 'none', 5000);
+                    }
+                    
+                    document.getElementById('editForm').addEventListener('submit', async (e) => {
+                        e.preventDefault();
+                        
+                        const entries = [];
+                        document.querySelectorAll('#entriesBody tr').forEach((row, index) => {
+                            const fullName = row.querySelector('input[name="entries[' + index + '][fullName]"]')?.value?.trim();
+                            const contractor = row.querySelector('input[name="entries[' + index + '][contractor]"]')?.value?.trim();
+                            const timeIn = row.querySelector('input[name="entries[' + index + '][timeIn]"]')?.value;
+                            const timeOut = row.querySelector('input[name="entries[' + index + '][timeOut]"]')?.value;
+                            const guardName = row.querySelector('input[name="entries[' + index + '][guardName]"]')?.value?.trim();
+                            
+                            if (fullName && timeIn && guardName) {
+                                entries.push({ fullName, contractor, timeIn, timeOut, guardName });
+                            }
+                        });
+                        
+                        if (entries.length === 0) {
+                            showAlert('Please add at least one worker entry');
+                            return;
+                        }
+                        
+                        const data = {
+                            formId: document.getElementById('formId').value,
+                            formDate: document.getElementById('formDate').value,
+                            entrance: document.getElementById('entrance').value,
+                            location: document.getElementById('location').value,
+                            entries: entries
+                        };
+                        
+                        try {
+                            const res = await fetch('/security-services/entrance-form/update', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(data)
+                            });
+                            const result = await res.json();
+                            if (result.success) {
+                                window.location.href = '/security-services/entrance-form/' + data.formId;
+                            } else {
+                                showAlert(result.error || 'Failed to save changes');
+                            }
+                        } catch (err) {
+                            showAlert('Error: ' + err.message);
+                        }
+                    });
+                </script>
+            </body>
+            </html>
+        `);
+    } catch (err) {
+        console.error('Error loading entrance form edit:', err);
+        res.status(500).send('Error: ' + err.message);
+    }
+});
+
+// API: Update Entrance Form
+router.post('/update', async (req, res) => {
+    try {
+        const { formId, formDate, entrance, location, entries } = req.body;
+        const user = req.currentUser;
+        
+        if (!formId || !formDate || !entrance || !location) {
+            return res.json({ success: false, error: 'Missing required fields' });
+        }
+        
+        if (!entries || !Array.isArray(entries) || entries.length === 0) {
+            return res.json({ success: false, error: 'Please add at least one worker entry' });
+        }
+        
+        const pool = await sql.connect(dbConfig);
+        
+        // Update main form
+        await pool.request()
+            .input('id', sql.Int, formId)
+            .input('formDate', sql.Date, formDate)
+            .input('entrance', sql.NVarChar, entrance)
+            .input('location', sql.NVarChar, location)
+            .query(`UPDATE Security_EntranceForms SET FormDate = @formDate, Entrance = @entrance, Location = @location, UpdatedAt = GETDATE() WHERE Id = @id`);
+        
+        // Delete old entries and insert new ones
+        await pool.request().input('formId', sql.Int, formId).query('DELETE FROM Security_EntranceEntries WHERE EntranceFormId = @formId');
+        
+        for (let i = 0; i < entries.length; i++) {
+            const entry = entries[i];
+            const timeInValue = entry.timeIn.length === 5 ? entry.timeIn + ':00' : entry.timeIn;
+            const timeOutValue = entry.timeOut ? (entry.timeOut.length === 5 ? entry.timeOut + ':00' : entry.timeOut) : null;
+            await pool.request()
+                .input('entranceFormId', sql.Int, formId)
+                .input('fullName', sql.NVarChar, entry.fullName)
+                .input('contractor', sql.NVarChar, entry.contractor || '')
+                .input('timeIn', sql.NVarChar, timeInValue)
+                .input('timeOut', sql.NVarChar, timeOutValue)
+                .input('guardName', sql.NVarChar, entry.guardName)
+                .input('entryOrder', sql.Int, i + 1)
+                .query(`INSERT INTO Security_EntranceEntries (EntranceFormId, FullName, Contractor, TimeIn, TimeOut, GuardName, EntryOrder) VALUES (@entranceFormId, @fullName, @contractor, CAST(@timeIn AS TIME), ${timeOutValue ? 'CAST(@timeOut AS TIME)' : 'NULL'}, @guardName, @entryOrder)`);
+        }
+        
+        await pool.close();
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Error updating entrance form:', err);
+        res.json({ success: false, error: err.message });
     }
 });
 
