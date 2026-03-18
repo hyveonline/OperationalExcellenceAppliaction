@@ -462,7 +462,7 @@ router.get('/', async (req, res) => {
                         
                         <a href="/security/cleaning-reference" class="dashboard-card cleaning">
                             <div class="card-icon">&#129529;</div>
-                            <div class="card-title">Cleaning Reference</div>
+                            <div class="card-title">HO Dbayeh & Zouk Toilets and Canteens Checklist</div>
                             <div class="card-desc">Configure locations, categories, and cleaning items for facility checklist</div>
                             <div class="card-stats">
                                 <div class="stat-item">
@@ -488,7 +488,7 @@ router.get('/', async (req, res) => {
                         
                         <a href="/security/weekly-schedule" class="dashboard-card weekly">
                             <div class="card-icon">📆</div>
-                            <div class="card-title">Weekly Schedule</div>
+                            <div class="card-title">Daily Cleaning Checklist - Head Office Dbayeh</div>
                             <div class="card-desc">Configure weekly cleaning schedule shifts, time slots, and agent assignments</div>
                             <div class="card-stats">
                                 <div class="stat-item">
@@ -1365,11 +1365,6 @@ router.get('/entrance-forms', async (req, res) => {
                         <div class="filter-row">
                             <input type="date" id="filterFromDate" onchange="filterEntrance()" placeholder="From Date">
                             <input type="date" id="filterToDate" onchange="filterEntrance()" placeholder="To Date">
-                            <select id="filterEntrance" onchange="filterEntrance()">
-                                <option value="">All Entrances</option>
-                                <option value="Lower Entrance">Lower Entrance</option>
-                                <option value="Upper Entrance">Upper Entrance</option>
-                            </select>
                             <select id="filterLocation" onchange="filterEntrance()">
                                 <option value="">All Locations</option>
                                 <option value="HO Dbayeh">HO Dbayeh</option>
@@ -1412,13 +1407,11 @@ router.get('/entrance-forms', async (req, res) => {
                     async function filterEntrance() {
                         const fromDate = document.getElementById('filterFromDate').value;
                         const toDate = document.getElementById('filterToDate').value;
-                        const entrance = document.getElementById('filterEntrance').value;
                         const location = document.getElementById('filterLocation').value;
                         
                         let url = '/security/api/entrance-forms?';
                         if (fromDate) url += 'fromDate=' + fromDate + '&';
                         if (toDate) url += 'toDate=' + toDate + '&';
-                        if (entrance) url += 'entrance=' + encodeURIComponent(entrance) + '&';
                         if (location) url += 'location=' + encodeURIComponent(location);
                         
                         try {
