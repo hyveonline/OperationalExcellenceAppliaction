@@ -584,6 +584,7 @@ router.get('/', async (req, res) => {
                             const logDate = new Date(log.LogDate).toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
                             const employeeNames = log.EmployeeNames || '-';
                             const deliveryCompanies = log.DeliveryCompanies || '-';
+                            const deliveryTimes = log.DeliveryTimes || '-';
                             return '<div class="log-item" onclick="viewLog(' + log.Id + ')">' +
                                 '<div class="log-item-header">' +
                                     '<span class="log-item-date">' + logDate + '</span>' +
@@ -595,6 +596,9 @@ router.get('/', async (req, res) => {
                                 '</div>' +
                                 '<div class="log-item-meta" style="margin-top: 5px;">' +
                                     '<span>👤 Employees: ' + employeeNames + '</span>' +
+                                '</div>' +
+                                '<div class="log-item-meta" style="margin-top: 5px;">' +
+                                    '<span>🕐 Times: ' + deliveryTimes + '</span>' +
                                 '</div>' +
                                 '<div class="log-item-meta" style="margin-top: 5px;">' +
                                     '<span>🚚 From: ' + deliveryCompanies + '</span>' +
@@ -692,7 +696,8 @@ router.get('/list', async (req, res) => {
             SELECT dl.*, 
                    (SELECT COUNT(*) FROM Security_DeliveryLogItems WHERE DeliveryLogId = dl.Id) as ItemCount,
                    (SELECT STRING_AGG(EmployeeName, ', ') FROM Security_DeliveryLogItems WHERE DeliveryLogId = dl.Id) as EmployeeNames,
-                   (SELECT STRING_AGG(ReceivedFrom, ', ') FROM (SELECT DISTINCT ReceivedFrom FROM Security_DeliveryLogItems WHERE DeliveryLogId = dl.Id AND ReceivedFrom IS NOT NULL AND ReceivedFrom != '') AS rf) as DeliveryCompanies
+                   (SELECT STRING_AGG(ReceivedFrom, ', ') FROM (SELECT DISTINCT ReceivedFrom FROM Security_DeliveryLogItems WHERE DeliveryLogId = dl.Id AND ReceivedFrom IS NOT NULL AND ReceivedFrom != '') AS rf) as DeliveryCompanies,
+                   (SELECT STRING_AGG(CONVERT(VARCHAR(5), DeliveryTime, 108), ', ') WITHIN GROUP (ORDER BY ItemOrder) FROM Security_DeliveryLogItems WHERE DeliveryLogId = dl.Id) as DeliveryTimes
             FROM Security_DeliveryLogs dl
             WHERE dl.Status = 'Active'
         `;
@@ -1149,8 +1154,7 @@ router.post('/update', async (req, res) => {
             .input('logDate', sql.Date, logDate)
             .input('premises', sql.NVarChar, premises)
             .input('filledBy', sql.NVarChar, filledBy)
-            .input('updatedBy', sql.Int, user.id)
-            .query(`UPDATE Security_DeliveryLogs SET LogDate = @logDate, Premises = @premises, FilledBy = @filledBy, UpdatedAt = GETDATE(), UpdatedBy = @updatedBy WHERE Id = @id`);
+            .query(`UPDATE Security_DeliveryLogs SET LogDate = @logDate, Premises = @premises, FilledBy = @filledBy, UpdatedAt = GETDATE() WHERE Id = @id`);
         
         await pool.request().input('logId', sql.Int, logId).query('DELETE FROM Security_DeliveryLogItems WHERE DeliveryLogId = @logId');
         
