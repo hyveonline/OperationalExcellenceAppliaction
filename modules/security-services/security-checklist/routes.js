@@ -1248,14 +1248,14 @@ router.get('/:id/edit', async (req, res) => {
         const entryId = req.params.id;
         let pool = await sql.connect(dbConfig);
         
-        // Get entry details
+        // Get entry details with subcategory shift info
         const entryResult = await pool.request()
             .input('id', sql.Int, entryId)
             .query(`
-                SELECT e.*, l.Name as LocationName, sc.Name as SubCategoryName
+                SELECT e.*, l.LocationName, sc.SubCategoryName, sc.LocationId, sc.HasAMShift, sc.HasPMShift
                 FROM Security_Checklist_Entries e
-                JOIN Security_Checklist_Locations l ON e.LocationId = l.Id
                 JOIN Security_Checklist_SubCategories sc ON e.SubCategoryId = sc.Id
+                JOIN Security_Checklist_Locations l ON sc.LocationId = l.Id
                 WHERE e.Id = @id
             `);
         
@@ -1270,44 +1270,38 @@ router.get('/:id/edit', async (req, res) => {
         // Get items for this subcategory
         const itemsResult = await pool.request()
             .input('subCategoryId', sql.Int, entry.SubCategoryId)
-            .query('SELECT * FROM Security_Checklist_Items WHERE SubCategoryId = @subCategoryId AND IsActive = 1 ORDER BY SortOrder');
+            .query('SELECT * FROM Security_Checklist_Items WHERE SubCategoryId = @subCategoryId AND IsActive = 1 ORDER BY SortOrder, ItemName');
         
         // Get existing details
         const detailsResult = await pool.request()
             .input('entryId', sql.Int, entryId)
-            .query('SELECT * FROM Security_Checklist_EntryDetails WHERE EntryId = @entryId');
+            .query('SELECT ItemId, DayOfWeek, AMChecked, PMChecked FROM Security_Checklist_EntryDetails WHERE EntryId = @entryId');
         
         await pool.close();
         
         const items = itemsResult.recordset;
         const details = detailsResult.recordset;
         
-        // Create lookup for existing details
-        const detailsMap = {};
-        details.forEach(d => {
-            const key = d.ItemId + '_' + d.DayIndex + '_' + d.ShiftId;
-            detailsMap[key] = d;
-        });
-        
-        const days = ['Sat', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
-        const shifts = [
-            { id: 1, name: 'A (7-15)' },
-            { id: 2, name: 'B (15-23)' },
-            { id: 3, name: 'C (23-7)' }
-        ];
+        const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
         
         // Build items HTML
         let itemsHtml = '';
         items.forEach(item => {
-            let row = '<tr><td class="item-cell">' + item.Name + '</td>';
-            days.forEach((_, dayIdx) => {
-                shifts.forEach(shift => {
-                    const key = item.Id + '_' + dayIdx + '_' + shift.id;
-                    const detail = detailsMap[key];
-                    const isChecked = detail ? detail.IsChecked : false;
-                    row += '<td class="shift-cell"><input type="checkbox" name="checks" data-item="'+item.Id+'" data-day="'+dayIdx+'" data-shift="'+shift.id+'" '+(isChecked ? 'checked' : '')+'></td>';
-                });
-            });
+            let row = '<tr><td class="item-cell">' + item.ItemName + (item.ExpectedCount ? ' <span class="expected">(' + item.ExpectedCount + ')</span>' : '') + '</td>';
+            for (let d = 1; d <= 7; d++) {
+                const detail = details.find(det => det.ItemId === item.Id && det.DayOfWeek === d);
+                const amChecked = detail ? detail.AMChecked : false;
+                const pmChecked = detail ? detail.PMChecked : false;
+                
+                row += '<td class="shift-cell">';
+                if (entry.HasAMShift) {
+                    row += '<label class="check-label"><input type="checkbox" name="am_' + item.Id + '_' + d + '" ' + (amChecked ? 'checked' : '') + '> AM</label>';
+                }
+                if (entry.HasPMShift) {
+                    row += '<label class="check-label"><input type="checkbox" name="pm_' + item.Id + '_' + d + '" ' + (pmChecked ? 'checked' : '') + '> PM</label>';
+                }
+                row += '</td>';
+            }
             row += '</tr>';
             itemsHtml += row;
         });
@@ -1324,17 +1318,20 @@ router.get('/:id/edit', async (req, res) => {
                     .header { background: linear-gradient(135deg, #1565c0 0%, #0d47a1 100%); color: white; padding: 20px 40px; display: flex; justify-content: space-between; align-items: center; }
                     .header h1 { font-size: 22px; }
                     .header a { color: white; text-decoration: none; opacity: 0.8; }
-                    .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+                    .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
                     .card { background: white; border-radius: 15px; padding: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); margin-bottom: 20px; }
                     .info-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 20px; }
                     .info-item label { display: block; font-size: 12px; color: #888; }
                     .info-item span { font-size: 16px; font-weight: 600; }
                     table { width: 100%; border-collapse: collapse; font-size: 13px; }
-                    th, td { border: 1px solid #e0e0e0; padding: 8px; text-align: center; }
+                    th, td { border: 1px solid #e0e0e0; padding: 10px; text-align: center; }
                     th { background: #f8f9fa; font-weight: 600; }
-                    .item-cell { text-align: left; background: #fafafa; min-width: 180px; }
+                    .item-cell { text-align: left; background: #fafafa; min-width: 200px; }
+                    .item-cell .expected { color: #888; font-size: 11px; }
                     .day-header { background: #e3f2fd; }
-                    .shift-cell { padding: 5px; }
+                    .shift-cell { padding: 8px; }
+                    .check-label { display: block; font-size: 12px; margin: 3px 0; cursor: pointer; }
+                    .check-label input { margin-right: 4px; }
                     .actions { display: flex; justify-content: space-between; margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; }
                     .btn { padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; text-decoration: none; }
                     .btn-success { background: #2e7d32; color: white; }
@@ -1346,7 +1343,7 @@ router.get('/:id/edit', async (req, res) => {
             <body>
                 <div class="header">
                     <h1>✏️ Edit Security Checklist</h1>
-                    <a href="/security-services/security-checklist/${entryId}">← Cancel</a>
+                    <a href="/security-services/security-checklist/view/${entryId}">← Cancel</a>
                 </div>
                 <div class="container">
                     <div id="alertBox" class="alert"></div>
@@ -1360,15 +1357,12 @@ router.get('/:id/edit', async (req, res) => {
                     </div>
                     <form id="editForm">
                         <input type="hidden" id="entryId" value="${entryId}">
-                        <div class="card">
+                        <div class="card" style="overflow-x: auto;">
                             <table>
                                 <thead>
                                     <tr>
-                                        <th rowspan="2">Checklist Item</th>
-                                        ${days.map(d => '<th class="day-header" colspan="3">' + d + '</th>').join('')}
-                                    </tr>
-                                    <tr>
-                                        ${days.map(() => shifts.map(s => '<th style="font-size:10px;">' + s.name + '</th>').join('')).join('')}
+                                        <th>Checklist Item</th>
+                                        ${days.map(d => '<th class="day-header">' + d + '</th>').join('')}
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1381,7 +1375,7 @@ router.get('/:id/edit', async (req, res) => {
                             </div>
                         </div>
                         <div class="actions">
-                            <a href="/security-services/security-checklist/${entryId}" class="btn btn-outline">Cancel</a>
+                            <a href="/security-services/security-checklist/view/${entryId}" class="btn btn-outline">Cancel</a>
                             <button type="submit" class="btn btn-success">💾 Save Changes</button>
                         </div>
                     </form>
@@ -1389,19 +1383,43 @@ router.get('/:id/edit', async (req, res) => {
                 <script>
                     document.getElementById('editForm').addEventListener('submit', async (e) => {
                         e.preventDefault();
-                        const checks = [];
-                        document.querySelectorAll('input[name="checks"]').forEach(cb => {
-                            checks.push({ itemId: parseInt(cb.dataset.item), dayIndex: parseInt(cb.dataset.day), shiftId: parseInt(cb.dataset.shift), isChecked: cb.checked });
+                        const entries = [];
+                        const items = ${JSON.stringify(items.map(i => i.Id))};
+                        
+                        items.forEach(itemId => {
+                            for (let day = 1; day <= 7; day++) {
+                                const amCb = document.querySelector('input[name="am_' + itemId + '_' + day + '"]');
+                                const pmCb = document.querySelector('input[name="pm_' + itemId + '_' + day + '"]');
+                                entries.push({
+                                    itemId: itemId,
+                                    dayOfWeek: day,
+                                    amChecked: amCb ? amCb.checked : false,
+                                    pmChecked: pmCb ? pmCb.checked : false
+                                });
+                            }
                         });
+                        
                         try {
                             const res = await fetch('/security-services/security-checklist/update', {
-                                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ entryId: document.getElementById('entryId').value, notes: document.getElementById('notes').value, checks: checks })
+                                method: 'POST', 
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ 
+                                    entryId: document.getElementById('entryId').value, 
+                                    notes: document.getElementById('notes').value, 
+                                    entries: entries 
+                                })
                             });
                             const result = await res.json();
-                            if (result.success) window.location.href = '/security-services/security-checklist/' + document.getElementById('entryId').value;
-                            else { document.getElementById('alertBox').textContent = result.error; document.getElementById('alertBox').style.display = 'block'; }
-                        } catch (err) { document.getElementById('alertBox').textContent = err.message; document.getElementById('alertBox').style.display = 'block'; }
+                            if (result.success) {
+                                window.location.href = '/security-services/security-checklist/view/' + document.getElementById('entryId').value;
+                            } else { 
+                                document.getElementById('alertBox').textContent = result.error; 
+                                document.getElementById('alertBox').style.display = 'block'; 
+                            }
+                        } catch (err) { 
+                            document.getElementById('alertBox').textContent = err.message; 
+                            document.getElementById('alertBox').style.display = 'block'; 
+                        }
                     });
                 </script>
             </body>
@@ -1416,27 +1434,31 @@ router.get('/:id/edit', async (req, res) => {
 // API: Update Security Checklist
 router.post('/update', async (req, res) => {
     try {
-        const { entryId, notes, checks } = req.body;
+        const { entryId, notes, entries } = req.body;
         const user = req.currentUser;
         let pool = await sql.connect(dbConfig);
         
+        // Update notes
         await pool.request()
             .input('id', sql.Int, entryId)
             .input('notes', sql.NVarChar, notes || '')
-            .input('updatedBy', sql.Int, user.id)
-            .query('UPDATE Security_Checklist_Entries SET Notes = @notes, UpdatedAt = GETDATE(), UpdatedBy = @updatedBy WHERE Id = @id');
+            .query('UPDATE Security_Checklist_Entries SET Notes = @notes, UpdatedAt = GETDATE() WHERE Id = @id');
         
-        await pool.request().input('entryId', sql.Int, entryId).query('DELETE FROM Security_Checklist_EntryDetails WHERE EntryId = @entryId');
+        // Delete existing details
+        await pool.request()
+            .input('entryId', sql.Int, entryId)
+            .query('DELETE FROM Security_Checklist_EntryDetails WHERE EntryId = @entryId');
         
-        for (const check of checks) {
-            if (check.isChecked) {
+        // Insert new details
+        for (const entry of entries) {
+            if (entry.amChecked || entry.pmChecked) {
                 await pool.request()
                     .input('entryId', sql.Int, entryId)
-                    .input('itemId', sql.Int, check.itemId)
-                    .input('dayIndex', sql.Int, check.dayIndex)
-                    .input('shiftId', sql.Int, check.shiftId)
-                    .input('isChecked', sql.Bit, 1)
-                    .query('INSERT INTO Security_Checklist_EntryDetails (EntryId, ItemId, DayIndex, ShiftId, IsChecked) VALUES (@entryId, @itemId, @dayIndex, @shiftId, @isChecked)');
+                    .input('itemId', sql.Int, entry.itemId)
+                    .input('dayOfWeek', sql.Int, entry.dayOfWeek)
+                    .input('amChecked', sql.Bit, entry.amChecked ? 1 : 0)
+                    .input('pmChecked', sql.Bit, entry.pmChecked ? 1 : 0)
+                    .query('INSERT INTO Security_Checklist_EntryDetails (EntryId, ItemId, DayOfWeek, AMChecked, PMChecked) VALUES (@entryId, @itemId, @dayOfWeek, @amChecked, @pmChecked)');
             }
         }
         
