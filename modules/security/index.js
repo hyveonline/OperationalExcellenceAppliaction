@@ -2207,9 +2207,11 @@ router.get('/parking-violations', async (req, res) => {
         
         const violationsResult = await pool.request()
             .query(`
-                SELECT * FROM Security_ParkingViolations
-                WHERE Status = 'Active'
-                ORDER BY ViolationDate DESC, CreatedAt DESC
+                SELECT pv.*, 
+                       (SELECT COUNT(*) FROM Security_ParkingViolation_Images WHERE ViolationId = pv.Id) as ImageCount
+                FROM Security_ParkingViolations pv
+                WHERE pv.Status = 'Active'
+                ORDER BY pv.ViolationDate DESC, pv.CreatedAt DESC
             `);
         
         await pool.close();
@@ -2220,7 +2222,7 @@ router.get('/parking-violations', async (req, res) => {
             const violationDate = new Date(v.ViolationDate).toLocaleDateString('en-GB', { 
                 weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' 
             });
-            const hasImage = v.ImagePath ? '<span class="has-photo">&#128247; Photo</span>' : '<span class="no-photo">No photo</span>';
+            const hasImage = (v.ImagePath || v.ImageCount > 0) ? '<span class="has-photo">&#128247; Photo</span>' : '<span class="no-photo">No photo</span>';
             return `
                 <tr onclick="viewViolation(${v.Id})" style="cursor: pointer;">
                     <td>${violationDate}</td>
@@ -2466,7 +2468,7 @@ router.get('/parking-violations', async (req, res) => {
                                 const violationDate = new Date(v.ViolationDate).toLocaleDateString('en-GB', { 
                                     weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' 
                                 });
-                                const hasImage = v.ImagePath ? '<span class="has-photo">&#128247; Photo</span>' : '<span class="no-photo">No photo</span>';
+                                const hasImage = (v.ImagePath || v.ImageCount > 0) ? '<span class="has-photo">&#128247; Photo</span>' : '<span class="no-photo">No photo</span>';
                                 return '<tr onclick="viewViolation(' + v.Id + ')" style="cursor: pointer;">' +
                                     '<td>' + violationDate + '</td>' +
                                     '<td><span class="location-badge">' + v.Location + '</span></td>' +
@@ -2501,26 +2503,28 @@ router.get('/api/parking-violations', async (req, res) => {
         const pool = await sql.connect(dbConfig);
         
         let query = `
-            SELECT * FROM Security_ParkingViolations
-            WHERE Status = 'Active'
+            SELECT pv.*, 
+                   (SELECT COUNT(*) FROM Security_ParkingViolation_Images WHERE ViolationId = pv.Id) as ImageCount
+            FROM Security_ParkingViolations pv
+            WHERE pv.Status = 'Active'
         `;
         
         const request = pool.request();
         
         if (fromDate) {
-            query += ' AND ViolationDate >= @fromDate';
+            query += ' AND pv.ViolationDate >= @fromDate';
             request.input('fromDate', sql.Date, fromDate);
         }
         if (toDate) {
-            query += ' AND ViolationDate <= @toDate';
+            query += ' AND pv.ViolationDate <= @toDate';
             request.input('toDate', sql.Date, toDate);
         }
         if (location) {
-            query += ' AND Location = @location';
+            query += ' AND pv.Location = @location';
             request.input('location', sql.NVarChar, location);
         }
         
-        query += ' ORDER BY ViolationDate DESC, CreatedAt DESC';
+        query += ' ORDER BY pv.ViolationDate DESC, pv.CreatedAt DESC';
         
         const result = await request.query(query);
         await pool.close();

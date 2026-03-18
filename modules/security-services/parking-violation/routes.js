@@ -729,6 +729,37 @@ router.get('/:id', async (req, res) => {
                         font-size: 40px;
                         cursor: pointer;
                     }
+                    .btn {
+                        padding: 10px 20px;
+                        border: none;
+                        border-radius: 8px;
+                        cursor: pointer;
+                        font-size: 14px;
+                        text-decoration: none;
+                        display: inline-block;
+                        font-weight: 500;
+                    }
+                    .btn-primary {
+                        background: #c62828;
+                        color: white;
+                    }
+                    .btn-primary:hover {
+                        background: #b71c1c;
+                    }
+                    .btn-outline {
+                        background: white;
+                        border: 2px solid #c62828;
+                        color: #c62828;
+                    }
+                    .btn-outline:hover {
+                        background: #ffebee;
+                    }
+                    .actions-bar {
+                        margin-top: 25px;
+                        padding-top: 20px;
+                        border-top: 1px solid #eee;
+                        text-align: right;
+                    }
                 </style>
             </head>
             <body>
@@ -776,6 +807,11 @@ router.get('/:id', async (req, res) => {
                         <div class="footer-info">
                             Report created on ${new Date(violation.CreatedAt).toLocaleString('en-GB')}
                         </div>
+                        
+                        <div class="actions-bar">
+                            <a href="/security-services/parking-violation/${violationId}/edit" class="btn btn-primary" style="margin-right: 10px;">✏️ Edit</a>
+                            <button class="btn btn-outline" onclick="window.print()">🖨️ Print</button>
+                        </div>
                     </div>
                 </div>
                 
@@ -803,6 +839,378 @@ router.get('/:id', async (req, res) => {
         console.error('Error loading parking violation:', err);
         if (pool) await pool.close();
         res.status(500).send('Error: ' + err.message);
+    }
+});
+
+// Edit Parking Violation
+router.get('/:id/edit', async (req, res) => {
+    const user = req.currentUser;
+    const violationId = req.params.id;
+    
+    let pool;
+    try {
+        pool = await sql.connect(dbConfig);
+        
+        const result = await pool.request()
+            .input('id', sql.Int, violationId)
+            .query(`SELECT *, CONVERT(VARCHAR(10), ViolationDate, 120) as ViolationDateFormatted FROM Security_ParkingViolations WHERE Id = @id`);
+        
+        if (result.recordset.length === 0) {
+            await pool.close();
+            return res.status(404).send('Violation not found');
+        }
+        
+        // Get all images for this violation
+        const imagesResult = await pool.request()
+            .input('violationId', sql.Int, violationId)
+            .query(`SELECT Id, ImagePath FROM Security_ParkingViolation_Images WHERE ViolationId = @violationId ORDER BY Id`);
+        
+        await pool.close();
+        
+        const violation = result.recordset[0];
+        const images = imagesResult.recordset;
+        const violationDate = violation.ViolationDateFormatted || new Date(violation.ViolationDate).toISOString().split('T')[0];
+        
+        // Build existing images HTML
+        let existingImagesHtml = '';
+        if (images.length > 0) {
+            existingImagesHtml = images.map(img => `
+                <div class="existing-image" data-id="${img.Id}">
+                    <img src="${img.ImagePath}" alt="Photo">
+                    <button type="button" class="remove-image" onclick="removeExistingImage(${img.Id}, this)">✕</button>
+                </div>
+            `).join('');
+        }
+        
+        res.send(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <title>Edit Parking Violation - ${process.env.APP_NAME}</title>
+                <style>
+                    * { margin: 0; padding: 0; box-sizing: border-box; }
+                    body { 
+                        font-family: 'Segoe UI', Arial, sans-serif; 
+                        background: linear-gradient(135deg, #c62828 0%, #b71c1c 100%);
+                        min-height: 100vh;
+                        padding: 20px;
+                    }
+                    .container { max-width: 800px; margin: 0 auto; }
+                    .header {
+                        background: rgba(255,255,255,0.95);
+                        border-radius: 15px;
+                        padding: 25px 30px;
+                        margin-bottom: 20px;
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+                    }
+                    .header h1 { color: #333; font-size: 24px; }
+                    .header-nav a { color: #c62828; text-decoration: none; font-weight: 500; margin-left: 20px; }
+                    .form-card {
+                        background: white;
+                        border-radius: 15px;
+                        padding: 30px;
+                        box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+                    }
+                    .form-row {
+                        display: grid;
+                        grid-template-columns: repeat(2, 1fr);
+                        gap: 20px;
+                        margin-bottom: 25px;
+                    }
+                    .form-group { display: flex; flex-direction: column; }
+                    .form-group.full-width { grid-column: 1 / -1; }
+                    .form-group label { font-weight: 600; color: #333; margin-bottom: 8px; font-size: 14px; }
+                    .form-group input, .form-group select, .form-group textarea {
+                        padding: 12px 15px;
+                        border: 2px solid #e0e0e0;
+                        border-radius: 10px;
+                        font-size: 15px;
+                    }
+                    .form-group textarea { min-height: 100px; resize: vertical; }
+                    .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+                        outline: none;
+                        border-color: #c62828;
+                    }
+                    .section-title {
+                        font-size: 18px;
+                        font-weight: 600;
+                        color: #333;
+                        margin: 25px 0 15px 0;
+                        padding-top: 20px;
+                        border-top: 1px solid #eee;
+                    }
+                    .existing-images {
+                        display: grid;
+                        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+                        gap: 15px;
+                        margin-bottom: 20px;
+                    }
+                    .existing-image {
+                        position: relative;
+                        border-radius: 10px;
+                        overflow: hidden;
+                    }
+                    .existing-image img {
+                        width: 100%;
+                        height: 120px;
+                        object-fit: cover;
+                    }
+                    .existing-image .remove-image {
+                        position: absolute;
+                        top: 5px;
+                        right: 5px;
+                        background: #c62828;
+                        color: white;
+                        border: none;
+                        border-radius: 50%;
+                        width: 25px;
+                        height: 25px;
+                        cursor: pointer;
+                        font-size: 14px;
+                    }
+                    .existing-image.removed {
+                        opacity: 0.3;
+                    }
+                    .existing-image.removed .remove-image {
+                        background: #4caf50;
+                    }
+                    .btn {
+                        padding: 12px 24px;
+                        border: none;
+                        border-radius: 10px;
+                        cursor: pointer;
+                        font-size: 15px;
+                        font-weight: 600;
+                        text-decoration: none;
+                        display: inline-block;
+                    }
+                    .btn-success { background: #c62828; color: white; }
+                    .btn-outline { background: white; border: 2px solid #c62828; color: #c62828; }
+                    .actions-bar {
+                        display: flex;
+                        justify-content: space-between;
+                        margin-top: 25px;
+                        padding-top: 20px;
+                        border-top: 1px solid #eee;
+                    }
+                    .alert {
+                        padding: 15px;
+                        border-radius: 10px;
+                        margin-bottom: 20px;
+                        display: none;
+                        background: #ffebee;
+                        color: #c62828;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>✏️ Edit Parking Violation #${violationId}</h1>
+                        <div class="header-nav">
+                            <a href="/security-services/parking-violation/${violationId}">← Cancel</a>
+                        </div>
+                    </div>
+                    
+                    <div class="form-card">
+                        <div id="alertBox" class="alert"></div>
+                        <form id="editForm">
+                            <input type="hidden" id="violationId" value="${violationId}">
+                            <input type="hidden" id="removedImages" value="">
+                            
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Date *</label>
+                                    <input type="date" id="violationDate" value="${violationDate}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Location *</label>
+                                    <select id="location" required>
+                                        <option value="HO Dbayeh Block A" ${violation.Location === 'HO Dbayeh Block A' ? 'selected' : ''}>HO Dbayeh Block A</option>
+                                        <option value="HO Dbayeh Block B" ${violation.Location === 'HO Dbayeh Block B' ? 'selected' : ''}>HO Dbayeh Block B</option>
+                                        <option value="Zouk HO" ${violation.Location === 'Zouk HO' ? 'selected' : ''}>Zouk HO</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Violator Name</label>
+                                    <input type="text" id="violatorName" value="${violation.ViolatorName || ''}" placeholder="If known">
+                                </div>
+                                <div class="form-group">
+                                    <label>Car Plate Number</label>
+                                    <input type="text" id="carPlateNumber" value="${violation.CarPlateNumber || ''}" placeholder="e.g., B 123456">
+                                </div>
+                            </div>
+                            
+                            <div class="form-group full-width">
+                                <label>Parking Lot Information</label>
+                                <textarea id="parkingLotInfo" placeholder="Describe the violation...">${violation.ParkingLotInfo || ''}</textarea>
+                            </div>
+                            
+                            <div class="section-title">📷 Existing Photos</div>
+                            <div class="existing-images" id="existingImages">
+                                ${existingImagesHtml || '<p style="color: #888;">No photos</p>'}
+                            </div>
+                            
+                            <div class="form-group full-width">
+                                <label>Add New Photos</label>
+                                <input type="file" id="newImages" accept="image/*" multiple>
+                            </div>
+                            
+                            <div class="actions-bar">
+                                <a href="/security-services/parking-violation/${violationId}" class="btn btn-outline">Cancel</a>
+                                <button type="submit" class="btn btn-success">💾 Save Changes</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                
+                <script>
+                    let removedImageIds = [];
+                    
+                    function removeExistingImage(id, btn) {
+                        const container = btn.closest('.existing-image');
+                        if (container.classList.contains('removed')) {
+                            container.classList.remove('removed');
+                            removedImageIds = removedImageIds.filter(i => i !== id);
+                            btn.textContent = '✕';
+                        } else {
+                            container.classList.add('removed');
+                            removedImageIds.push(id);
+                            btn.textContent = '↩';
+                        }
+                        document.getElementById('removedImages').value = removedImageIds.join(',');
+                    }
+                    
+                    function showAlert(msg) {
+                        const box = document.getElementById('alertBox');
+                        box.textContent = msg;
+                        box.style.display = 'block';
+                        setTimeout(() => box.style.display = 'none', 5000);
+                    }
+                    
+                    document.getElementById('editForm').addEventListener('submit', async (e) => {
+                        e.preventDefault();
+                        
+                        const formData = new FormData();
+                        formData.append('violationId', document.getElementById('violationId').value);
+                        formData.append('violationDate', document.getElementById('violationDate').value);
+                        formData.append('location', document.getElementById('location').value);
+                        formData.append('violatorName', document.getElementById('violatorName').value);
+                        formData.append('carPlateNumber', document.getElementById('carPlateNumber').value);
+                        formData.append('parkingLotInfo', document.getElementById('parkingLotInfo').value);
+                        formData.append('removedImages', document.getElementById('removedImages').value);
+                        
+                        const newImages = document.getElementById('newImages').files;
+                        for (let i = 0; i < newImages.length; i++) {
+                            formData.append('images', newImages[i]);
+                        }
+                        
+                        try {
+                            const res = await fetch('/security-services/parking-violation/update', {
+                                method: 'POST',
+                                body: formData
+                            });
+                            const result = await res.json();
+                            if (result.success) {
+                                window.location.href = '/security-services/parking-violation/' + document.getElementById('violationId').value;
+                            } else {
+                                showAlert(result.message || 'Failed to save changes');
+                            }
+                        } catch (err) {
+                            showAlert('Error: ' + err.message);
+                        }
+                    });
+                </script>
+            </body>
+            </html>
+        `);
+    } catch (err) {
+        console.error('Error loading parking violation edit:', err);
+        if (pool) await pool.close();
+        res.status(500).send('Error: ' + err.message);
+    }
+});
+
+// Update Parking Violation
+router.post('/update', uploadMultiple, async (req, res) => {
+    let pool;
+    try {
+        const { violationId, violationDate, location, violatorName, carPlateNumber, parkingLotInfo, removedImages } = req.body;
+        
+        if (!violationId || !violationDate || !location) {
+            return res.json({ success: false, message: 'Missing required fields' });
+        }
+        
+        pool = await sql.connect(dbConfig);
+        
+        // Update main violation record
+        await pool.request()
+            .input('id', sql.Int, violationId)
+            .input('violationDate', sql.Date, violationDate)
+            .input('location', sql.NVarChar, location)
+            .input('violatorName', sql.NVarChar, violatorName || null)
+            .input('carPlateNumber', sql.NVarChar, carPlateNumber || null)
+            .input('parkingLotInfo', sql.NVarChar, parkingLotInfo || null)
+            .query(`UPDATE Security_ParkingViolations SET 
+                ViolationDate = @violationDate, 
+                Location = @location, 
+                ViolatorName = @violatorName, 
+                CarPlateNumber = @carPlateNumber, 
+                ParkingLotInfo = @parkingLotInfo
+                WHERE Id = @id`);
+        
+        // Remove selected images
+        if (removedImages) {
+            const imageIds = removedImages.split(',').filter(id => id).map(id => parseInt(id));
+            for (const imageId of imageIds) {
+                // Get the file path first
+                const imgResult = await pool.request()
+                    .input('id', sql.Int, imageId)
+                    .query('SELECT ImagePath FROM Security_ParkingViolation_Images WHERE Id = @id');
+                
+                if (imgResult.recordset.length > 0) {
+                    // Delete from database
+                    await pool.request()
+                        .input('id', sql.Int, imageId)
+                        .query('DELETE FROM Security_ParkingViolation_Images WHERE Id = @id');
+                    
+                    // Try to delete file from disk
+                    try {
+                        const filePath = path.join(__dirname, '../../..', imgResult.recordset[0].ImagePath);
+                        if (fs.existsSync(filePath)) {
+                            fs.unlinkSync(filePath);
+                        }
+                    } catch (e) {
+                        console.error('Error deleting file:', e);
+                    }
+                }
+            }
+        }
+        
+        // Add new images
+        if (req.files && req.files.length > 0) {
+            for (const file of req.files) {
+                const imagePath = '/uploads/parking-violations/' + file.filename;
+                await pool.request()
+                    .input('violationId', sql.Int, violationId)
+                    .input('imagePath', sql.NVarChar, imagePath)
+                    .query('INSERT INTO Security_ParkingViolation_Images (ViolationId, ImagePath) VALUES (@violationId, @imagePath)');
+            }
+        }
+        
+        await pool.close();
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Error updating parking violation:', err);
+        if (pool) await pool.close();
+        res.json({ success: false, message: err.message });
     }
 });
 
