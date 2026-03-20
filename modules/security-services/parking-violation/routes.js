@@ -9,6 +9,49 @@ const sql = require('mssql');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const sharp = require('sharp');
+
+// Image compression settings
+const COMPRESSION_CONFIG = {
+    maxWidth: 1920,
+    maxHeight: 1080,
+    quality: 80,
+    pngCompressionLevel: 8
+};
+
+// Compress and resize image
+async function compressImage(filePath) {
+    try {
+        const ext = path.extname(filePath).toLowerCase();
+        const tempPath = filePath + '.tmp';
+        
+        let sharpInstance = sharp(filePath)
+            .resize(COMPRESSION_CONFIG.maxWidth, COMPRESSION_CONFIG.maxHeight, {
+                fit: 'inside',
+                withoutEnlargement: true
+            });
+        
+        if (ext === '.jpg' || ext === '.jpeg') {
+            sharpInstance = sharpInstance.jpeg({ quality: COMPRESSION_CONFIG.quality });
+        } else if (ext === '.png') {
+            sharpInstance = sharpInstance.png({ compressionLevel: COMPRESSION_CONFIG.pngCompressionLevel });
+        } else if (ext === '.webp') {
+            sharpInstance = sharpInstance.webp({ quality: COMPRESSION_CONFIG.quality });
+        } else if (ext === '.gif') {
+            sharpInstance = sharpInstance.gif();
+        }
+        
+        await sharpInstance.toFile(tempPath);
+        fs.unlinkSync(filePath);
+        fs.renameSync(tempPath, filePath);
+        
+        console.log(`[Parking Violation] Compressed image: ${path.basename(filePath)}`);
+        return true;
+    } catch (err) {
+        console.error('Image compression error:', err);
+        return false;
+    }
+}
 
 // Database config
 const dbConfig = {
@@ -510,9 +553,13 @@ router.post('/save', uploadMultiple, async (req, res) => {
         
         const violationId = result.recordset[0].Id;
         
-        // Insert all images into the images table
+        // Compress and insert all images into the images table
         if (req.files && req.files.length > 0) {
             for (const file of req.files) {
+                // Compress the uploaded image
+                const fullPath = path.join(__dirname, '../../../uploads/parking-violations', file.filename);
+                await compressImage(fullPath);
+                
                 const imagePath = '/uploads/parking-violations/' + file.filename;
                 await pool.request()
                     .input('violationId', sql.Int, violationId)
@@ -1194,9 +1241,13 @@ router.post('/update', uploadMultiple, async (req, res) => {
             }
         }
         
-        // Add new images
+        // Add new images with compression
         if (req.files && req.files.length > 0) {
             for (const file of req.files) {
+                // Compress the uploaded image
+                const fullPath = path.join(__dirname, '../../../uploads/parking-violations', file.filename);
+                await compressImage(fullPath);
+                
                 const imagePath = '/uploads/parking-violations/' + file.filename;
                 await pool.request()
                     .input('violationId', sql.Int, violationId)
