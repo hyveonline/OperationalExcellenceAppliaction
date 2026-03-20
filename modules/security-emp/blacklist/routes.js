@@ -9,6 +9,49 @@ const sql = require('mssql');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const sharp = require('sharp');
+
+// Image compression settings
+const COMPRESSION_CONFIG = {
+    maxWidth: 1920,
+    maxHeight: 1080,
+    quality: 80,
+    pngCompressionLevel: 8
+};
+
+// Compress and resize image
+async function compressImage(filePath) {
+    try {
+        const ext = path.extname(filePath).toLowerCase();
+        if (!['.jpg', '.jpeg', '.png', '.webp', '.gif'].includes(ext)) return false;
+        
+        const tempPath = filePath + '.tmp';
+        let sharpInstance = sharp(filePath)
+            .resize(COMPRESSION_CONFIG.maxWidth, COMPRESSION_CONFIG.maxHeight, {
+                fit: 'inside',
+                withoutEnlargement: true
+            });
+        
+        if (ext === '.jpg' || ext === '.jpeg') {
+            sharpInstance = sharpInstance.jpeg({ quality: COMPRESSION_CONFIG.quality });
+        } else if (ext === '.png') {
+            sharpInstance = sharpInstance.png({ compressionLevel: COMPRESSION_CONFIG.pngCompressionLevel });
+        } else if (ext === '.webp') {
+            sharpInstance = sharpInstance.webp({ quality: COMPRESSION_CONFIG.quality });
+        } else if (ext === '.gif') {
+            sharpInstance = sharpInstance.gif();
+        }
+        
+        await sharpInstance.toFile(tempPath);
+        fs.unlinkSync(filePath);
+        fs.renameSync(tempPath, filePath);
+        console.log(`[Blacklist] Compressed image: ${path.basename(filePath)}`);
+        return true;
+    } catch (err) {
+        console.error('Image compression error:', err);
+        return false;
+    }
+}
 
 // Database configuration
 const dbConfig = {
@@ -801,6 +844,10 @@ router.post('/api/upload-picture', upload.single('picture'), async (req, res) =>
         if (!file) {
             return res.json({ success: false, error: 'No file uploaded' });
         }
+        
+        // Compress the uploaded image
+        const fullPath = path.join(__dirname, '../../../uploads/blacklist', file.filename);
+        await compressImage(fullPath);
         
         const pool = await sql.connect(dbConfig);
         

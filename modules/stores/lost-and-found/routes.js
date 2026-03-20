@@ -9,6 +9,49 @@ const sql = require('mssql');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const sharp = require('sharp');
+
+// Image compression settings
+const COMPRESSION_CONFIG = {
+    maxWidth: 1920,
+    maxHeight: 1080,
+    quality: 80,
+    pngCompressionLevel: 8
+};
+
+// Compress and resize image
+async function compressImage(filePath) {
+    try {
+        const ext = path.extname(filePath).toLowerCase();
+        if (!['.jpg', '.jpeg', '.png', '.webp', '.gif'].includes(ext)) return false;
+        
+        const tempPath = filePath + '.tmp';
+        let sharpInstance = sharp(filePath)
+            .resize(COMPRESSION_CONFIG.maxWidth, COMPRESSION_CONFIG.maxHeight, {
+                fit: 'inside',
+                withoutEnlargement: true
+            });
+        
+        if (ext === '.jpg' || ext === '.jpeg') {
+            sharpInstance = sharpInstance.jpeg({ quality: COMPRESSION_CONFIG.quality });
+        } else if (ext === '.png') {
+            sharpInstance = sharpInstance.png({ compressionLevel: COMPRESSION_CONFIG.pngCompressionLevel });
+        } else if (ext === '.webp') {
+            sharpInstance = sharpInstance.webp({ quality: COMPRESSION_CONFIG.quality });
+        } else if (ext === '.gif') {
+            sharpInstance = sharpInstance.gif();
+        }
+        
+        await sharpInstance.toFile(tempPath);
+        fs.unlinkSync(filePath);
+        fs.renameSync(tempPath, filePath);
+        console.log(`[Lost and Found] Compressed image: ${path.basename(filePath)}`);
+        return true;
+    } catch (err) {
+        console.error('Image compression error:', err);
+        return false;
+    }
+}
 
 const dbConfig = {
     server: process.env.SQL_SERVER || 'localhost',
@@ -666,6 +709,12 @@ router.post('/api/save', upload.single('itemPicture'), async (req, res) => {
             itemDate, storeId, itemName, itemType, currency, amount,
             quantity, description, returnedToOwner, returnDescription 
         } = req.body;
+        
+        // Compress image if uploaded
+        if (req.file) {
+            const fullPath = path.join(uploadDir, req.file.filename);
+            await compressImage(fullPath);
+        }
         
         const pool = await getPool();
         
