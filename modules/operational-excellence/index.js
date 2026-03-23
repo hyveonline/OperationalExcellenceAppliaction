@@ -19,6 +19,7 @@ const complaintsDashboard = require('./complaints-dashboard');
 const fiveDaysDashboard = require('./five-days-dashboard');
 const masterTable = require('./master-table');
 const calendar = require('./calendar');
+const attendanceVariance = require('./attendance-variance');
 
 // Mount sub-routes
 router.use('/theft-dashboard', theftDashboard);
@@ -33,6 +34,7 @@ router.use('/complaints-dashboard', complaintsDashboard);
 router.use('/five-days-dashboard', fiveDaysDashboard);
 router.use('/master-table', masterTable);
 router.use('/calendar', calendar);
+router.use('/attendance-variance', attendanceVariance);
 
 // Landing page
 router.get('/', (req, res) => {
