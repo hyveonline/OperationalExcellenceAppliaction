@@ -355,7 +355,7 @@ router.get('/', async (req, res) => {
                     const daysInMonth = lastDay.getDate();
                     
                     const today = new Date();
-                    const todayStr = today.toISOString().split('T')[0];
+                    const todayStr = formatDate(today.getFullYear(), today.getMonth(), today.getDate());
                     
                     let html = '';
                     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -400,8 +400,11 @@ router.get('/', async (req, res) => {
                 }
                 
                 function formatDate(year, month, day) {
-                    const d = new Date(year, month, day);
-                    return d.toISOString().split('T')[0];
+                    // Manually format to avoid timezone issues with toISOString()
+                    const y = year;
+                    const m = String(month + 1).padStart(2, '0');
+                    const d = String(day).padStart(2, '0');
+                    return y + '-' + m + '-' + d;
                 }
                 
                 function renderVisitsForDate(dateStr) {
@@ -420,8 +423,15 @@ router.get('/', async (req, res) => {
                 async function loadVisits() {
                     const year = currentDate.getFullYear();
                     const month = currentDate.getMonth();
-                    const startDate = new Date(year, month - 1, 1).toISOString().split('T')[0];
-                    const endDate = new Date(year, month + 2, 0).toISOString().split('T')[0];
+                    // Get start of previous month and end of next month
+                    const startMonth = month - 1;
+                    const startYear = startMonth < 0 ? year - 1 : year;
+                    const startMonthAdj = startMonth < 0 ? 11 : startMonth;
+                    const startDate = formatDate(startYear, startMonthAdj, 1);
+                    
+                    // End of next month
+                    const endDateObj = new Date(year, month + 2, 0);
+                    const endDate = formatDate(endDateObj.getFullYear(), endDateObj.getMonth(), endDateObj.getDate());
                     
                     try {
                         const res = await fetch('/security-emp/calendar/api/visits?startDate=' + startDate + '&endDate=' + endDate);
@@ -511,11 +521,14 @@ router.get('/api/visits', async (req, res) => {
         const pool = await getPool();
         
         const result = await pool.request()
-            .input('startDate', sql.Date, startDate)
-            .input('endDate', sql.Date, endDate)
+            .input('startDate', sql.NVarChar, startDate)
+            .input('endDate', sql.NVarChar, endDate)
             .query(`
-                SELECT * FROM StoreVisitSchedule 
-                WHERE VisitDate BETWEEN @startDate AND @endDate
+                SELECT Id, CONVERT(VARCHAR(10), VisitDate, 120) as VisitDate, 
+                       EmployeeName, StoreName, VisitType, Notes, Status, IsActive,
+                       CreatedBy, CreatedAt, UpdatedAt, CompletedAt
+                FROM StoreVisitSchedule 
+                WHERE VisitDate BETWEEN CONVERT(DATE, @startDate) AND CONVERT(DATE, @endDate)
                 AND IsActive = 1
                 ORDER BY VisitDate, EmployeeName
             `);

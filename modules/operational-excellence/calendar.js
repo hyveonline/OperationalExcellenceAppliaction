@@ -459,10 +459,20 @@ router.get('/', async (req, res) => {
                         <input type="date" id="visitDate" required>
                     </div>
                     <div class="form-group">
-                        <label>Employee *</label>
-                        <select id="visitEmployee" required>
-                            <option value="">-- Select Employee --</option>
-                        </select>
+                        <label>Employee(s) * <span id="selectedCount" style="font-size:12px; color:#666;">(0 selected)</span></label>
+                        <div id="employeeSelectContainer" style="position:relative;">
+                            <div id="employeeSelectBtn" onclick="toggleEmployeeDropdown()" style="border:1px solid #ddd; padding:10px; border-radius:6px; cursor:pointer; background:#fff; display:flex; justify-content:space-between; align-items:center;">
+                                <span id="employeeSelectText">-- Select Employees --</span>
+                                <span>▼</span>
+                            </div>
+                            <div id="employeeDropdown" style="display:none; position:absolute; top:100%; left:0; right:0; background:#fff; border:1px solid #ddd; border-radius:6px; max-height:250px; overflow-y:auto; z-index:1000; box-shadow:0 4px 12px rgba(0,0,0,0.15);">
+                                <div style="padding:8px; border-bottom:1px solid #eee;">
+                                    <input type="text" id="employeeSearch" placeholder="Search employees..." oninput="filterEmployees()" style="width:100%; padding:6px; border:1px solid #ddd; border-radius:4px; box-sizing:border-box;">
+                                </div>
+                                <div id="employeeCheckboxes" style="padding:5px;"></div>
+                            </div>
+                        </div>
+                        <input type="hidden" id="visitEmployee">
                     </div>
                     <div class="form-group">
                         <label>Store *</label>
@@ -554,8 +564,26 @@ router.get('/', async (req, res) => {
                         const recurEmpSelect = document.getElementById('recurEmployee');
                         const recurStoreSelect = document.getElementById('recurStore');
                         
+                        // Build checkbox list for multi-select
+                        const checkboxContainer = document.getElementById('employeeCheckboxes');
                         employees.forEach(emp => {
-                            empSelect.innerHTML += '<option value="' + emp.displayName + '" data-email="' + (emp.mail || '') + '">' + emp.displayName + '</option>';
+                            const label = document.createElement('label');
+                            label.className = 'emp-checkbox-label';
+                            label.style.cssText = 'display:flex; align-items:center; padding:8px 10px; cursor:pointer; border-bottom:1px solid #f0f0f0;';
+                            label.onmouseover = function() { this.style.background = '#f5f5f5'; };
+                            label.onmouseout = function() { this.style.background = '#fff'; };
+                            
+                            const checkbox = document.createElement('input');
+                            checkbox.type = 'checkbox';
+                            checkbox.className = 'emp-checkbox';
+                            checkbox.value = emp.displayName;
+                            checkbox.style.cssText = 'margin-right:10px; width:18px; height:18px;';
+                            checkbox.addEventListener('change', updateSelectedEmployees);
+                            
+                            const text = document.createTextNode(' ' + emp.displayName);
+                            label.appendChild(checkbox);
+                            label.appendChild(text);
+                            checkboxContainer.appendChild(label);
                             recurEmpSelect.innerHTML += '<option value="' + emp.displayName + '">' + emp.displayName + '</option>';
                         });
                         
@@ -567,6 +595,73 @@ router.get('/', async (req, res) => {
                         console.error('Error loading data:', error);
                     }
                 }
+                
+                // Multi-select employee functions
+                let selectedEmployees = [];
+                
+                function toggleEmployeeDropdown() {
+                    const dropdown = document.getElementById('employeeDropdown');
+                    dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+                    if (dropdown.style.display === 'block') {
+                        document.getElementById('employeeSearch').focus();
+                    }
+                }
+                
+                function filterEmployees() {
+                    const search = document.getElementById('employeeSearch').value.toLowerCase();
+                    document.querySelectorAll('.emp-checkbox-label').forEach(label => {
+                        const name = label.textContent.toLowerCase();
+                        label.style.display = name.includes(search) ? 'flex' : 'none';
+                    });
+                }
+                
+                function updateSelectedEmployees() {
+                    selectedEmployees = [];
+                    document.querySelectorAll('.emp-checkbox:checked').forEach(cb => {
+                        selectedEmployees.push(cb.value);
+                    });
+                    
+                    document.getElementById('selectedCount').textContent = '(' + selectedEmployees.length + ' selected)';
+                    
+                    if (selectedEmployees.length === 0) {
+                        document.getElementById('employeeSelectText').textContent = '-- Select Employees --';
+                    } else if (selectedEmployees.length === 1) {
+                        document.getElementById('employeeSelectText').textContent = selectedEmployees[0];
+                    } else {
+                        document.getElementById('employeeSelectText').textContent = selectedEmployees.length + ' employees selected';
+                    }
+                    
+                    document.getElementById('visitEmployee').value = selectedEmployees.join(',');
+                }
+                
+                function clearEmployeeSelection() {
+                    selectedEmployees = [];
+                    document.querySelectorAll('.emp-checkbox').forEach(cb => cb.checked = false);
+                    document.getElementById('selectedCount').textContent = '(0 selected)';
+                    document.getElementById('employeeSelectText').textContent = '-- Select Employees --';
+                    document.getElementById('visitEmployee').value = '';
+                    document.getElementById('employeeSearch').value = '';
+                    filterEmployees();
+                }
+                
+                function setEmployeeSelection(names) {
+                    clearEmployeeSelection();
+                    const nameArray = Array.isArray(names) ? names : [names];
+                    document.querySelectorAll('.emp-checkbox').forEach(cb => {
+                        if (nameArray.includes(cb.value)) {
+                            cb.checked = true;
+                        }
+                    });
+                    updateSelectedEmployees();
+                }
+                
+                // Close dropdown when clicking outside
+                document.addEventListener('click', function(e) {
+                    const container = document.getElementById('employeeSelectContainer');
+                    if (container && !container.contains(e.target)) {
+                        document.getElementById('employeeDropdown').style.display = 'none';
+                    }
+                });
                 
                 function renderCalendar() {
                     const year = currentDate.getFullYear();
@@ -582,7 +677,7 @@ router.get('/', async (req, res) => {
                     const daysInMonth = lastDay.getDate();
                     
                     const today = new Date();
-                    const todayStr = today.toISOString().split('T')[0];
+                    const todayStr = formatDate(today.getFullYear(), today.getMonth(), today.getDate());
                     
                     let html = '';
                     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -627,8 +722,11 @@ router.get('/', async (req, res) => {
                 }
                 
                 function formatDate(year, month, day) {
-                    const d = new Date(year, month, day);
-                    return d.toISOString().split('T')[0];
+                    // Manually format to avoid timezone issues with toISOString()
+                    const y = year;
+                    const m = String(month + 1).padStart(2, '0');
+                    const d = String(day).padStart(2, '0');
+                    return y + '-' + m + '-' + d;
                 }
                 
                 function renderVisitsForDate(dateStr) {
@@ -647,8 +745,16 @@ router.get('/', async (req, res) => {
                 async function loadVisits() {
                     const year = currentDate.getFullYear();
                     const month = currentDate.getMonth();
-                    const startDate = new Date(year, month - 1, 1).toISOString().split('T')[0];
-                    const endDate = new Date(year, month + 2, 0).toISOString().split('T')[0];
+                    // Get start of previous month and end of next month
+                    // Use Date object for day calculations but format manually
+                    const startMonth = month - 1;
+                    const startYear = startMonth < 0 ? year - 1 : year;
+                    const startMonthAdj = startMonth < 0 ? 11 : startMonth;
+                    const startDate = formatDate(startYear, startMonthAdj, 1);
+                    
+                    // End of next month (day 0 of month+3 gives last day of month+2)
+                    const endDateObj = new Date(year, month + 2, 0);
+                    const endDate = formatDate(endDateObj.getFullYear(), endDateObj.getMonth(), endDateObj.getDate());
                     
                     try {
                         const res = await fetch('/operational-excellence/calendar/api/visits?startDate=' + startDate + '&endDate=' + endDate);
@@ -677,8 +783,9 @@ router.get('/', async (req, res) => {
                 function openAddModal(date) {
                     document.getElementById('modalTitle').textContent = '📅 Schedule Store Visit';
                     document.getElementById('visitId').value = '';
-                    document.getElementById('visitDate').value = date || new Date().toISOString().split('T')[0];
-                    document.getElementById('visitEmployee').value = '';
+                    const today = new Date();
+                    document.getElementById('visitDate').value = date || formatDate(today.getFullYear(), today.getMonth(), today.getDate());
+                    clearEmployeeSelection();
                     document.getElementById('visitStore').value = '';
                     document.getElementById('visitType').value = 'Inspection';
                     document.getElementById('visitNotes').value = '';
@@ -695,7 +802,7 @@ router.get('/', async (req, res) => {
                     document.getElementById('modalTitle').textContent = '✏️ Edit Store Visit';
                     document.getElementById('visitId').value = visit.Id;
                     document.getElementById('visitDate').value = visit.VisitDate.split('T')[0];
-                    document.getElementById('visitEmployee').value = visit.EmployeeName;
+                    setEmployeeSelection(visit.EmployeeName);
                     document.getElementById('visitStore').value = visit.StoreName;
                     document.getElementById('visitType').value = visit.VisitType || 'Inspection';
                     document.getElementById('visitNotes').value = visit.Notes || '';
@@ -711,40 +818,61 @@ router.get('/', async (req, res) => {
                 
                 async function saveVisit() {
                     const id = document.getElementById('visitId').value;
+                    const employeeNames = document.getElementById('visitEmployee').value;
                     const data = {
                         visitDate: document.getElementById('visitDate').value,
-                        employeeName: document.getElementById('visitEmployee').value,
+                        employeeNames: employeeNames ? employeeNames.split(',') : [],
                         storeName: document.getElementById('visitStore').value,
                         visitType: document.getElementById('visitType').value,
                         notes: document.getElementById('visitNotes').value,
                         status: document.getElementById('visitStatus').value
                     };
                     
-                    if (!data.visitDate || !data.employeeName || !data.storeName) {
+                    if (!data.visitDate || data.employeeNames.length === 0 || !data.storeName) {
                         showNotification('Please fill required fields', 'error');
                         return;
                     }
                     
                     showLoading();
                     try {
-                        const url = id 
-                            ? '/operational-excellence/calendar/api/visits/' + id 
-                            : '/operational-excellence/calendar/api/visits';
-                        const method = id ? 'PUT' : 'POST';
-                        
-                        const res = await fetch(url, {
-                            method,
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(data)
-                        });
-                        
-                        const result = await res.json();
-                        if (result.success) {
-                            showNotification(id ? 'Visit updated!' : 'Visit scheduled!');
-                            closeModal();
-                            loadVisits();
+                        // For edit (single employee), use the old endpoint
+                        if (id) {
+                            const res = await fetch('/operational-excellence/calendar/api/visits/' + id, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    visitDate: data.visitDate,
+                                    employeeName: data.employeeNames[0],
+                                    storeName: data.storeName,
+                                    visitType: data.visitType,
+                                    notes: data.notes,
+                                    status: data.status
+                                })
+                            });
+                            const result = await res.json();
+                            if (result.success) {
+                                showNotification('Visit updated!');
+                                closeModal();
+                                loadVisits();
+                            } else {
+                                showNotification(result.error || 'Error saving', 'error');
+                            }
                         } else {
-                            showNotification(result.error || 'Error saving', 'error');
+                            // For new visits, create one for each employee
+                            const res = await fetch('/operational-excellence/calendar/api/visits/bulk', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(data)
+                            });
+                            const result = await res.json();
+                            if (result.success) {
+                                const count = data.employeeNames.length;
+                                showNotification(count + ' visit(s) scheduled!');
+                                closeModal();
+                                loadVisits();
+                            } else {
+                                showNotification(result.error || 'Error saving', 'error');
+                            }
                         }
                     } catch (error) {
                         showNotification('Error saving visit', 'error');
@@ -775,8 +903,8 @@ router.get('/', async (req, res) => {
                 function openRecurringModal() {
                     const today = new Date();
                     const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, today.getDate());
-                    document.getElementById('recurStartDate').value = today.toISOString().split('T')[0];
-                    document.getElementById('recurEndDate').value = nextMonth.toISOString().split('T')[0];
+                    document.getElementById('recurStartDate').value = formatDate(today.getFullYear(), today.getMonth(), today.getDate());
+                    document.getElementById('recurEndDate').value = formatDate(nextMonth.getFullYear(), nextMonth.getMonth(), nextMonth.getDate());
                     document.getElementById('recurFrequency').value = 'weekly';
                     document.getElementById('recurEmployee').value = '';
                     document.getElementById('recurStore').value = '';
@@ -886,8 +1014,8 @@ router.get('/', async (req, res) => {
                 function loadReportFilters() {
                     const today = new Date();
                     const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-                    document.getElementById('reportFromDate').value = firstDay.toISOString().split('T')[0];
-                    document.getElementById('reportToDate').value = today.toISOString().split('T')[0];
+                    document.getElementById('reportFromDate').value = formatDate(firstDay.getFullYear(), firstDay.getMonth(), firstDay.getDate());
+                    document.getElementById('reportToDate').value = formatDate(today.getFullYear(), today.getMonth(), today.getDate());
                     
                     // Populate employee filter
                     const empFilter = document.getElementById('reportEmployee');
@@ -1004,11 +1132,14 @@ router.get('/api/visits', async (req, res) => {
         const pool = await getPool();
         
         const result = await pool.request()
-            .input('startDate', sql.Date, startDate)
-            .input('endDate', sql.Date, endDate)
+            .input('startDate', sql.NVarChar, startDate)
+            .input('endDate', sql.NVarChar, endDate)
             .query(`
-                SELECT * FROM StoreVisitSchedule 
-                WHERE VisitDate BETWEEN @startDate AND @endDate
+                SELECT Id, CONVERT(VARCHAR(10), VisitDate, 120) as VisitDate, 
+                       EmployeeName, StoreName, VisitType, Notes, Status, IsActive,
+                       CreatedBy, CreatedAt, UpdatedAt, CompletedAt
+                FROM StoreVisitSchedule 
+                WHERE VisitDate BETWEEN CONVERT(DATE, @startDate) AND CONVERT(DATE, @endDate)
                 AND IsActive = 1
                 ORDER BY VisitDate, EmployeeName
             `);
@@ -1027,8 +1158,9 @@ router.post('/api/visits', async (req, res) => {
         const user = req.currentUser;
         const pool = await getPool();
         
+        // Use CONVERT to avoid timezone issues with DATE type
         await pool.request()
-            .input('visitDate', sql.Date, visitDate)
+            .input('visitDate', sql.NVarChar, visitDate)
             .input('employeeName', sql.NVarChar, employeeName)
             .input('storeName', sql.NVarChar, storeName)
             .input('visitType', sql.NVarChar, visitType || 'Inspection')
@@ -1036,12 +1168,45 @@ router.post('/api/visits', async (req, res) => {
             .input('createdBy', sql.NVarChar, user ? user.displayName : 'System')
             .query(`
                 INSERT INTO StoreVisitSchedule (VisitDate, EmployeeName, StoreName, VisitType, Notes, CreatedBy)
-                VALUES (@visitDate, @employeeName, @storeName, @visitType, @notes, @createdBy)
+                VALUES (CONVERT(DATE, @visitDate), @employeeName, @storeName, @visitType, @notes, @createdBy)
             `);
         
         res.json({ success: true });
     } catch (error) {
         console.error('Error creating visit:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// API: Create bulk visits (multiple employees)
+router.post('/api/visits/bulk', async (req, res) => {
+    try {
+        const { visitDate, employeeNames, storeName, visitType, notes } = req.body;
+        const user = req.currentUser;
+        const pool = await getPool();
+        
+        if (!employeeNames || !Array.isArray(employeeNames) || employeeNames.length === 0) {
+            return res.status(400).json({ error: 'No employees selected' });
+        }
+        
+        // Create a visit for each employee
+        for (const employeeName of employeeNames) {
+            await pool.request()
+                .input('visitDate', sql.NVarChar, visitDate)
+                .input('employeeName', sql.NVarChar, employeeName)
+                .input('storeName', sql.NVarChar, storeName)
+                .input('visitType', sql.NVarChar, visitType || 'Inspection')
+                .input('notes', sql.NVarChar, notes || '')
+                .input('createdBy', sql.NVarChar, user ? user.displayName : 'System')
+                .query(`
+                    INSERT INTO StoreVisitSchedule (VisitDate, EmployeeName, StoreName, VisitType, Notes, CreatedBy)
+                    VALUES (CONVERT(DATE, @visitDate), @employeeName, @storeName, @visitType, @notes, @createdBy)
+                `);
+        }
+        
+        res.json({ success: true, count: employeeNames.length });
+    } catch (error) {
+        console.error('Error creating bulk visits:', error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -1081,8 +1246,13 @@ router.post('/api/visits/recurring', async (req, res) => {
         const recurringNote = notes ? notes + ' (Recurring - ' + frequency + ')' : 'Recurring - ' + frequency;
         
         for (const date of dates) {
+            // Format date as YYYY-MM-DD string to avoid timezone issues
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            const dateStr = y + '-' + m + '-' + d;
             await pool.request()
-                .input('visitDate', sql.Date, date)
+                .input('visitDate', sql.NVarChar, dateStr)
                 .input('employeeName', sql.NVarChar, employeeName)
                 .input('storeName', sql.NVarChar, storeName)
                 .input('visitType', sql.NVarChar, visitType || 'Inspection')
@@ -1090,7 +1260,7 @@ router.post('/api/visits/recurring', async (req, res) => {
                 .input('createdBy', sql.NVarChar, user ? user.displayName : 'System')
                 .query(`
                     INSERT INTO StoreVisitSchedule (VisitDate, EmployeeName, StoreName, VisitType, Notes, CreatedBy)
-                    VALUES (@visitDate, @employeeName, @storeName, @visitType, @notes, @createdBy)
+                    VALUES (CONVERT(DATE, @visitDate), @employeeName, @storeName, @visitType, @notes, @createdBy)
                 `);
         }
         
@@ -1110,7 +1280,7 @@ router.put('/api/visits/:id', async (req, res) => {
         
         await pool.request()
             .input('id', sql.Int, id)
-            .input('visitDate', sql.Date, visitDate)
+            .input('visitDate', sql.NVarChar, visitDate)
             .input('employeeName', sql.NVarChar, employeeName)
             .input('storeName', sql.NVarChar, storeName)
             .input('visitType', sql.NVarChar, visitType)
@@ -1118,7 +1288,7 @@ router.put('/api/visits/:id', async (req, res) => {
             .input('status', sql.NVarChar, status)
             .query(`
                 UPDATE StoreVisitSchedule SET
-                    VisitDate = @visitDate,
+                    VisitDate = CONVERT(DATE, @visitDate),
                     EmployeeName = @employeeName,
                     StoreName = @storeName,
                     VisitType = @visitType,
