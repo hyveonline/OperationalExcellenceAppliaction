@@ -1433,6 +1433,450 @@
             display: flex;
             gap: 0.25rem;
         }
+
+        /* Gallery Styles */
+        .sidebar-tabs {
+            display: flex;
+            margin-bottom: 1rem;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid rgba(99, 102, 241, 0.3);
+        }
+
+        .sidebar-tab {
+            flex: 1;
+            padding: 0.75rem;
+            text-align: center;
+            cursor: pointer;
+            background: transparent;
+            border: none;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: #64748b;
+            transition: all 0.2s ease;
+        }
+
+        .sidebar-tab:hover {
+            background: rgba(99, 102, 241, 0.1);
+        }
+
+        .sidebar-tab.active {
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            color: white;
+        }
+
+        .gallery-container {
+            display: none;
+        }
+
+        .gallery-container.active {
+            display: block;
+        }
+
+        .gallery-upload-btn {
+            width: 100%;
+            padding: 1rem;
+            border: 2px dashed rgba(99, 102, 241, 0.5);
+            border-radius: 10px;
+            background: rgba(99, 102, 241, 0.05);
+            cursor: pointer;
+            text-align: center;
+            margin-bottom: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .gallery-upload-btn:hover {
+            border-color: rgba(99, 102, 241, 0.8);
+            background: rgba(99, 102, 241, 0.1);
+        }
+
+        .gallery-upload-icon {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .gallery-upload-text {
+            font-size: 0.85rem;
+            color: #64748b;
+        }
+
+        .gallery-count {
+            font-size: 0.8rem;
+            color: #94a3b8;
+            margin-bottom: 0.75rem;
+            padding: 0.5rem;
+            background: rgba(99, 102, 241, 0.05);
+            border-radius: 6px;
+            text-align: center;
+        }
+
+        .gallery-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.5rem;
+            max-height: calc(100vh - 350px);
+            overflow-y: auto;
+        }
+
+        .gallery-item {
+            position: relative;
+            aspect-ratio: 1;
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.2s ease;
+        }
+
+        .gallery-item:hover {
+            border-color: rgba(99, 102, 241, 0.5);
+        }
+
+        .gallery-item.selected {
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.3);
+        }
+
+        .gallery-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .gallery-item-overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 0.35rem;
+            background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .gallery-item-badge {
+            font-size: 0.65rem;
+            padding: 0.15rem 0.35rem;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+
+        .gallery-item-badge.assigned {
+            background: #10b981;
+            color: white;
+        }
+
+        .gallery-item-badge.unassigned {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .gallery-item-delete {
+            background: rgba(239, 68, 68, 0.9);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 0.2rem 0.4rem;
+            cursor: pointer;
+            font-size: 0.7rem;
+        }
+
+        /* Gallery Assign Modal */
+        .gallery-assign-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 1001;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+
+        .gallery-assign-modal.show {
+            display: flex;
+        }
+
+        .gallery-assign-content {
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 16px;
+            padding: 1.5rem;
+            max-width: 700px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .gallery-assign-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid rgba(99, 102, 241, 0.2);
+        }
+
+        .gallery-assign-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #1e293b;
+        }
+
+        .gallery-assign-close {
+            background: transparent;
+            border: none;
+            font-size: 1.5rem;
+            color: #64748b;
+            cursor: pointer;
+        }
+
+        .gallery-assign-preview {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .gallery-assign-preview img {
+            width: 150px;
+            height: 150px;
+            object-fit: cover;
+            border-radius: 8px;
+        }
+
+        .gallery-assign-info {
+            flex: 1;
+        }
+
+        .gallery-assign-info h4 {
+            margin-bottom: 0.5rem;
+            color: #1e293b;
+        }
+
+        .gallery-assign-info p {
+            font-size: 0.85rem;
+            color: #64748b;
+            margin-bottom: 0.25rem;
+        }
+
+        .gallery-assign-type {
+            margin-bottom: 1rem;
+        }
+
+        .gallery-assign-type label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #475569;
+        }
+
+        .gallery-type-options {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .gallery-type-btn {
+            flex: 1;
+            padding: 0.75rem;
+            border: 2px solid rgba(99, 102, 241, 0.3);
+            border-radius: 8px;
+            background: transparent;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s ease;
+        }
+
+        .gallery-type-btn.selected {
+            border-color: #6366f1;
+            background: rgba(99, 102, 241, 0.1);
+        }
+
+        .gallery-type-btn.type-finding.selected {
+            border-color: #ef4444;
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .gallery-type-btn.type-good.selected {
+            border-color: #10b981;
+            background: rgba(16, 185, 129, 0.1);
+        }
+
+        .gallery-type-btn.type-corrective.selected {
+            border-color: #3b82f6;
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        .gallery-section-select {
+            margin-bottom: 1rem;
+        }
+
+        .gallery-section-select label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #475569;
+        }
+
+        .gallery-section-select select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 8px;
+            background: white;
+            font-size: 0.9rem;
+        }
+
+        .gallery-items-list {
+            max-height: 250px;
+            overflow-y: auto;
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+
+        .gallery-item-option {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem;
+            border-bottom: 1px solid rgba(99, 102, 241, 0.1);
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        .gallery-item-option:hover {
+            background: rgba(99, 102, 241, 0.05);
+        }
+
+        .gallery-item-option:last-child {
+            border-bottom: none;
+        }
+
+        .gallery-item-option input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            margin-right: 0.75rem;
+            accent-color: #6366f1;
+        }
+
+        .gallery-item-option-info {
+            flex: 1;
+        }
+
+        .gallery-item-option-ref {
+            font-weight: 600;
+            color: #6366f1;
+            font-size: 0.8rem;
+        }
+
+        .gallery-item-option-title {
+            font-size: 0.85rem;
+            color: #475569;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .gallery-assign-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+        }
+
+        .gallery-assign-btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        .gallery-assign-btn.cancel {
+            background: rgba(100, 116, 139, 0.2);
+            color: #64748b;
+        }
+
+        .gallery-assign-btn.save {
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            color: white;
+        }
+
+        .gallery-current-assignments {
+            margin-bottom: 1rem;
+            padding: 0.75rem;
+            background: rgba(16, 185, 129, 0.1);
+            border-radius: 8px;
+        }
+
+        .gallery-current-assignments h5 {
+            margin-bottom: 0.5rem;
+            color: #10b981;
+            font-size: 0.85rem;
+        }
+
+        .gallery-assignment-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.35rem 0.75rem;
+            background: white;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            margin-right: 0.5rem;
+            margin-bottom: 0.5rem;
+            border: 1px solid rgba(99, 102, 241, 0.2);
+        }
+
+        .gallery-assignment-chip .remove {
+            color: #ef4444;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        /* Gallery pictures in question card */
+        .gallery-pictures-row {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-top: 0.5rem;
+        }
+
+        .gallery-picture-thumb {
+            position: relative;
+            width: 50px;
+            height: 50px;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 2px solid #6366f1;
+        }
+
+        .gallery-picture-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .gallery-picture-thumb .remove-link {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background: #ef4444;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            font-size: 10px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
     </style>
 </head>
 <body>
@@ -1463,8 +1907,27 @@
     <div class="main-container">
         <!-- Sections Sidebar -->
         <div class="sections-sidebar">
-            <div class="sidebar-title">📋 Sections</div>
-            <div id="sectionsList"></div>
+            <div class="sidebar-tabs">
+                <button class="sidebar-tab active" onclick="switchSidebarTab('sections')">📋 Sections</button>
+                <button class="sidebar-tab" onclick="switchSidebarTab('gallery')">📷 Gallery</button>
+            </div>
+            
+            <!-- Sections Tab -->
+            <div id="sectionsTab" class="gallery-container active">
+                <div id="sectionsList"></div>
+            </div>
+            
+            <!-- Gallery Tab -->
+            <div id="galleryTab" class="gallery-container">
+                <div class="gallery-upload-btn" onclick="openGalleryUpload()">
+                    <div class="gallery-upload-icon">📸</div>
+                    <div class="gallery-upload-text">Upload / Take Photos</div>
+                </div>
+                <div class="gallery-count" id="galleryCount">0 photos in gallery</div>
+                <div class="gallery-grid" id="galleryGrid">
+                    <!-- Gallery items will be loaded here -->
+                </div>
+            </div>
         </div>
 
         <!-- Content Area -->
@@ -1678,6 +2141,89 @@
         </div>
     </div>
 
+    <!-- Gallery Upload Modal -->
+    <div class="image-modal" id="galleryUploadModal">
+        <div class="image-modal-content">
+            <div class="image-modal-header">
+                <span class="image-modal-title">📸 Upload Photos to Gallery</span>
+                <button class="image-modal-close" onclick="closeGalleryUploadModal()">×</button>
+            </div>
+            
+            <div class="image-upload-zone" id="galleryUploadZone" onclick="document.getElementById('galleryFileInput').click()">
+                <div class="upload-icon">📤</div>
+                <div class="upload-text">Click or drag & drop to upload images<br><small>You can select multiple photos</small></div>
+                <input type="file" id="galleryFileInput" accept="image/*" multiple style="display: none;" onchange="handleGalleryUpload(event)">
+            </div>
+            
+            <div style="text-align: center; margin: 1rem 0; color: #64748b;">OR</div>
+            
+            <div class="image-upload-zone" onclick="document.getElementById('galleryCameraInput').click()" style="border-color: rgba(16, 185, 129, 0.5); background: rgba(16, 185, 129, 0.05);">
+                <div class="upload-icon">📷</div>
+                <div class="upload-text" style="color: #10b981;">Take Photo with Camera</div>
+                <input type="file" id="galleryCameraInput" accept="image/*" capture="environment" style="display: none;" onchange="handleGalleryUpload(event)">
+            </div>
+            
+            <div id="galleryUploadPreview" style="margin-top: 1rem; display: none;">
+                <div style="font-size: 0.9rem; color: #475569; margin-bottom: 0.5rem;">Selected files:</div>
+                <div id="galleryUploadList" style="max-height: 150px; overflow-y: auto;"></div>
+            </div>
+            
+            <div class="image-modal-actions" style="margin-top: 1rem;">
+                <button class="modal-btn cancel" onclick="closeGalleryUploadModal()">Cancel</button>
+                <button class="modal-btn upload" id="galleryUploadBtn" onclick="submitGalleryUpload()" disabled>📤 Upload to Gallery</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gallery Assign Modal -->
+    <div class="gallery-assign-modal" id="galleryAssignModal">
+        <div class="gallery-assign-content">
+            <div class="gallery-assign-header">
+                <span class="gallery-assign-title">🔗 Assign Picture to Items</span>
+                <button class="gallery-assign-close" onclick="closeGalleryAssignModal()">×</button>
+            </div>
+            
+            <div class="gallery-assign-preview">
+                <img id="assignPreviewImg" src="" alt="Preview">
+                <div class="gallery-assign-info">
+                    <h4 id="assignFileName">filename.jpg</h4>
+                    <p id="assignFileSize">Size: 0 KB</p>
+                    <p id="assignUploadedAt">Uploaded: -</p>
+                </div>
+            </div>
+            
+            <div class="gallery-current-assignments" id="currentAssignments" style="display: none;">
+                <h5>✅ Currently Assigned To:</h5>
+                <div id="assignmentChips"></div>
+            </div>
+            
+            <div class="gallery-assign-type">
+                <label>Select Picture Type:</label>
+                <div class="gallery-type-options">
+                    <button class="gallery-type-btn type-finding" onclick="selectGalleryType('Finding')">❌ Finding</button>
+                    <button class="gallery-type-btn type-good" onclick="selectGalleryType('Good')">✅ Good</button>
+                    <button class="gallery-type-btn type-corrective" onclick="selectGalleryType('Corrective')">🔧 Corrective</button>
+                </div>
+            </div>
+            
+            <div class="gallery-section-select">
+                <label>Filter by Section:</label>
+                <select id="assignSectionFilter" onchange="filterAssignItems()">
+                    <option value="">All Sections</option>
+                </select>
+            </div>
+            
+            <div class="gallery-items-list" id="assignItemsList">
+                <!-- Items will be loaded here -->
+            </div>
+            
+            <div class="gallery-assign-actions">
+                <button class="gallery-assign-btn cancel" onclick="closeGalleryAssignModal()">Cancel</button>
+                <button class="gallery-assign-btn save" onclick="saveGalleryAssignments()">✓ Save Assignments</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let auditData = null;
         let currentSectionIndex = 0;
@@ -1693,6 +2239,12 @@
         
         // Track which sections have temperature monitoring enabled
         let tempMonitoringSections = {};
+        
+        // Gallery state
+        let galleryPictures = [];
+        let selectedGalleryPicture = null;
+        let selectedGalleryType = null;
+        let galleryUploadFiles = [];
 
         // Get audit ID from URL (supports both path params and query params)
         function getAuditId() {
@@ -1722,6 +2274,9 @@
             
             // Load fridge readings if available
             await loadFridgeReadings();
+            
+            // Load gallery pictures
+            await loadGalleryPictures();
             
             // Re-render to show loaded fridge readings
             if (auditData && auditData.sections) {
@@ -2492,14 +3047,22 @@
         // Load existing images for a response (using file URLs, not base64)
         async function loadExistingImages(responseId) {
             try {
+                // Load direct uploads
                 const response = await fetch(`/oe-inspection/api/audits/pictures/${responseId}`);
                 const result = await response.json();
+                
+                // Load gallery pictures linked to this item
+                const galleryResponse = await fetch(`/oe-inspection/api/gallery/item/${responseId}`);
+                const galleryResult = await galleryResponse.json();
                 
                 const container = document.getElementById('existingImages');
                 const list = document.getElementById('existingImagesList');
                 
+                let html = '';
+                
+                // Direct uploads
                 if (result.success && result.data.length > 0) {
-                    list.innerHTML = result.data.map(pic => `
+                    html += result.data.map(pic => `
                         <div class="existing-image-item">
                             <img src="${pic.filePath}" class="existing-image-thumb" alt="${pic.originalName || pic.fileName}">
                             <div class="existing-image-info">
@@ -2509,12 +3072,52 @@
                             <button class="delete-image-btn" onclick="deleteImage(${pic.pictureId})">🗑️</button>
                         </div>
                     `).join('');
+                }
+                
+                // Gallery pictures
+                if (galleryResult.success && galleryResult.data.length > 0) {
+                    html += galleryResult.data.map(pic => `
+                        <div class="existing-image-item" style="border-left: 3px solid #6366f1;">
+                            <img src="${pic.FilePath}" class="existing-image-thumb" alt="${pic.OriginalName}">
+                            <div class="existing-image-info">
+                                <div class="existing-image-type type-${pic.PictureType.toLowerCase()}">${getTypeLabel(pic.PictureType)} <span style="font-size: 0.7rem; color: #6366f1;">(Gallery)</span></div>
+                                <div class="existing-image-name">${pic.OriginalName}</div>
+                            </div>
+                            <button class="delete-image-btn" onclick="removeGalleryAssignmentFromModal(${pic.LinkId})" title="Unlink from this item">🔗✕</button>
+                        </div>
+                    `).join('');
+                }
+                
+                if (html) {
+                    list.innerHTML = html;
                     container.style.display = 'block';
                 } else {
                     container.style.display = 'none';
                 }
             } catch (error) {
                 console.error('Error loading images:', error);
+            }
+        }
+        
+        // Remove gallery assignment from image modal
+        async function removeGalleryAssignmentFromModal(linkId) {
+            if (!confirm('Unlink this gallery picture from this item?')) return;
+            
+            try {
+                const response = await fetch(`/oe-inspection/api/gallery/unassign/${linkId}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    showToast('Picture unlinked', 'success');
+                    loadExistingImages(currentImageResponseId);
+                    await loadGalleryPictures();
+                    renderSection(currentSectionIndex);
+                }
+            } catch (error) {
+                console.error('Error removing assignment:', error);
+                showToast('Failed to unlink picture', 'error');
             }
         }
 
@@ -2631,6 +3234,30 @@
                 if (!confirm(`There are still ${unanswered} unanswered questions. Are you sure you want to complete the audit?`)) {
                     return;
                 }
+            }
+            
+            // Check for unassigned gallery pictures
+            try {
+                const unassignedResponse = await fetch(`/oe-inspection/api/gallery/${auditData.auditId}/unassigned`);
+                const unassignedResult = await unassignedResponse.json();
+                
+                if (unassignedResult.success && unassignedResult.count > 0) {
+                    const action = confirm(`You have ${unassignedResult.count} unassigned picture(s) in the gallery.\n\nClick OK to delete them and complete the audit.\nClick Cancel to go back and assign them.`);
+                    
+                    if (!action) {
+                        // Switch to gallery tab
+                        switchSidebarTab('gallery');
+                        return;
+                    }
+                    
+                    // Delete unassigned pictures
+                    await fetch(`/oe-inspection/api/gallery/${auditData.auditId}/unassigned`, {
+                        method: 'DELETE'
+                    });
+                    showToast('Unassigned pictures deleted', 'info');
+                }
+            } catch (error) {
+                console.warn('Could not check unassigned pictures:', error);
             }
 
             try {
@@ -3048,6 +3675,343 @@
                 }
             } catch (error) {
                 console.warn('Could not load fridge readings:', error.message);
+            }
+        }
+
+        // ==========================================
+        // GALLERY FUNCTIONS
+        // ==========================================
+        
+        // Switch sidebar tabs
+        function switchSidebarTab(tab) {
+            document.querySelectorAll('.sidebar-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.gallery-container').forEach(c => c.classList.remove('active'));
+            
+            if (tab === 'sections') {
+                document.querySelector('.sidebar-tab:first-child').classList.add('active');
+                document.getElementById('sectionsTab').classList.add('active');
+            } else {
+                document.querySelector('.sidebar-tab:last-child').classList.add('active');
+                document.getElementById('galleryTab').classList.add('active');
+                loadGalleryPictures();
+            }
+        }
+        
+        // Load gallery pictures
+        async function loadGalleryPictures() {
+            if (!auditData) return;
+            
+            try {
+                const response = await fetch(`/oe-inspection/api/gallery/${auditData.auditId}`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    galleryPictures = result.data;
+                    renderGalleryGrid();
+                }
+            } catch (error) {
+                console.error('Error loading gallery:', error);
+            }
+        }
+        
+        // Render gallery grid
+        function renderGalleryGrid() {
+            const grid = document.getElementById('galleryGrid');
+            const count = document.getElementById('galleryCount');
+            
+            const assigned = galleryPictures.filter(p => p.AssignmentCount > 0).length;
+            const unassigned = galleryPictures.length - assigned;
+            
+            count.innerHTML = `${galleryPictures.length} photos • <span style="color: #10b981;">${assigned} assigned</span> • <span style="color: #f59e0b;">${unassigned} unassigned</span>`;
+            
+            if (galleryPictures.length === 0) {
+                grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 2rem; color: #64748b;">No photos yet.<br>Click above to upload.</div>';
+                return;
+            }
+            
+            grid.innerHTML = galleryPictures.map(pic => `
+                <div class="gallery-item" onclick="openGalleryAssignModal(${pic.Id})">
+                    <img src="${pic.FilePath}" alt="${pic.OriginalName}">
+                    <div class="gallery-item-overlay">
+                        <span class="gallery-item-badge ${pic.AssignmentCount > 0 ? 'assigned' : 'unassigned'}">
+                            ${pic.AssignmentCount > 0 ? pic.AssignmentCount + ' items' : 'Unassigned'}
+                        </span>
+                        <button class="gallery-item-delete" onclick="event.stopPropagation(); deleteGalleryPicture(${pic.Id})">🗑️</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        // Open gallery upload modal
+        function openGalleryUpload() {
+            galleryUploadFiles = [];
+            document.getElementById('galleryFileInput').value = '';
+            document.getElementById('galleryCameraInput').value = '';
+            document.getElementById('galleryUploadPreview').style.display = 'none';
+            document.getElementById('galleryUploadBtn').disabled = true;
+            document.getElementById('galleryUploadModal').classList.add('show');
+        }
+        
+        // Close gallery upload modal
+        function closeGalleryUploadModal() {
+            document.getElementById('galleryUploadModal').classList.remove('show');
+            galleryUploadFiles = [];
+        }
+        
+        // Handle gallery file selection
+        function handleGalleryUpload(event) {
+            const files = Array.from(event.target.files);
+            if (files.length === 0) return;
+            
+            galleryUploadFiles = files;
+            
+            const listEl = document.getElementById('galleryUploadList');
+            listEl.innerHTML = files.map((f, i) => `
+                <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: rgba(99, 102, 241, 0.05); border-radius: 6px; margin-bottom: 0.5rem;">
+                    <span>📷</span>
+                    <span style="flex: 1; font-size: 0.85rem;">${f.name}</span>
+                    <span style="font-size: 0.75rem; color: #64748b;">${(f.size / 1024).toFixed(1)} KB</span>
+                </div>
+            `).join('');
+            
+            document.getElementById('galleryUploadPreview').style.display = 'block';
+            document.getElementById('galleryUploadBtn').disabled = false;
+        }
+        
+        // Submit gallery upload
+        async function submitGalleryUpload() {
+            if (galleryUploadFiles.length === 0) return;
+            
+            const btn = document.getElementById('galleryUploadBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Uploading...';
+            
+            try {
+                const formData = new FormData();
+                galleryUploadFiles.forEach(file => {
+                    formData.append('pictures', file);
+                });
+                
+                const response = await fetch(`/oe-inspection/api/gallery/${auditData.auditId}/upload-multiple`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast(`${result.count} photo(s) uploaded to gallery!`, 'success');
+                    closeGalleryUploadModal();
+                    await loadGalleryPictures();
+                } else {
+                    throw new Error(result.error);
+                }
+            } catch (error) {
+                console.error('Error uploading to gallery:', error);
+                showToast('Failed to upload photos', 'error');
+            }
+            
+            btn.disabled = false;
+            btn.textContent = '📤 Upload to Gallery';
+        }
+        
+        // Delete gallery picture
+        async function deleteGalleryPicture(pictureId) {
+            if (!confirm('Delete this picture from gallery? This will also remove it from any assigned items.')) return;
+            
+            try {
+                const response = await fetch(`/oe-inspection/api/gallery/picture/${pictureId}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    showToast('Picture deleted', 'success');
+                    await loadGalleryPictures();
+                    renderSection(currentSectionIndex); // Refresh to update any linked items
+                } else {
+                    throw new Error(result.error);
+                }
+            } catch (error) {
+                console.error('Error deleting picture:', error);
+                showToast('Failed to delete picture', 'error');
+            }
+        }
+        
+        // Open gallery assign modal
+        async function openGalleryAssignModal(pictureId) {
+            const picture = galleryPictures.find(p => p.Id === pictureId);
+            if (!picture) return;
+            
+            selectedGalleryPicture = picture;
+            selectedGalleryType = null;
+            
+            // Reset type buttons
+            document.querySelectorAll('.gallery-type-btn').forEach(btn => btn.classList.remove('selected'));
+            
+            // Set preview
+            document.getElementById('assignPreviewImg').src = picture.FilePath;
+            document.getElementById('assignFileName').textContent = picture.OriginalName;
+            document.getElementById('assignFileSize').textContent = `Size: ${(picture.FileSize / 1024).toFixed(1)} KB`;
+            document.getElementById('assignUploadedAt').textContent = `Uploaded: ${new Date(picture.UploadedAt).toLocaleString()}`;
+            
+            // Load current assignments
+            await loadPictureAssignments(pictureId);
+            
+            // Populate section filter
+            const sectionFilter = document.getElementById('assignSectionFilter');
+            sectionFilter.innerHTML = '<option value="">All Sections</option>';
+            auditData.sections.forEach(s => {
+                sectionFilter.innerHTML += `<option value="${s.sectionName}">${s.sectionName}</option>`;
+            });
+            
+            // Populate items list
+            filterAssignItems();
+            
+            document.getElementById('galleryAssignModal').classList.add('show');
+        }
+        
+        // Close gallery assign modal
+        function closeGalleryAssignModal() {
+            document.getElementById('galleryAssignModal').classList.remove('show');
+            selectedGalleryPicture = null;
+            selectedGalleryType = null;
+        }
+        
+        // Load picture assignments
+        async function loadPictureAssignments(pictureId) {
+            try {
+                const response = await fetch(`/oe-inspection/api/gallery/picture/${pictureId}/assignments`);
+                const result = await response.json();
+                
+                const container = document.getElementById('currentAssignments');
+                const chipsEl = document.getElementById('assignmentChips');
+                
+                if (result.success && result.data.length > 0) {
+                    chipsEl.innerHTML = result.data.map(a => `
+                        <span class="gallery-assignment-chip">
+                            <strong>${a.ReferenceValue}</strong> (${a.PictureType})
+                            <span class="remove" onclick="removeGalleryAssignment(${a.LinkId})">×</span>
+                        </span>
+                    `).join('');
+                    container.style.display = 'block';
+                } else {
+                    container.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error loading assignments:', error);
+            }
+        }
+        
+        // Select gallery type
+        function selectGalleryType(type) {
+            selectedGalleryType = type;
+            document.querySelectorAll('.gallery-type-btn').forEach(btn => btn.classList.remove('selected'));
+            document.querySelector(`.gallery-type-btn.type-${type.toLowerCase()}`).classList.add('selected');
+        }
+        
+        // Filter items list by section
+        function filterAssignItems() {
+            const sectionFilter = document.getElementById('assignSectionFilter').value;
+            const listEl = document.getElementById('assignItemsList');
+            
+            let items = [];
+            auditData.sections.forEach(section => {
+                if (!sectionFilter || section.sectionName === sectionFilter) {
+                    section.items.forEach(item => {
+                        items.push({
+                            ...item,
+                            sectionName: section.sectionName
+                        });
+                    });
+                }
+            });
+            
+            listEl.innerHTML = items.map(item => `
+                <label class="gallery-item-option">
+                    <input type="checkbox" value="${item.responseId}" data-ref="${item.referenceValue}">
+                    <div class="gallery-item-option-info">
+                        <div class="gallery-item-option-ref">${item.referenceValue} • ${item.sectionName}</div>
+                        <div class="gallery-item-option-title">${item.title}</div>
+                    </div>
+                </label>
+            `).join('');
+        }
+        
+        // Save gallery assignments
+        async function saveGalleryAssignments() {
+            if (!selectedGalleryPicture) return;
+            
+            if (!selectedGalleryType) {
+                showToast('Please select a picture type', 'error');
+                return;
+            }
+            
+            const checkedItems = document.querySelectorAll('#assignItemsList input[type="checkbox"]:checked');
+            if (checkedItems.length === 0) {
+                showToast('Please select at least one item', 'error');
+                return;
+            }
+            
+            let successCount = 0;
+            for (const checkbox of checkedItems) {
+                try {
+                    const response = await fetch('/oe-inspection/api/gallery/assign', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            galleryPictureId: selectedGalleryPicture.Id,
+                            responseId: parseInt(checkbox.value),
+                            pictureType: selectedGalleryType
+                        })
+                    });
+                    
+                    const result = await response.json();
+                    if (result.success) successCount++;
+                } catch (error) {
+                    console.error('Error assigning:', error);
+                }
+            }
+            
+            showToast(`Assigned to ${successCount} item(s)`, 'success');
+            
+            // Reload assignments and gallery
+            await loadPictureAssignments(selectedGalleryPicture.Id);
+            await loadGalleryPictures();
+            renderSection(currentSectionIndex);
+            
+            // Uncheck all
+            checkedItems.forEach(cb => cb.checked = false);
+        }
+        
+        // Remove gallery assignment
+        async function removeGalleryAssignment(linkId) {
+            try {
+                const response = await fetch(`/oe-inspection/api/gallery/unassign/${linkId}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    showToast('Assignment removed', 'success');
+                    await loadPictureAssignments(selectedGalleryPicture.Id);
+                    await loadGalleryPictures();
+                    renderSection(currentSectionIndex);
+                }
+            } catch (error) {
+                console.error('Error removing assignment:', error);
+                showToast('Failed to remove assignment', 'error');
+            }
+        }
+        
+        // Load gallery pictures for an item (to show in question card)
+        async function loadItemGalleryPictures(responseId) {
+            try {
+                const response = await fetch(`/oe-inspection/api/gallery/item/${responseId}`);
+                const result = await response.json();
+                return result.success ? result.data : [];
+            } catch (error) {
+                return [];
             }
         }
 
