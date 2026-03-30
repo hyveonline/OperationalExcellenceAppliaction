@@ -290,6 +290,70 @@
             font-style: italic;
         }
 
+        /* Department Response Styles */
+        .dept-response-col {
+            min-width: 150px;
+            max-width: 200px;
+        }
+
+        .dept-response-content {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .dept-status-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .dept-status-badge.status-pending {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .dept-status-badge.status-acknowledged {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .dept-status-badge.status-inprogress {
+            background: #e0e7ff;
+            color: #3730a3;
+        }
+
+        .dept-status-badge.status-resolved {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .dept-status-badge.status-closed {
+            background: #e5e7eb;
+            color: #374151;
+        }
+
+        .dept-response-text {
+            font-size: 12px;
+            color: #374151;
+            max-height: 60px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            line-height: 1.4;
+        }
+
+        .dept-resolved-by {
+            font-size: 10px;
+            color: #6b7280;
+            font-style: italic;
+        }
+
         .section-badge {
             display: inline-block;
             padding: 4px 10px;
@@ -808,6 +872,18 @@
                 </select>
             </div>
             <div class="filter-group">
+                <label>Dept Response</label>
+                <select id="deptResponseFilter" onchange="applyFilters()">
+                    <option value="">All</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Acknowledged">Acknowledged</option>
+                    <option value="InProgress">In Progress</option>
+                    <option value="Resolved">Resolved</option>
+                    <option value="Closed">Closed</option>
+                    <option value="none">No Response</option>
+                </select>
+            </div>
+            <div class="filter-group">
                 <label>Escalated</label>
                 <select id="escalateFilter" onchange="applyFilters()">
                     <option value="">All</option>
@@ -838,6 +914,7 @@
         let actionItems = [];
         let filteredItems = [];
         let savedResponses = {};
+        let departmentResponses = {};  // Store dept responses by referenceValue|department
 
         document.addEventListener('DOMContentLoaded', async () => {
             // Get audit ID from URL path (e.g., /ohs-inspection/action-plan/16)
@@ -895,6 +972,15 @@
                     });
                     console.log('Loaded saved responses:', Object.keys(savedResponses).length);
                 }
+                
+                // Store department responses
+                if (result.departmentResponses) {
+                    result.departmentResponses.forEach(deptResp => {
+                        const key = `${deptResp.ReferenceValue}|${deptResp.Department || ''}`;
+                        departmentResponses[key] = deptResp;
+                    });
+                    console.log('Loaded department responses:', Object.keys(departmentResponses).length);
+                }
             } catch (error) {
                 console.warn('No saved responses found:', error.message);
             }
@@ -910,6 +996,10 @@
                         // Check for saved response using referenceValue + department as key
                         const savedKey = `${item.referenceValue}|${item.department || ''}`;
                         const saved = savedResponses[savedKey] || {};
+                        
+                        // Check for department response (lookup by referenceValue + assignedDepartment)
+                        const deptKey = `${item.referenceValue}|${item.assignedDepartment || ''}`;
+                        const deptResp = departmentResponses[deptKey] || {};
                         
                         // Parse pictures - could be in PicturesPaths or Pictures field
                         let pictures = [];
@@ -941,7 +1031,12 @@
                             personInCharge: saved.PersonInCharge || '',
                             status: saved.Status || 'Pending',
                             pictures: pictures,
-                            notes: saved.Notes || item.comment || ''
+                            notes: saved.Notes || item.comment || '',
+                            // Department response fields
+                            deptStatus: deptResp.DeptStatus || '',
+                            deptResponse: deptResp.DeptResponse || '',
+                            deptResolvedBy: deptResp.DeptResolvedBy || '',
+                            deptResolvedAt: deptResp.DeptResolvedAt || ''
                         });
                     }
                 }
@@ -1019,6 +1114,7 @@
             const answer = document.getElementById('answerFilter').value;
             const priority = document.getElementById('priorityFilter').value;
             const status = document.getElementById('statusFilter').value;
+            const deptResponse = document.getElementById('deptResponseFilter').value;
             const escalate = document.getElementById('escalateFilter').value;
 
             filteredItems = actionItems.filter(item => {
@@ -1028,6 +1124,8 @@
                 if (answer && item.selectedChoice !== answer) return false;
                 if (priority && item.priority !== priority) return false;
                 if (status && item.status !== status) return false;
+                if (deptResponse === 'none' && item.deptStatus) return false;
+                if (deptResponse && deptResponse !== 'none' && item.deptStatus !== deptResponse) return false;
                 if (escalate === 'true' && !item.escalate) return false;
                 return true;
             });
@@ -1056,6 +1154,7 @@
                             <th style="width:60px;">Ref#</th>
                             <th>Department</th>
                             <th>Assigned To</th>
+                            <th>Dept Response</th>
                             <th>Category</th>
                             <th>Answer</th>
                             <th>Finding / Question</th>
@@ -1084,6 +1183,15 @@
                         </td>
                         <td class="assigned-col">
                             ${item.assignedDepartment ? `<span class="assigned-badge">🏢 ${item.assignedDepartment}</span>` : '<span class="not-assigned">-</span>'}
+                        </td>
+                        <td class="dept-response-col">
+                            ${item.deptResponse ? `
+                                <div class="dept-response-content">
+                                    <span class="dept-status-badge status-${(item.deptStatus || '').toLowerCase()}">${item.deptStatus || '-'}</span>
+                                    <div class="dept-response-text" title="${(item.deptResponse || '').replace(/"/g, '&quot;')}">${item.deptResponse || ''}</div>
+                                    ${item.deptResolvedBy ? `<div class="dept-resolved-by">by ${item.deptResolvedBy}</div>` : ''}
+                                </div>
+                            ` : '<span class="not-assigned">-</span>'}
                         </td>
                         <td class="section-col">
                             <span class="section-badge">${item.sectionName}</span>

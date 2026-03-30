@@ -4001,12 +4001,35 @@ router.get('/api/action-plan/:documentNumber', async (req, res) => {
                 WHERE DocumentNumber = @documentNumber
             `);
         
-        console.log(`[Action Plan] Loaded ${result.recordset.length} responses for ${documentNumber}`);
-        res.json({ success: true, actions: result.recordset });
+        // Also get department escalation responses
+        let deptResponses = [];
+        try {
+            const deptResult = await pool.request()
+                .input('documentNumber', sql.NVarChar, documentNumber)
+                .query(`
+                    SELECT 
+                        ReferenceValue,
+                        Department,
+                        Status as DeptStatus,
+                        ResolutionNotes as DeptResponse,
+                        ResolvedBy as DeptResolvedBy,
+                        ResolvedAt as DeptResolvedAt,
+                        AcknowledgedBy as DeptAcknowledgedBy,
+                        AcknowledgedAt as DeptAcknowledgedAt
+                    FROM DepartmentEscalations
+                    WHERE Module = 'OHS' AND DocumentNumber = @documentNumber
+                `);
+            deptResponses = deptResult.recordset;
+        } catch (deptErr) {
+            console.warn('Could not load department responses:', deptErr.message);
+        }
+        
+        console.log(`[Action Plan] Loaded ${result.recordset.length} responses and ${deptResponses.length} dept responses for ${documentNumber}`);
+        res.json({ success: true, actions: result.recordset, departmentResponses: deptResponses });
     } catch (error) {
         // Table might not exist yet - that's ok
         console.warn('Action plan responses not found:', error.message);
-        res.json({ success: true, actions: [] });
+        res.json({ success: true, actions: [], departmentResponses: [] });
     }
 });
 
@@ -4187,7 +4210,7 @@ router.post('/api/action-plan/upload-picture', ohsUpload.single('picture'), asyn
             
             // Insert picture metadata
             const compressionRatio = originalSize > 0 ? ((1 - compressedSize / originalSize) * 100) : 0;
-            const uploadedBy = req.session?.user?.name || req.session?.user?.email || 'Unknown';
+            const uploadedBy = req.currentUser?.displayName || req.currentUser?.name || req.currentUser?.email || 'Unknown';
             
             await pool.request()
                 .input('documentNumber', sql.NVarChar, documentNumber || null)
@@ -5349,7 +5372,7 @@ router.put('/api/department-assignments/:id/acknowledge', async (req, res) => {
     try {
         const { id } = req.params;
         const pool = await sql.connect(dbConfig);
-        const userName = req.session?.user?.name || 'Unknown';
+        const userName = req.currentUser?.displayName || req.currentUser?.name || req.currentUser?.email || 'Unknown';
         
         await pool.request()
             .input('id', sql.Int, id)
@@ -5375,7 +5398,7 @@ router.put('/api/department-assignments/:id/resolve', async (req, res) => {
         const { id } = req.params;
         const { notes } = req.body;
         const pool = await sql.connect(dbConfig);
-        const userName = req.session?.user?.name || 'Unknown';
+        const userName = req.currentUser?.displayName || req.currentUser?.name || req.currentUser?.email || 'Unknown';
         
         await pool.request()
             .input('id', sql.Int, id)
