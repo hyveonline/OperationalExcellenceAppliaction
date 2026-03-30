@@ -271,6 +271,25 @@
             color: #1e40af;
         }
 
+        .assigned-col {
+            white-space: nowrap;
+        }
+
+        .assigned-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .not-assigned {
+            color: #9ca3af;
+            font-style: italic;
+        }
+
         .section-badge {
             display: inline-block;
             padding: 4px 10px;
@@ -552,6 +571,10 @@
             background: linear-gradient(135deg, #ef4444, #dc2626);
         }
 
+        .toast.warning {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+        }
+
         .toast.info {
             background: linear-gradient(135deg, #3b82f6, #2563eb);
         }
@@ -746,6 +769,12 @@
                 </select>
             </div>
             <div class="filter-group">
+                <label>Assigned To</label>
+                <select id="assignedFilter" onchange="applyFilters()">
+                    <option value="">All</option>
+                </select>
+            </div>
+            <div class="filter-group">
                 <label>Category</label>
                 <select id="sectionFilter" onchange="applyFilters()">
                     <option value="">All Categories</option>
@@ -779,10 +808,10 @@
                 </select>
             </div>
             <div class="filter-group">
-                <label>Assigned</label>
+                <label>Escalated</label>
                 <select id="escalateFilter" onchange="applyFilters()">
                     <option value="">All</option>
-                    <option value="true">Assigned to Dept Only</option>
+                    <option value="true">Escalated Only</option>
                 </select>
             </div>
         </div>
@@ -904,6 +933,7 @@
                             priority: item.priority || 'Medium',
                             escalate: item.escalate,
                             department: item.department || '',
+                            assignedDepartment: item.assignedDepartment || '',
                             cr: item.cr || '',
                             // Editable fields - use saved or empty
                             actionTaken: saved.ActionTaken || item.cr || '',
@@ -961,6 +991,16 @@
                 deptSelect.appendChild(option);
             });
 
+            // Populate assigned departments
+            const assignedDepts = [...new Set(actionItems.map(i => i.assignedDepartment).filter(d => d))].sort();
+            const assignedSelect = document.getElementById('assignedFilter');
+            assignedDepts.forEach(dept => {
+                const option = document.createElement('option');
+                option.value = dept;
+                option.textContent = dept;
+                assignedSelect.appendChild(option);
+            });
+
             // Populate sections/categories
             const sections = [...new Set(actionItems.map(i => i.sectionName))].sort();
             const sectionSelect = document.getElementById('sectionFilter');
@@ -974,6 +1014,7 @@
 
         function applyFilters() {
             const department = document.getElementById('departmentFilter').value;
+            const assigned = document.getElementById('assignedFilter').value;
             const section = document.getElementById('sectionFilter').value;
             const answer = document.getElementById('answerFilter').value;
             const priority = document.getElementById('priorityFilter').value;
@@ -982,6 +1023,7 @@
 
             filteredItems = actionItems.filter(item => {
                 if (department && item.department !== department) return false;
+                if (assigned && item.assignedDepartment !== assigned) return false;
                 if (section && item.sectionName !== section) return false;
                 if (answer && item.selectedChoice !== answer) return false;
                 if (priority && item.priority !== priority) return false;
@@ -1013,6 +1055,7 @@
                         <tr>
                             <th style="width:60px;">Ref#</th>
                             <th>Department</th>
+                            <th>Assigned To</th>
                             <th>Category</th>
                             <th>Answer</th>
                             <th>Finding / Question</th>
@@ -1038,6 +1081,9 @@
                         <td class="ref-col">${item.referenceValue}</td>
                         <td class="dept-col">
                             <span class="dept-badge">${item.department || '-'}</span>
+                        </td>
+                        <td class="assigned-col">
+                            ${item.assignedDepartment ? `<span class="assigned-badge">🏢 ${item.assignedDepartment}</span>` : '<span class="not-assigned">-</span>'}
                         </td>
                         <td class="section-col">
                             <span class="section-badge">${item.sectionName}</span>
@@ -1138,6 +1184,32 @@
                 input.addEventListener('input', updateHandler);
                 input.addEventListener('change', updateHandler);
             });
+            
+            // Add warning when status changes to "Completed" without pictures
+            container.querySelectorAll('.status-select').forEach(select => {
+                select.addEventListener('change', (e) => {
+                    const index = parseInt(e.target.dataset.index);
+                    const item = filteredItems[index];
+                    
+                    if (e.target.value === 'Completed' && (!item.pictures || item.pictures.length === 0)) {
+                        const previewEl = document.getElementById(`preview-${index}`);
+                        if (previewEl) {
+                            previewEl.style.border = '2px dashed #ef4444';
+                            previewEl.style.borderRadius = '6px';
+                            previewEl.style.padding = '4px';
+                            previewEl.style.background = '#fef2f2';
+                        }
+                        showToast('⚠️ Evidence photo required to mark as Completed', 'warning');
+                    } else {
+                        const previewEl = document.getElementById(`preview-${index}`);
+                        if (previewEl) {
+                            previewEl.style.border = '';
+                            previewEl.style.padding = '';
+                            previewEl.style.background = '';
+                        }
+                    }
+                });
+            });
         }
 
         function renderPictures(pictures, index) {
@@ -1153,6 +1225,19 @@
 
         function updateStatusStyle(select) {
             select.className = 'status-select status-' + select.value.toLowerCase().replace(' ', '-');
+            
+            // Check if evidence is required
+            const index = parseInt(select.dataset.index);
+            const item = filteredItems[index];
+            if (select.value === 'Completed' && (!item.pictures || item.pictures.length === 0)) {
+                const previewEl = document.getElementById(`preview-${index}`);
+                if (previewEl) {
+                    previewEl.style.border = '2px dashed #ef4444';
+                    previewEl.style.borderRadius = '6px';
+                    previewEl.style.padding = '4px';
+                    previewEl.style.background = '#fef2f2';
+                }
+            }
         }
 
         let uploadingPicture = false;
@@ -1169,9 +1254,15 @@
             uploadingPicture = true;
 
             try {
-                // Upload to server with compression
+                // Get item details for metadata storage
+                const item = filteredItems[index];
+                
+                // Upload to server with compression and metadata
                 const formData = new FormData();
                 formData.append('picture', file);
+                formData.append('documentNumber', auditData?.documentNumber || '');
+                formData.append('referenceValue', item?.referenceValue || '');
+                formData.append('department', item?.assignedDepartment || item?.department || '');
                 
                 const response = await fetch('/ohs-inspection/api/action-plan/upload-picture', {
                     method: 'POST',
@@ -1181,6 +1272,11 @@
                 const result = await response.json();
                 
                 if (result.success) {
+                    // Show compression info
+                    if (result.compressionRatio) {
+                        console.log(`Picture compressed: ${result.compressionRatio}% saved`);
+                    }
+                    
                     // Store file URL - update filteredItems
                     if (!filteredItems[index].pictures) {
                         filteredItems[index].pictures = [];
@@ -1195,8 +1291,14 @@
                         mainItem.pictures = [...filteredItems[index].pictures];
                     }
                     
-                    // Update preview
-                    document.getElementById(`preview-${index}`).innerHTML = renderPictures(filteredItems[index].pictures, index);
+                    // Update preview and clear any warning style
+                    const previewEl = document.getElementById(`preview-${index}`);
+                    previewEl.innerHTML = renderPictures(filteredItems[index].pictures, index);
+                    previewEl.style.border = '';
+                    previewEl.style.padding = '';
+                    previewEl.style.background = '';
+                    
+                    showToast('📷 Photo uploaded successfully', 'success');
                 } else {
                     console.error('Upload failed:', result.error);
                     alert('Failed to upload picture: ' + (result.error || 'Unknown error'));
@@ -1222,7 +1324,18 @@
                 mainItem.pictures = [...filteredItems[itemIndex].pictures];
             }
             
-            document.getElementById(`preview-${itemIndex}`).innerHTML = renderPictures(filteredItems[itemIndex].pictures, itemIndex);
+            const previewEl = document.getElementById(`preview-${itemIndex}`);
+            previewEl.innerHTML = renderPictures(filteredItems[itemIndex].pictures, itemIndex);
+            
+            // Show warning if status is Completed and no pictures remain
+            const item = filteredItems[itemIndex];
+            if (item.status === 'Completed' && (!item.pictures || item.pictures.length === 0)) {
+                previewEl.style.border = '2px dashed #ef4444';
+                previewEl.style.borderRadius = '6px';
+                previewEl.style.padding = '4px';
+                previewEl.style.background = '#fef2f2';
+                showToast('⚠️ Evidence photo required to mark as Completed', 'warning');
+            }
         }
 
         function openLightbox(src) {
@@ -1236,6 +1349,34 @@
 
         async function saveActionPlan() {
             try {
+                // Validation: Check if any "Completed" items have no evidence photos
+                const completedWithoutEvidence = actionItems.filter(item => 
+                    item.status === 'Completed' && (!item.pictures || item.pictures.length === 0)
+                );
+                
+                if (completedWithoutEvidence.length > 0) {
+                    const refs = completedWithoutEvidence.map(i => i.referenceValue).join(', ');
+                    showToast(`Cannot save: Items [${refs}] marked as "Completed" require evidence photos.`, 'error');
+                    
+                    // Highlight the items that need photos
+                    completedWithoutEvidence.forEach(item => {
+                        const idx = filteredItems.findIndex(f => f.referenceValue === item.referenceValue && f.department === item.department);
+                        if (idx >= 0) {
+                            const previewEl = document.getElementById(`preview-${idx}`);
+                            if (previewEl) {
+                                previewEl.style.border = '2px solid #ef4444';
+                                previewEl.style.borderRadius = '6px';
+                                previewEl.style.padding = '4px';
+                                setTimeout(() => {
+                                    previewEl.style.border = '';
+                                    previewEl.style.padding = '';
+                                }, 5000);
+                            }
+                        }
+                    });
+                    return;
+                }
+
                 const actions = actionItems.map(item => ({
                     documentNumber: auditData.documentNumber,
                     referenceValue: item.referenceValue,

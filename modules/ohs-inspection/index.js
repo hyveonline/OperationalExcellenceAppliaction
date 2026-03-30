@@ -1754,6 +1754,7 @@ router.get('/api/audits/:auditId', async (req, res) => {
                         HasPicture as hasPicture,
                         Escalate as escalate,
                         DepartmentName as department,
+                        Department as assignedDepartment,
                         Criteria as criteria,
                         IsRepetitive as isRepetitive
                     FROM OHS_InspectionItems
@@ -4157,6 +4158,62 @@ router.post('/api/action-plan/upload-picture', ohsUpload.single('picture'), asyn
         const stats = fs.statSync(fullPath);
         const compressedSize = stats.size;
         
+        // Get document number and reference from request body (optional)
+        const { documentNumber, referenceValue, department } = req.body || {};
+        
+        // Store metadata in database
+        try {
+            const pool = await sql.connect(dbConfig);
+            
+            // Create metadata table if not exists
+            await pool.request().query(`
+                IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'OHS_ActionPlanPictures')
+                CREATE TABLE OHS_ActionPlanPictures (
+                    Id INT IDENTITY(1,1) PRIMARY KEY,
+                    DocumentNumber NVARCHAR(50),
+                    ReferenceValue NVARCHAR(50),
+                    Department NVARCHAR(255),
+                    FileName NVARCHAR(255),
+                    OriginalFileName NVARCHAR(255),
+                    FilePath NVARCHAR(500),
+                    MimeType NVARCHAR(100),
+                    OriginalSize INT,
+                    CompressedSize INT,
+                    CompressionRatio DECIMAL(5,2),
+                    UploadedBy NVARCHAR(255),
+                    UploadedAt DATETIME DEFAULT GETDATE()
+                )
+            `);
+            
+            // Insert picture metadata
+            const compressionRatio = originalSize > 0 ? ((1 - compressedSize / originalSize) * 100) : 0;
+            const uploadedBy = req.session?.user?.name || req.session?.user?.email || 'Unknown';
+            
+            await pool.request()
+                .input('documentNumber', sql.NVarChar, documentNumber || null)
+                .input('referenceValue', sql.NVarChar, referenceValue || null)
+                .input('department', sql.NVarChar, department || null)
+                .input('fileName', sql.NVarChar, req.file.filename)
+                .input('originalFileName', sql.NVarChar, req.file.originalname)
+                .input('filePath', sql.NVarChar, `/uploads/ohs-inspection/${req.file.filename}`)
+                .input('mimeType', sql.NVarChar, req.file.mimetype)
+                .input('originalSize', sql.Int, originalSize)
+                .input('compressedSize', sql.Int, compressedSize)
+                .input('compressionRatio', sql.Decimal(5,2), compressionRatio)
+                .input('uploadedBy', sql.NVarChar, uploadedBy)
+                .query(`
+                    INSERT INTO OHS_ActionPlanPictures 
+                    (DocumentNumber, ReferenceValue, Department, FileName, OriginalFileName, FilePath, MimeType, OriginalSize, CompressedSize, CompressionRatio, UploadedBy)
+                    VALUES 
+                    (@documentNumber, @referenceValue, @department, @fileName, @originalFileName, @filePath, @mimeType, @originalSize, @compressedSize, @compressionRatio, @uploadedBy)
+                `);
+                
+            console.log(`[Action Plan] Picture metadata saved for ${documentNumber || 'unknown'} - ${referenceValue || 'unknown'}`);
+        } catch (dbError) {
+            console.warn('[Action Plan] Could not save picture metadata:', dbError.message);
+            // Continue even if metadata save fails - the file upload succeeded
+        }
+        
         console.log(`[Action Plan] Picture uploaded: ${req.file.originalname} | Original: ${(originalSize/1024).toFixed(1)}KB | Compressed: ${(compressedSize/1024).toFixed(1)}KB | Saved: ${((1 - compressedSize/originalSize) * 100).toFixed(0)}%`);
         
         res.json({ 
@@ -4164,7 +4221,8 @@ router.post('/api/action-plan/upload-picture', ohsUpload.single('picture'), asyn
             url: `/uploads/ohs-inspection/${req.file.filename}`,
             fileName: req.file.originalname,
             originalSize: originalSize,
-            compressedSize: compressedSize
+            compressedSize: compressedSize,
+            compressionRatio: ((1 - compressedSize/originalSize) * 100).toFixed(1)
         });
     } catch (error) {
         console.error('Error uploading action plan picture:', error);
