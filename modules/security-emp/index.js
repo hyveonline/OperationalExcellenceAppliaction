@@ -13,6 +13,7 @@ const dailyReportingRoutes = require('./daily-reporting/routes');
 const calendarRoutes = require('./calendar/routes');
 const cameraRequestRoutes = require('./camera-request/routes');
 const postVisitReportRoutes = require('./post-visit-report/routes');
+const internalInvestigationsRoutes = require('./internal-investigations/routes');
 
 // Mount routes
 router.use('/legal-cases', legalCasesRoutes);
@@ -21,5 +22,6 @@ router.use('/daily-reporting', dailyReportingRoutes);
 router.use('/calendar', calendarRoutes);
 router.use('/camera-request', cameraRequestRoutes);
 router.use('/post-visit-report', postVisitReportRoutes);
+router.use('/internal-investigations', internalInvestigationsRoutes);
 
 module.exports = router;
