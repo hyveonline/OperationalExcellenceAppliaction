@@ -626,7 +626,7 @@ router.get('/', async (req, res) => {
                         btn.textContent = '⏳';
                         
                         try {
-                            const response = await fetch('/security/legal-cases/api/save', {
+                            const response = await fetch('/security-emp/legal-cases/api/save', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify(data)
@@ -687,7 +687,7 @@ router.get('/', async (req, res) => {
                         btn.textContent = '⏳';
                         
                         try {
-                            const response = await fetch('/security/legal-cases/api/delete/' + id, {
+                            const response = await fetch('/security-emp/legal-cases/api/delete/' + id, {
                                 method: 'DELETE'
                             });
                             
@@ -795,7 +795,7 @@ router.get('/', async (req, res) => {
                         }
                         
                         try {
-                            const response = await fetch('/security/legal-cases/api/add-update', {
+                            const response = await fetch('/security-emp/legal-cases/api/add-update', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ caseId: id, comment: text })
