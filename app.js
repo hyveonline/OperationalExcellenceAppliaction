@@ -229,6 +229,7 @@ app.get('/dashboard', requireAuth, async (req, res) => {
         'SECURITY_VISIT_CALENDAR': 'sec-visit-calendar',
         'SECURITY_CAMERA_REQUEST': 'camera-request',
         'SECURITY_POST_VISIT_REPORT': 'post-visit-report',
+        'SECURITY_INTERNAL_INVESTIGATIONS': 'internal-investigations',
         
         // HR module (HR_DASHBOARD is required for HR access)
         'HR_DASHBOARD': 'hr',
