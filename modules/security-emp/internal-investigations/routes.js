@@ -40,13 +40,13 @@ router.get('/', async (req, res) => {
             SELECT Id, StoreName FROM Stores WHERE IsActive = 1 ORDER BY StoreName
         `);
         
-        // Get Security Compliance Inspector users
+        // Get Security Team users (Program Lead, Security Compliance Inspector, Regional Security Manager)
         const securityInspectors = await pool.request().query(`
             SELECT DISTINCT u.Id, u.DisplayName
             FROM Users u
             INNER JOIN UserRoleAssignments ura ON u.Id = ura.UserId
             INNER JOIN UserRoles ur ON ura.RoleId = ur.Id
-            WHERE ur.RoleName = 'Security Compliance Inspector'
+            WHERE ur.RoleName IN ('Program Lead', 'Security Compliance Inspector', 'Regional Security Manager')
             AND u.IsActive = 1
             ORDER BY u.DisplayName
         `);
