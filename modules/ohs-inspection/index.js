@@ -1603,10 +1603,12 @@ router.get('/api/audits/:auditId', async (req, res) => {
                     i.Status, i.Score, i.TotalPoints, i.MaxPoints, i.Comments,
                     i.CreatedBy, i.CreatedAt, i.UpdatedAt, i.CompletedAt, i.ApprovedBy, i.ApprovedAt,
                     COALESCE(i.TemplateId, dt.Id, ft.Id) as TemplateId,
-                    COALESCE(dt.TemplateName, ft.TemplateName) as TemplateName
+                    COALESCE(dt.TemplateName, ft.TemplateName) as TemplateName,
+                    st.StoreCode
                 FROM OHS_Inspections i
                 LEFT JOIN OHS_InspectionTemplates dt ON dt.IsDefault = 1 AND dt.IsActive = 1
                 LEFT JOIN (SELECT TOP 1 * FROM OHS_InspectionTemplates WHERE IsActive = 1 ORDER BY Id) ft ON dt.Id IS NULL
+                LEFT JOIN Stores st ON i.StoreId = st.Id
                 WHERE i.Id = @id
             `);
         
@@ -1777,7 +1779,7 @@ router.get('/api/audits/:auditId', async (req, res) => {
                 auditId: audit.Id,
                 documentNumber: audit.DocumentNumber,
                 storeId: audit.StoreId,
-                storeCode: audit.StoreName?.split(' - ')[0] || '',
+                storeCode: audit.StoreCode || '',
                 storeName: audit.StoreName,
                 auditDate: audit.InspectionDate,
                 auditors: audit.Inspectors,

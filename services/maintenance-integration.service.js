@@ -13,11 +13,12 @@ class MaintenanceIntegrationService {
 
     /**
      * Get common headers for API requests
+     * @param {string} sourceApp - Source app identifier (OE_INSPECTION, OHS_INSPECTION)
      */
-    _getHeaders() {
+    _getHeaders(sourceApp = 'OE_INSPECTION') {
         return {
             'X-API-Key': this.apiKey,
-            'X-Source-App': 'OE_INSPECTION',
+            'X-Source-App': sourceApp,
             'Content-Type': 'application/json'
         };
     }
@@ -99,7 +100,7 @@ class MaintenanceIntegrationService {
             };
             
             const response = await axios.post(`${this.baseUrl}/api/external/create-wr`, mappedData, {
-                headers: this._getHeaders(),
+                headers: this._getHeaders(data.sourceApp || 'OE_INSPECTION'),
                 timeout: 15000
             });
             return response.data;
@@ -137,7 +138,7 @@ class MaintenanceIntegrationService {
             };
             
             const response = await axios.post(`${this.baseUrl}/api/external/link-wr`, mappedData, {
-                headers: this._getHeaders(),
+                headers: this._getHeaders(data.sourceApp || 'OE_INSPECTION'),
                 timeout: 10000
             });
             return response.data;

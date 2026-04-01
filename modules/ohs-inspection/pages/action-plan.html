@@ -1932,8 +1932,8 @@
             document.getElementById('maint-finding').textContent = item.finding || item.title;
             document.getElementById('maint-priority').textContent = item.priority || 'Not set';
             
-            // Get store code from audit data
-            const storeCode = auditData.storeName?.split(' - ')[0] || auditData.storeCode || '';
+            // Get store code from audit data - use storeCode field from API
+            const storeCode = auditData.storeCode || '';
             
             // Populate create tab preview
             document.getElementById('wr-location').textContent = auditData.storeName || storeCode;
@@ -2016,7 +2016,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         wrNumber: wrNumber,
-                        sourceApp: 'OHS',
+                        sourceApp: 'OHS_INSPECTION',
                         sourceType: 'Finding',
                         sourceId: currentMaintenanceItem.responseId,
                         sourceRef: auditData.documentNumber
@@ -2063,7 +2063,7 @@
             try {
                 showToast('Creating Work Request...', 'info');
                 
-                const storeCode = auditData.storeName?.split(' - ')[0] || auditData.storeCode || '';
+                const storeCode = auditData.storeCode || '';
                 
                 const response = await fetch('/ohs-inspection/api/maintenance/create-wr', {
                     method: 'POST',
@@ -2073,7 +2073,7 @@
                         priority: mapPriorityToMaintenance(currentMaintenanceItem.priority),
                         title: `OHS Finding: ${currentMaintenanceItem.sectionName} - ${currentMaintenanceItem.referenceValue}`,
                         description: currentMaintenanceItem.finding || currentMaintenanceItem.title,
-                        sourceApp: 'OHS',
+                        sourceApp: 'OHS_INSPECTION',
                         sourceType: 'Finding',
                         sourceId: currentMaintenanceItem.responseId,
                         sourceRef: auditData.documentNumber
