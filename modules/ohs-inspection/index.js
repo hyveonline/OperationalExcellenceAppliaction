@@ -12,6 +12,9 @@ const fs = require('fs');
 const multer = require('multer');
 const sharp = require('sharp');
 
+// Import maintenance routes
+const maintenanceRoutes = require('./maintenance.routes');
+
 /**
  * Sort reference values numerically (e.g., 4.1, 4.2, ..., 4.10 instead of 4.1, 4.10, 4.2)
  */
@@ -1756,7 +1759,9 @@ router.get('/api/audits/:auditId', async (req, res) => {
                         DepartmentName as department,
                         Department as assignedDepartment,
                         Criteria as criteria,
-                        IsRepetitive as isRepetitive
+                        IsRepetitive as isRepetitive,
+                        MaintenanceWRNumber as maintenanceWRNumber,
+                        SentToMaintenance as sentToMaintenance
                     FROM OHS_InspectionItems
                     WHERE InspectionId = @inspectionId 
                         AND SectionName = @sectionName
@@ -5419,5 +5424,9 @@ router.put('/api/department-assignments/:id/resolve', async (req, res) => {
         res.status(500).json({ success: false, error: error.message });
     }
 });
+
+// Mount maintenance integration routes
+router.use('/api/maintenance', maintenanceRoutes);
+router.use('/api', maintenanceRoutes); // For /api/action-plan/maintenance-link
 
 module.exports = router;

@@ -12,6 +12,9 @@ const fs = require('fs');
 const multer = require('multer');
 const sharp = require('sharp');
 
+// Import maintenance routes
+const maintenanceRoutes = require('./maintenance.routes');
+
 // Configure multer for verification photo uploads
 const verificationUploadDir = path.join(__dirname, '..', '..', 'uploads', 'verification');
 if (!fs.existsSync(verificationUploadDir)) {
@@ -1602,9 +1605,11 @@ router.get('/api/audits/:auditId', async (req, res) => {
                     i.Status, i.Score, i.TotalPoints, i.MaxPoints, i.Comments,
                     i.CreatedBy, i.CreatedAt, i.UpdatedAt, i.CompletedAt, i.ApprovedBy, i.ApprovedAt,
                     COALESCE(i.TemplateId, t.Id) as TemplateId,
-                    t.TemplateName
+                    t.TemplateName,
+                    s.StoreCode
                 FROM OE_Inspections i
                 LEFT JOIN OE_InspectionTemplates t ON t.IsDefault = 1 AND t.IsActive = 1
+                LEFT JOIN Stores s ON i.StoreId = s.Id
                 WHERE i.Id = @id
             `);
         
@@ -1744,7 +1749,9 @@ router.get('/api/audits/:auditId', async (req, res) => {
                         Range1To as range1To,
                         Range2From as range2From,
                         Range2To as range2To,
-                        Range3From as range3From
+                        Range3From as range3From,
+                        MaintenanceWRNumber as maintenanceWRNumber,
+                        SentToMaintenance as sentToMaintenance
                     FROM OE_InspectionItems
                     WHERE InspectionId = @inspectionId AND SectionName = @sectionName
                     ORDER BY 
@@ -1762,7 +1769,7 @@ router.get('/api/audits/:auditId', async (req, res) => {
                 auditId: audit.Id,
                 documentNumber: audit.DocumentNumber,
                 storeId: audit.StoreId,
-                storeCode: audit.StoreName?.split(' - ')[0] || '',
+                storeCode: audit.StoreCode || '',
                 storeName: audit.StoreName,
                 auditDate: audit.InspectionDate,
                 auditors: audit.Inspectors,
@@ -6031,5 +6038,11 @@ router.delete('/api/gallery/:auditId/unassigned', async (req, res) => {
         res.status(500).json({ success: false, error: error.message });
     }
 });
+
+// ==========================================
+// Mount Maintenance Integration Routes
+// ==========================================
+router.use('/api/maintenance', maintenanceRoutes);
+router.use('/api', maintenanceRoutes); // For /api/action-plan/maintenance-link
 
 module.exports = router;

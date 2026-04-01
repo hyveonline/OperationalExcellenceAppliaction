@@ -670,6 +670,225 @@
                 align-items: stretch;
             }
         }
+
+        /* Maintenance Modal Styles */
+        .maintenance-modal {
+            max-width: 600px;
+        }
+
+        .finding-preview {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .finding-preview h4 {
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+
+        .finding-preview p {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+
+        .option-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 10px;
+            border: 2px solid #e5e7eb;
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .tab-btn.active {
+            border-color: #3b82f6;
+            background: #eff6ff;
+            color: #3b82f6;
+        }
+
+        .tab-content {
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .recent-wrs-list {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-bottom: 15px;
+        }
+
+        .wr-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .wr-item:hover {
+            border-color: #3b82f6;
+            background: #eff6ff;
+        }
+
+        .wr-item .wr-number {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .wr-item .wr-details {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .manual-link {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            padding-top: 15px;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .manual-link input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+        }
+
+        .link-btn, .create-wr-btn {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        .create-wr-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #10b981, #059669);
+            font-size: 16px;
+            margin-top: 15px;
+        }
+
+        .maint-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 8px;
+            background: #dcfce7;
+            color: #16a34a;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+            text-decoration: none;
+        }
+
+        .maint-badge:hover {
+            background: #bbf7d0;
+        }
+
+        .send-maint-btn {
+            padding: 4px 8px;
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            white-space: nowrap;
+        }
+
+        .send-maint-btn:hover {
+            background: linear-gradient(135deg, #d97706, #b45309);
+        }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            border-bottom: 1px solid #e5e7eb;
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: white;
+            border-radius: 12px 12px 0 0;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            font-size: 18px;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 28px;
+            cursor: pointer;
+            color: white;
+            line-height: 1;
+        }
+
+        .modal-body {
+            padding: 20px;
+        }
+
+        .wr-preview {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+
+        .wr-preview p {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+
+        .loading-small {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
     </style>
 </head>
 <body>
@@ -935,7 +1154,10 @@
                             verificationNotes: saved.VerificationNotes || null,
                             verificationPictureUrl: saved.VerificationPictureUrl || null,
                             verifiedByName: saved.VerifiedByName || null,
-                            verifiedAt: saved.VerifiedAt || null
+                            verifiedAt: saved.VerifiedAt || null,
+                            // Maintenance fields
+                            maintenanceWRNumber: item.maintenanceWRNumber || null,
+                            sentToMaintenance: item.sentToMaintenance || false
                         });
                     }
                 }
@@ -1034,6 +1256,7 @@
                             <th>Status</th>
                             <th>Pictures</th>
                             <th>Verification</th>
+                            <th>Maint.</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1121,6 +1344,9 @@
                     </td>
                     <td class="verification-col">
                         ${renderVerificationStatus(item)}
+                    </td>
+                    <td class="maint-col">
+                        ${renderMaintenanceCell(item, index)}
                     </td>
                 </tr>
             `;
@@ -1447,7 +1673,274 @@
                 }
             }
         }
+
+        // ==========================================
+        // Maintenance Integration Functions
+        // ==========================================
+        
+        let currentMaintenanceItem = null;
+        let currentMaintenanceIndex = null;
+
+        function renderMaintenanceCell(item, index) {
+            // Only show for Maintenance department items
+            if (item.department !== 'Maintenance') {
+                return '<span style="color: #888; font-size: 10px;">-</span>';
+            }
+            
+            // If already linked to a WR
+            if (item.maintenanceWRNumber) {
+                return `<a href="https://fsm-uat.gmrlapps.com/work-requests/${item.maintenanceWRNumber}" 
+                          target="_blank" class="maint-badge" title="View Work Request">
+                          🔧 ${item.maintenanceWRNumber}
+                        </a>`;
+            }
+            
+            // Show send button
+            return `<button class="send-maint-btn" onclick="openMaintenanceModal(${index})" title="Send to Maintenance">
+                      🔧 Send
+                    </button>`;
+        }
+
+        async function openMaintenanceModal(index) {
+            const item = filteredItems[index];
+            currentMaintenanceItem = item;
+            currentMaintenanceIndex = index;
+            
+            // Populate finding preview
+            document.getElementById('maint-ref').textContent = item.referenceValue;
+            document.getElementById('maint-section').textContent = item.sectionName;
+            document.getElementById('maint-finding').textContent = item.finding || item.title;
+            document.getElementById('maint-priority').textContent = item.priority || 'Not set';
+            
+            // Populate create tab preview
+            document.getElementById('wr-location').textContent = `${auditData.storeCode} - ${auditData.storeName}`;
+            document.getElementById('wr-priority').textContent = mapPriorityToMaintenance(item.priority);
+            document.getElementById('wr-title').textContent = `OE Finding: ${item.sectionName} - ${item.referenceValue}`;
+            document.getElementById('wr-description').textContent = item.finding || item.title;
+            
+            // Show modal
+            document.getElementById('maintenanceModal').style.display = 'flex';
+            
+            // Reset tabs
+            switchMaintenanceTab('link');
+            
+            // Load recent WRs
+            await loadRecentWRs();
+        }
+
+        function closeMaintenanceModal() {
+            document.getElementById('maintenanceModal').style.display = 'none';
+            currentMaintenanceItem = null;
+            currentMaintenanceIndex = null;
+        }
+
+        function switchMaintenanceTab(tab) {
+            document.querySelectorAll('.maintenance-modal .tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.maintenance-modal .tab-content').forEach(content => {
+                content.style.display = 'none';
+                content.classList.remove('active');
+            });
+            
+            if (tab === 'link') {
+                document.querySelector('.maintenance-modal .tab-btn:first-child').classList.add('active');
+                document.getElementById('linkTab').style.display = 'block';
+            } else {
+                document.querySelector('.maintenance-modal .tab-btn:last-child').classList.add('active');
+                document.getElementById('createTab').style.display = 'block';
+            }
+        }
+
+        async function loadRecentWRs() {
+            const container = document.getElementById('recentWRs');
+            container.innerHTML = '<div class="loading-small">Loading recent WRs...</div>';
+            
+            try {
+                const storeCode = auditData.storeCode || auditData.storeName?.split(' ')[0] || '';
+                const response = await fetch(`/oe-inspection/api/maintenance/recent-wrs?locationCode=${encodeURIComponent(storeCode)}`);
+                const result = await response.json();
+                
+                if (result.success && result.data && result.data.length > 0) {
+                    container.innerHTML = result.data.map(wr => `
+                        <div class="wr-item" onclick="linkToExistingWR('${wr.WRNumber}')">
+                            <div>
+                                <div class="wr-number">${wr.WRNumber}</div>
+                                <div class="wr-details">${wr.Title || 'No title'} • ${wr.Status || 'Unknown'} • ${formatDate(wr.CreatedAt)}</div>
+                            </div>
+                            <span>→</span>
+                        </div>
+                    `).join('');
+                } else {
+                    container.innerHTML = '<p style="color: #666; text-align: center; padding: 20px;">No recent WRs found for this store</p>';
+                }
+            } catch (error) {
+                container.innerHTML = '<p style="color: #ef4444; text-align: center; padding: 20px;">Failed to load recent WRs</p>';
+                console.error('Error loading recent WRs:', error);
+            }
+        }
+
+        function mapPriorityToMaintenance(priority) {
+            const mapping = { 'High': 'High', 'Medium': 'Medium', 'Low': 'Low' };
+            return mapping[priority] || 'Medium';
+        }
+
+        async function linkToExistingWR(wrNumber) {
+            if (!confirm(`Link this finding to ${wrNumber}?`)) return;
+            
+            try {
+                showToast('Linking to WR...', 'info');
+                
+                const response = await fetch('/oe-inspection/api/maintenance/link-wr', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        wrNumber: wrNumber,
+                        locationCode: auditData.storeCode,
+                        sectionName: currentMaintenanceItem.sectionName,
+                        referenceValue: currentMaintenanceItem.referenceValue,
+                        finding: currentMaintenanceItem.finding || currentMaintenanceItem.title,
+                        sourceApp: 'OE_INSPECTION',
+                        sourceType: 'Finding',
+                        sourceId: currentMaintenanceItem.responseId,
+                        sourceRef: auditData.documentNumber
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast('Successfully linked to ' + wrNumber, 'success');
+                    
+                    // Update item in local state
+                    const mainIndex = actionItems.findIndex(i => i.responseId === currentMaintenanceItem.responseId);
+                    if (mainIndex !== -1) {
+                        actionItems[mainIndex].maintenanceWRNumber = wrNumber;
+                        actionItems[mainIndex].sentToMaintenance = true;
+                    }
+                    currentMaintenanceItem.maintenanceWRNumber = wrNumber;
+                    currentMaintenanceItem.sentToMaintenance = true;
+                    
+                    closeMaintenanceModal();
+                    renderTable();
+                } else {
+                    showToast(result.message || 'Failed to link WR', 'error');
+                }
+            } catch (error) {
+                showToast('Error linking to WR', 'error');
+                console.error(error);
+            }
+        }
+
+        async function linkToManualWR() {
+            const wrNumber = document.getElementById('manualWRNumber').value.trim();
+            if (!wrNumber) {
+                showToast('Please enter a WR number', 'error');
+                return;
+            }
+            await linkToExistingWR(wrNumber);
+        }
+
+        async function createNewWR() {
+            if (!confirm('Create a new Maintenance Work Request for this finding?')) return;
+            
+            try {
+                showToast('Creating Work Request...', 'info');
+                
+                const storeCode = auditData.storeCode || auditData.storeName?.split(' ')[0] || '';
+                
+                const response = await fetch('/oe-inspection/api/maintenance/create-wr', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        locationCode: storeCode,
+                        storeName: auditData.storeName,
+                        sectionName: currentMaintenanceItem.sectionName,
+                        referenceValue: currentMaintenanceItem.referenceValue,
+                        priority: mapPriorityToMaintenance(currentMaintenanceItem.priority),
+                        title: `OE Finding: ${currentMaintenanceItem.sectionName} - ${currentMaintenanceItem.referenceValue}`,
+                        description: currentMaintenanceItem.finding || currentMaintenanceItem.title,
+                        sourceApp: 'OE_INSPECTION',
+                        sourceType: 'Finding',
+                        sourceId: currentMaintenanceItem.responseId,
+                        sourceRef: auditData.documentNumber
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success && result.data?.wrNumber) {
+                    showToast(`Created ${result.data.wrNumber}`, 'success');
+                    
+                    // Update item in local state
+                    const mainIndex = actionItems.findIndex(i => i.responseId === currentMaintenanceItem.responseId);
+                    if (mainIndex !== -1) {
+                        actionItems[mainIndex].maintenanceWRNumber = result.data.wrNumber;
+                        actionItems[mainIndex].sentToMaintenance = true;
+                    }
+                    currentMaintenanceItem.maintenanceWRNumber = result.data.wrNumber;
+                    currentMaintenanceItem.sentToMaintenance = true;
+                    
+                    closeMaintenanceModal();
+                    renderTable();
+                } else {
+                    showToast(result.message || 'Failed to create WR', 'error');
+                }
+            } catch (error) {
+                showToast('Error creating WR', 'error');
+                console.error(error);
+            }
+        }
     </script>
     <script src="/js/email-modal.js"></script>
+
+    <!-- Maintenance WR Modal -->
+    <div class="modal-overlay" id="maintenanceModal">
+        <div class="modal-content maintenance-modal">
+            <div class="modal-header">
+                <h3>🔧 Create Maintenance Work Request</h3>
+                <button class="modal-close" onclick="closeMaintenanceModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="finding-preview">
+                    <h4>Finding Details</h4>
+                    <p><strong>Reference:</strong> <span id="maint-ref"></span></p>
+                    <p><strong>Section:</strong> <span id="maint-section"></span></p>
+                    <p><strong>Finding:</strong> <span id="maint-finding"></span></p>
+                    <p><strong>Priority:</strong> <span id="maint-priority"></span></p>
+                </div>
+                
+                <div class="maintenance-options">
+                    <div class="option-tabs">
+                        <button class="tab-btn active" onclick="switchMaintenanceTab('link')">Link to Existing WR</button>
+                        <button class="tab-btn" onclick="switchMaintenanceTab('create')">Create New WR</button>
+                    </div>
+                    
+                    <!-- Link Tab -->
+                    <div id="linkTab" class="tab-content active">
+                        <p style="margin-bottom: 10px; color: #666;">Recent maintenance requests for this store:</p>
+                        <div id="recentWRs" class="recent-wrs-list">
+                            <div class="loading-small">Loading recent WRs...</div>
+                        </div>
+                        <div class="manual-link">
+                            <label style="white-space: nowrap;">Or enter WR number:</label>
+                            <input type="text" id="manualWRNumber" placeholder="WR-XXX-YYYY-#####">
+                            <button class="link-btn" onclick="linkToManualWR()">Link</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Create Tab -->
+                    <div id="createTab" class="tab-content" style="display:none;">
+                        <p style="margin-bottom: 10px; color: #666;">A new Work Request will be created with the following details:</p>
+                        <div class="wr-preview">
+                            <p><strong>Location:</strong> <span id="wr-location"></span></p>
+                            <p><strong>Priority:</strong> <span id="wr-priority"></span></p>
+                            <p><strong>Title:</strong> <span id="wr-title"></span></p>
+                            <p><strong>Description:</strong> <span id="wr-description"></span></p>
+                        </div>
+                        <button class="create-wr-btn" onclick="createNewWR()">🔧 Create Work Request</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
