@@ -163,83 +163,24 @@ app.get('/dashboard', requireAuth, async (req, res) => {
     const roleNames = req.currentUser.roleNames || [];
     const primaryRole = req.currentUser.role;
     
-    // Map form codes to menu sections
-    const formToMenu = {
-        // Stores module
-        'THEFT_INCIDENT': 'stores', 'COMPLAINT': 'stores', 'EXTRA_CLEANING': 'stores',
-        'WEEKLY_FEEDBACK': 'stores', 'FIVE_DAYS_ENTRY': 'stores', 'STORES_LOST_AND_FOUND': 'stores',
-        
-        // Maknezi F&B module
-        'PRODUCTION_EXTRAS': 'maknezi-fnb',
-        
-        // Security Services module
-        'SECURITY_SCHEDULE': 'security-services',
-        
-        // Personnel module  
-        'THIRDPARTY_SCHEDULE': 'personnel', 'THIRDPARTY_ATTENDANCE': 'personnel',
-        'PERSONNEL_DASHBOARD': 'personnel',
-        
-        // OHS module (main OHS incidents)
-        'OHS_DASHBOARD': 'ohs', 'OHS_INCIDENT': 'ohs', 'OHS_SETTINGS': 'ohs',
-        'OHS_FIRE_EQUIPMENT': 'fire-equipment', 'OHS_FIRE_EQUIPMENT_ADMIN': 'fire-equipment',
-        'OHS_ORA': 'ora', 'OHS_ORA_ADMIN': 'ora',
-        
-        // OHS Inspection module
-        'OHS_INSPECTION': 'ohs-inspection', 'OHS_INSPECTION_START': 'ohs-inspection', 
-        'OHS_INSPECTION_LIST': 'ohs-inspection', 'OHS_INSPECTION_VIEW': 'ohs-inspection',
-        'OHS_INSPECTION_TEMPLATES': 'ohs-inspection', 'OHS_INSPECTION_STORES': 'ohs-inspection',
-        'OHS_INSPECTION_ACTION_PLANS': 'ohs-inspection', 'OHS_INSPECTION_DEPT_REPORTS': 'ohs-inspection',
-        'OHS_INSPECTION_SETTINGS': 'ohs-inspection', 'OHS_INSPECTION_REPORT': 'ohs-inspection',
-        'OHS_TEMPLATE_BUILDER': 'ohs-inspection',
-        
-        // OE module (dashboards)
-        'OP_EXCELLENCE': 'oe', 'OP_THEFT': 'oe', 'OP_COMPLAINTS': 'oe', 'OP_EXTRA_CLEANING': 'oe',
-        'OP_FEEDBACK': 'oe', 'OP_PRODUCTION': 'oe', 'OP_FIVE_DAYS': 'oe', 'OP_ATTENDANCE': 'oe',
-        'OP_THIRDPARTY': 'oe', 'OP_SECURITY': 'oe',
-        'THEFT_DASHBOARD': 'oe', 'COMPLAINTS_DASHBOARD': 'oe', 'EXTRA_CLEANING_REVIEW': 'oe',
-        'FEEDBACK_DASHBOARD': 'oe', 'PRODUCTION_DASHBOARD': 'oe', 'FIVE_DAYS_DASHBOARD': 'oe',
-        'ATTENDANCE_DASHBOARD': 'oe', 'THIRDPARTY_DASHBOARD': 'oe', 'SECURITY_DASHBOARD': 'oe',
-        'MASTER_TABLE': 'master-table',
-        'STORE_VISIT_CALENDAR': 'store-visit-calendar',
-        
-        // OE Inspection module
-        'OE_INSPECTION': 'oe-inspection', 'OE_INSPECTION_START': 'oe-inspection', 
-        'OE_INSPECTION_LIST': 'oe-inspection', 'OE_INSPECTION_VIEW': 'oe-inspection',
-        'OE_INSPECTION_ACTION_PLANS': 'oe-inspection', 'OE_INSPECTION_DEPT_REPORTS': 'oe-inspection',
-        'OE_INSPECTION_TEMPLATES': 'oe-inspection', 'OE_INSPECTION_STORES': 'oe-inspection',
-        'OE_INSPECTION_SETTINGS': 'oe-inspection', 'OE_INSPECTION_REPORT': 'oe-inspection',
-        'OE_TEMPLATE_BUILDER': 'oe-inspection',
-        
-        // Department Tasks (Escalations)
-        'OE_ESCALATION': 'oe-escalation',
-        'OHS_ASSIGNED_DEPT': 'ohs-assigned-dept',
-        
-        // Third-Party module (also in personnel)
-        
-        // Security / Facility Management module
-        'SECURITY_CLEANING': 'security',
-        'LEGAL_CASES': 'legal-cases',
-        'THIRDPARTY_BLACKLIST': 'thirdparty-blacklist',
-        'SECURITY_DAILY_REPORTING': 'security-daily-reporting',
-        'SEC_VISIT_CALENDAR': 'sec-visit-calendar',
-        'CAMERA_REQUEST': 'camera-request',
-        // Security Department forms (security-emp)
-        'SECURITY_LEGAL_CASES': 'legal-cases',
-        'SECURITY_BLACKLIST': 'thirdparty-blacklist',
-        'SECURITY_VISIT_CALENDAR': 'sec-visit-calendar',
-        'SECURITY_CAMERA_REQUEST': 'camera-request',
-        'SECURITY_POST_VISIT_REPORT': 'post-visit-report',
-        'SECURITY_INTERNAL_INVESTIGATIONS': 'internal-investigations',
-        
-        // HR module (HR_DASHBOARD is required for HR access)
-        'HR_DASHBOARD': 'hr',
-        
-        // Escalation module
-        'ESCALATION_DASHBOARD': 'escalation', 'ESCALATION_MANAGEMENT': 'escalation', 'ESCALATION_ADMIN': 'escalation',
-        
-        // Broadcast module
-        'BROADCAST_SEND': 'broadcast', 'BROADCAST_VIEW': 'broadcast'
-    };
+    // Build formToMenu dynamically from database
+    // This allows new forms to appear on dashboard without code changes
+    let formToMenu = {};
+    let pool;
+    try {
+        pool = await sql.connect(dbConfig);
+        const formMappings = await pool.request().query(`
+            SELECT FormCode, MenuId FROM Forms WHERE MenuId IS NOT NULL AND IsActive = 1
+        `);
+        formMappings.recordset.forEach(f => {
+            if (f.FormCode && f.MenuId) {
+                formToMenu[f.FormCode] = f.MenuId;
+            }
+        });
+    } catch (err) {
+        console.error('Error loading form mappings:', err);
+        // Fallback to empty mapping if database fails
+    }
     
     // Calculate which menus user can access based on their form permissions
     const accessibleMenus = new Set();
@@ -260,10 +201,11 @@ app.get('/dashboard', requireAuth, async (req, res) => {
     
     // Build menu items dynamically from Forms table
     let menuCategories = [];
-    let pool;
     try {
+        // Reuse pool if already connected, otherwise connect
+        if (!pool) pool = await sql.connect(dbConfig);
+        
         // Fetch dashboard menu items from Forms table
-        pool = await sql.connect(dbConfig);
         const dashboardForms = await pool.request().query(`
             SELECT 
                 FormCode,
