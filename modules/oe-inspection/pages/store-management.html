@@ -178,6 +178,56 @@
             font-size: 13px;
         }
 
+        /* Stores Header with Filter */
+        .stores-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .stores-header h3 {
+            margin: 0;
+        }
+
+        .filter-section {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .filter-section label {
+            font-weight: 500;
+            color: #374151;
+        }
+
+        .filter-section select {
+            padding: 8px 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 14px;
+            min-width: 180px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .filter-section select:focus {
+            outline: none;
+            border-color: #10b981;
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+        }
+
+        .store-count {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
         /* Table */
         .stores-table {
             width: 100%;
@@ -584,7 +634,16 @@
             </div>
 
             <!-- Stores List -->
-            <h3 style="margin-bottom: 20px;">📋 Registered Stores</h3>
+            <div class="stores-header">
+                <h3>📋 Registered Stores</h3>
+                <div class="filter-section">
+                    <label>Filter by Brand:</label>
+                    <select id="brandFilter" onchange="filterStores()">
+                        <option value="">All Brands</option>
+                    </select>
+                    <span id="storeCount" class="store-count"></span>
+                </div>
+            </div>
             <div id="storesList">
                 <div class="loading">
                     <div class="spinner"></div>
@@ -707,6 +766,7 @@
     <script>
         const API_BASE = '/oe-inspection/api/stores';
         let stores = [];
+        let filteredStores = [];
         let templates = [];
         let brands = [];
         let availableManagers = [];
@@ -742,11 +802,13 @@
 
                 const select = document.getElementById('storeBrand');
                 const editSelect = document.getElementById('editStoreBrand');
+                const filterSelect = document.getElementById('brandFilter');
 
                 brands.filter(b => b.IsActive).forEach(brand => {
                     const option = `<option value="${brand.Id}">${brand.BrandName} (${brand.BrandCode})</option>`;
                     select.innerHTML += option;
                     editSelect.innerHTML += option;
+                    filterSelect.innerHTML += `<option value="${brand.Id}">${brand.BrandName}</option>`;
                 });
             } catch (error) {
                 console.error('Error loading brands:', error);
@@ -778,8 +840,11 @@
         // Load store responsibles (Area Manager & Head of Ops)
         async function loadStoreResponsibles() {
             try {
+                console.log('[DEBUG] Fetching store responsibles...');
                 const response = await fetch('/operational-excellence/system-settings/api/store-responsibles');
+                console.log('[DEBUG] Response status:', response.status);
                 const data = await response.json();
+                console.log('[DEBUG] Store responsibles data:', data?.length || 0, 'records');
                 // Convert to lookup by storeId
                 storeResponsibles = {};
                 if (Array.isArray(data)) {
@@ -791,6 +856,9 @@
                             headOfOpsEmail: r.HeadOfOpsEmail || null
                         };
                     });
+                    console.log('[DEBUG] Indexed', Object.keys(storeResponsibles).length, 'store responsibles');
+                } else {
+                    console.warn('[DEBUG] Data is not an array:', typeof data);
                 }
             } catch (error) {
                 console.error('Error loading store responsibles:', error);
@@ -848,91 +916,135 @@
                 stores = storesResult.data || [];
                 managerAssignments = assignmentsResult.data || {};
 
-                if (stores.length === 0) {
-                    container.innerHTML = `
-                        <div class="empty-state">
-                            <div class="empty-state-icon">🏪</div>
-                            <h3>No stores yet</h3>
-                            <p>Add your first store above</p>
-                        </div>
-                    `;
-                    return;
-                }
-
-                container.innerHTML = `
-                    <div class="table-wrapper">
-                    <table class="stores-table">
-                        <thead>
-                            <tr>
-                                <th>Code</th>
-                                <th>Store Name</th>
-                                <th>Brand</th>
-                                <th>Location</th>
-                                <th>Size</th>
-                                <th>Template</th>
-                                <th>Head of Ops</th>
-                                <th>Area Manager</th>
-                                <th>Store Managers</th>
-                                <th>Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${stores.map(store => {
-                                const managers = managerAssignments[store.storeId] || [];
-                                const responsible = storeResponsibles[store.storeId] || {};
-                                return `
-                                <tr>
-                                    <td><strong>${store.storeCode}</strong></td>
-                                    <td>${store.storeName}</td>
-                                    <td>${store.brandName 
-                                        ? `<span class="template-badge" style="background: linear-gradient(135deg, #8b5cf6, #6d28d9); color: white;">${store.brandName}</span>` 
-                                        : '<span style="color: #ef4444; font-weight: 600;">⚠️ Not Set</span>'}</td>
-                                    <td>${store.location 
-                                        ? (store.location.includes('http') || store.location.includes('maps.') || store.location.includes('goo.gl')
-                                            ? `<a href="${store.location}" target="_blank" style="color: #2563eb; text-decoration: none;">📍 View Map</a>`
-                                            : store.location)
-                                        : '-'}</td>
-                                    <td><span class="status-badge ${store.storeSize === 'Large' ? 'status-active' : 'status-inactive'}">${store.storeSize || '-'}</span></td>
-                                    <td><span class="template-badge">${store.templateName || 'Not set'}</span></td>
-                                    <td>
-                                        ${responsible.headOfOpsName 
-                                            ? `<span class="manager-badge" style="background: #ede9fe; color: #7c3aed;">👔 ${responsible.headOfOpsName}</span>`
-                                            : '<span style="color: #999; font-size: 12px;">Not assigned</span>'}
-                                    </td>
-                                    <td>
-                                        ${responsible.areaManagerName 
-                                            ? `<span class="manager-badge" style="background: #dbeafe; color: #2563eb;">👥 ${responsible.areaManagerName}</span>`
-                                            : '<span style="color: #999; font-size: 12px;">Not assigned</span>'}
-                                    </td>
-                                    <td class="managers-cell">
-                                        ${managers.length > 0 ? managers.map(m => `
-                                            <span class="manager-badge ${m.isPrimary ? 'primary' : ''}">
-                                                ${m.displayName || m.email}
-                                                ${m.isPrimary ? '⭐' : ''}
-                                            </span>
-                                        `).join('') : '<span style="color: #999;">Not assigned</span>'}
-                                        <br style="margin-bottom: 5px;">
-                                        <button class="assign-btn" onclick="openAssignModal(${store.storeId})">👥 Assign</button>
-                                    </td>
-                                    <td>
-                                        <span class="status-badge ${store.isActive ? 'status-active' : 'status-inactive'}">
-                                            ${store.isActive ? '✅ Active' : '❌ Inactive'}
-                                        </span>
-                                    </td>
-                                    <td class="action-btns">
-                                        <button class="btn btn-warning btn-sm" onclick="editStore(${store.storeId})" title="Edit">✏️</button>
-                                        <button class="btn btn-danger btn-sm" onclick="deleteStore(${store.storeId})" title="Delete">🗑️</button>
-                                    </td>
-                                </tr>
-                            `}).join('')}
-                        </tbody>
-                    </table>
-                    </div>
-                `;
+                // Apply filter and render
+                filterStores();
             } catch (error) {
                 container.innerHTML = `<div class="empty-state"><p>Error loading stores: ${error.message}</p></div>`;
             }
+        }
+
+        // Filter stores by brand
+        function filterStores() {
+            const brandId = document.getElementById('brandFilter').value;
+            
+            if (brandId) {
+                filteredStores = stores.filter(s => s.brandId == brandId);
+            } else {
+                filteredStores = [...stores];
+            }
+            
+            renderStores();
+        }
+
+        // Render stores table
+        function renderStores() {
+            const container = document.getElementById('storesList');
+            const countEl = document.getElementById('storeCount');
+            
+            // Debug: Log first store lookup
+            if (filteredStores.length > 0) {
+                const firstStore = filteredStores[0];
+                console.log('[DEBUG] First store ID:', firstStore.storeId, 'type:', typeof firstStore.storeId);
+                console.log('[DEBUG] storeResponsibles keys:', Object.keys(storeResponsibles).slice(0, 5));
+                console.log('[DEBUG] Lookup result:', storeResponsibles[firstStore.storeId]);
+            }
+            
+            // Update count
+            countEl.textContent = `${filteredStores.length} of ${stores.length} stores`;
+            
+            if (stores.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🏪</div>
+                        <h3>No stores yet</h3>
+                        <p>Add your first store above</p>
+                    </div>
+                `;
+                return;
+            }
+
+            if (filteredStores.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🔍</div>
+                        <h3>No matching stores</h3>
+                        <p>Try selecting a different brand filter</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="table-wrapper">
+                <table class="stores-table">
+                    <thead>
+                        <tr>
+                            <th>Code</th>
+                            <th>Store Name</th>
+                            <th>Brand</th>
+                            <th>Location</th>
+                            <th>Size</th>
+                            <th>Template</th>
+                            <th>Head of Ops</th>
+                            <th>Area Manager</th>
+                            <th>Store Managers</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${filteredStores.map(store => {
+                            const managers = managerAssignments[store.storeId] || [];
+                            const responsible = storeResponsibles[store.storeId] || {};
+                            return `
+                            <tr>
+                                <td><strong>${store.storeCode}</strong></td>
+                                <td>${store.storeName}</td>
+                                <td>${store.brandName 
+                                    ? `<span class="template-badge" style="background: linear-gradient(135deg, #8b5cf6, #6d28d9); color: white;">${store.brandName}</span>` 
+                                    : '<span style="color: #ef4444; font-weight: 600;">⚠️ Not Set</span>'}</td>
+                                <td>${store.location 
+                                    ? (store.location.includes('http') || store.location.includes('maps.') || store.location.includes('goo.gl')
+                                        ? `<a href="${store.location}" target="_blank" style="color: #2563eb; text-decoration: none;">📍 View Map</a>`
+                                        : store.location)
+                                    : '-'}</td>
+                                <td><span class="status-badge ${store.storeSize === 'Large' ? 'status-active' : 'status-inactive'}">${store.storeSize || '-'}</span></td>
+                                <td><span class="template-badge">${store.templateName || 'Not set'}</span></td>
+                                <td>
+                                    ${responsible.headOfOpsName 
+                                        ? `<span class="manager-badge" style="background: #ede9fe; color: #7c3aed;">👔 ${responsible.headOfOpsName}</span>`
+                                        : '<span style="color: #999; font-size: 12px;">Not assigned</span>'}
+                                </td>
+                                <td>
+                                    ${responsible.areaManagerName 
+                                        ? `<span class="manager-badge" style="background: #dbeafe; color: #2563eb;">👥 ${responsible.areaManagerName}</span>`
+                                        : '<span style="color: #999; font-size: 12px;">Not assigned</span>'}
+                                </td>
+                                <td class="managers-cell">
+                                    ${managers.length > 0 ? managers.map(m => `
+                                        <span class="manager-badge ${m.isPrimary ? 'primary' : ''}">
+                                            ${m.displayName || m.email}
+                                            ${m.isPrimary ? '⭐' : ''}
+                                        </span>
+                                    `).join('') : '<span style="color: #999;">Not assigned</span>'}
+                                    <br style="margin-bottom: 5px;">
+                                    <button class="assign-btn" onclick="openAssignModal(${store.storeId})">👥 Assign</button>
+                                </td>
+                                <td>
+                                    <span class="status-badge ${store.isActive ? 'status-active' : 'status-inactive'}">
+                                        ${store.isActive ? '✅ Active' : '❌ Inactive'}
+                                    </span>
+                                </td>
+                                <td class="action-btns">
+                                    <button class="btn btn-warning btn-sm" onclick="editStore(${store.storeId})" title="Edit">✏️</button>
+                                    <button class="btn btn-danger btn-sm" onclick="deleteStore(${store.storeId})" title="Delete">🗑️</button>
+                                </td>
+                            </tr>
+                        `}).join('')}
+                    </tbody>
+                </table>
+                </div>
+            `;
         }
 
         // Create store
