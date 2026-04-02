@@ -4297,64 +4297,13 @@ router.delete('/api/stores/:id', async (req, res) => {
         const pool = await getPool();
         const storeId = parseInt(req.params.id);
         
-        // Delete grandchild tables first (they reference OE_InspectionItems/ActionItems)
+        // Soft delete - just set IsActive = 0
+        // This is safer than cascading deletes which can fail due to FK constraints
         await pool.request()
             .input('id', sql.Int, storeId)
-            .query(`DELETE FROM OE_InspectionGalleryLinks WHERE ResponseId IN (
-                SELECT Id FROM OE_InspectionItems WHERE InspectionId IN (SELECT Id FROM OE_Inspections WHERE StoreId = @id)
-            )`);
+            .query('UPDATE Stores SET IsActive = 0 WHERE Id = @id');
         
-        await pool.request()
-            .input('id', sql.Int, storeId)
-            .query(`DELETE FROM OE_ActionItemVerification WHERE ActionItemId IN (
-                SELECT Id FROM OE_InspectionActionItems WHERE InspectionId IN (SELECT Id FROM OE_Inspections WHERE StoreId = @id)
-            )`);
-        
-        // Delete OE_Inspections child tables (they reference InspectionId)
-        const inspectionChildTables = [
-            'OE_InspectionSections',
-            'OE_InspectionItems',
-            'OE_InspectionActionItems',
-            'OE_InspectionGallery',
-            'OE_ActionPlanEscalations'
-        ];
-        
-        for (const table of inspectionChildTables) {
-            await pool.request()
-                .input('id', sql.Int, storeId)
-                .query(`DELETE FROM ${table} WHERE InspectionId IN (SELECT Id FROM OE_Inspections WHERE StoreId = @id)`);
-        }
-        
-        // Delete from all tables with FK constraints to Stores (in order)
-        const fkTables = [
-            'LegalCaseStores',
-            'ThirdPartyBlacklist', 
-            'SecurityDailyReporting',
-            'OE_Inspections',
-            'LostAndFoundItems',
-            'FiveDaysReminderLog',
-            'OE_InspectionSchedule',
-            'FiveDaysCycleStatus',
-            'StoreManagerAssignments',
-            'Complaints',
-            'InternalInvestigations',
-            'OE_StoreResponsibles',
-            'ORAAssessments',
-            'FiveDaysEntries'
-        ];
-        
-        for (const table of fkTables) {
-            await pool.request()
-                .input('id', sql.Int, storeId)
-                .query(`DELETE FROM ${table} WHERE StoreId = @id`);
-        }
-        
-        // Finally delete the store
-        await pool.request()
-            .input('id', sql.Int, storeId)
-            .query('DELETE FROM Stores WHERE Id = @id');
-        
-        res.json({ success: true, message: 'Store and all related data deleted permanently' });
+        res.json({ success: true, message: 'Store deactivated successfully' });
     } catch (err) {
         console.error('Error deleting store:', err);
         res.status(500).json({ error: 'Failed to delete store: ' + err.message });
