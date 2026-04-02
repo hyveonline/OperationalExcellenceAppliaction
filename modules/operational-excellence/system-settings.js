@@ -1464,16 +1464,18 @@ router.get('/', (req, res) => {
                             </select>
                         </div>
                         <div class="form-group">
-                            <label>Area Manager *</label>
-                            <select id="brAreaManagerId" required style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px;">
-                                <option value="">Loading...</option>
-                            </select>
+                            <label>Area Manager(s)</label>
+                            <div id="brAreaManagersContainer" style="border: 2px solid #e0e0e0; border-radius: 8px; max-height: 200px; overflow-y: auto; padding: 10px;">
+                                <div style="color: #999;">Loading...</div>
+                            </div>
+                            <small style="color: #666;">Select one or more area managers (optional)</small>
                         </div>
                         <div class="form-group">
                             <label>Head of Operations</label>
-                            <select id="brHeadOfOpsId" style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px;">
-                                <option value="">Select Head of Operations (Optional)...</option>
-                            </select>
+                            <div id="brHeadOfOpsContainer" style="border: 2px solid #e0e0e0; border-radius: 8px; max-height: 200px; overflow-y: auto; padding: 10px;">
+                                <div style="color: #999;">Loading...</div>
+                            </div>
+                            <small style="color: #666;">Select one or more heads of operations (optional)</small>
                         </div>
                         <div class="form-group">
                             <label>Notes (Optional)</label>
@@ -4032,8 +4034,8 @@ router.get('/', (req, res) => {
                         filtered = filtered.filter(br => 
                             (br.BrandName || '').toLowerCase().includes(searchTerm) ||
                             (br.BrandCode || '').toLowerCase().includes(searchTerm) ||
-                            (br.AreaManagerName || '').toLowerCase().includes(searchTerm) ||
-                            (br.HeadOfOpsName || '').toLowerCase().includes(searchTerm)
+                            (br.AreaManagerNames || br.AreaManagerName || '').toLowerCase().includes(searchTerm) ||
+                            (br.HeadOfOpsNames || br.HeadOfOpsName || '').toLowerCase().includes(searchTerm)
                         );
                     }
                     
@@ -4049,18 +4051,34 @@ router.get('/', (req, res) => {
                         return;
                     }
                     
-                    let html = '<table class="data-table"><thead><tr><th>Brand</th><th>Code</th><th>Area Manager</th><th>Head of Operations</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+                    let html = '<table class="data-table"><thead><tr><th>Brand</th><th>Code</th><th>Area Manager(s)</th><th>Head of Operations</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
                     
                     filtered.forEach(br => {
                         const statusBadge = br.isAssigned 
                             ? '<span style="background: #d4edda; color: #155724; padding: 4px 10px; border-radius: 12px; font-size: 12px;">✅ Assigned</span>'
                             : '<span style="background: #fff3cd; color: #856404; padding: 4px 10px; border-radius: 12px; font-size: 12px;">⚠️ Unassigned</span>';
                         
+                        // Handle multiple Area Managers
+                        let amDisplay = '<span style="color: #aaa;">-</span>';
+                        if (br.AreaManagerNames) {
+                            amDisplay = br.AreaManagerNames;
+                        } else if (br.AreaManagerName) {
+                            amDisplay = br.AreaManagerName;
+                        }
+                        
+                        // Handle multiple Heads of Ops
+                        let hoDisplay = '<span style="color: #aaa;">-</span>';
+                        if (br.HeadOfOpsNames) {
+                            hoDisplay = br.HeadOfOpsNames;
+                        } else if (br.HeadOfOpsName) {
+                            hoDisplay = br.HeadOfOpsName;
+                        }
+                        
                         html += '<tr>';
                         html += '<td><strong>' + (br.BrandName || '') + '</strong></td>';
                         html += '<td><code style="background: #f0f0f0; padding: 2px 8px; border-radius: 4px;">' + (br.BrandCode || '-') + '</code></td>';
-                        html += '<td>' + (br.AreaManagerName || '<span style="color: #aaa;">-</span>') + '</td>';
-                        html += '<td>' + (br.HeadOfOpsName || '<span style="color: #aaa;">-</span>') + '</td>';
+                        html += '<td>' + amDisplay + '</td>';
+                        html += '<td>' + hoDisplay + '</td>';
                         html += '<td>' + statusBadge + '</td>';
                         html += '<td>';
                         if (br.isAssigned) {
@@ -4104,19 +4122,17 @@ router.get('/', (req, res) => {
                         brandSelect.innerHTML += '<option value="' + b.Id + '">' + b.BrandName + ' (' + b.BrandCode + ')</option>';
                     });
                     
-                    // Populate area managers dropdown
-                    const managerSelect = document.getElementById('brAreaManagerId');
-                    managerSelect.innerHTML = '<option value="">Select Area Manager...</option>';
-                    areaManagersData.forEach(m => {
-                        managerSelect.innerHTML += '<option value="' + m.Id + '">' + m.DisplayName + '</option>';
-                    });
+                    // Populate area managers checkboxes
+                    const amContainer = document.getElementById('brAreaManagersContainer');
+                    amContainer.innerHTML = areaManagersData.map(m => 
+                        '<label style="display: block; padding: 6px 8px; cursor: pointer; border-radius: 4px;" onmouseover="this.style.background=\\'#f0f0f0\\'" onmouseout="this.style.background=\\'\\'"><input type="checkbox" class="br-area-manager-cb" value="' + m.Id + '" style="margin-right: 8px;"> ' + m.DisplayName + '</label>'
+                    ).join('') || '<div style="color: #999;">No area managers found</div>';
                     
-                    // Populate head of operations dropdown
-                    const headOfOpsSelect = document.getElementById('brHeadOfOpsId');
-                    headOfOpsSelect.innerHTML = '<option value="">Select Head of Operations (Optional)...</option>';
-                    headOfOpsData.forEach(m => {
-                        headOfOpsSelect.innerHTML += '<option value="' + m.Id + '">' + m.DisplayName + '</option>';
-                    });
+                    // Populate head of operations checkboxes
+                    const hoContainer = document.getElementById('brHeadOfOpsContainer');
+                    hoContainer.innerHTML = headOfOpsData.map(m => 
+                        '<label style="display: block; padding: 6px 8px; cursor: pointer; border-radius: 4px;" onmouseover="this.style.background=\\'#f0f0f0\\'" onmouseout="this.style.background=\\'\\'"><input type="checkbox" class="br-head-of-ops-cb" value="' + m.Id + '" style="margin-right: 8px;"> ' + m.DisplayName + '</label>'
+                    ).join('') || '<div style="color: #999;">No heads of operations found</div>';
                     
                     document.getElementById('brandResponsibleModal').classList.add('show');
                 }
@@ -4137,8 +4153,19 @@ router.get('/', (req, res) => {
                     await openBrandResponsibleModal(id);
                     document.getElementById('brandResponsibleId').value = id;
                     document.getElementById('brBrandId').value = br.BrandId;
-                    document.getElementById('brAreaManagerId').value = br.AreaManagerId;
-                    document.getElementById('brHeadOfOpsId').value = br.HeadOfOpsId || '';
+                    
+                    // Set area manager checkboxes
+                    const amIds = br.AreaManagerIds ? (typeof br.AreaManagerIds === 'string' ? JSON.parse(br.AreaManagerIds) : br.AreaManagerIds) : (br.AreaManagerId ? [br.AreaManagerId] : []);
+                    document.querySelectorAll('.br-area-manager-cb').forEach(cb => {
+                        cb.checked = amIds.includes(parseInt(cb.value));
+                    });
+                    
+                    // Set head of ops checkboxes
+                    const hoIds = br.HeadOfOpsIds ? (typeof br.HeadOfOpsIds === 'string' ? JSON.parse(br.HeadOfOpsIds) : br.HeadOfOpsIds) : (br.HeadOfOpsId ? [br.HeadOfOpsId] : []);
+                    document.querySelectorAll('.br-head-of-ops-cb').forEach(cb => {
+                        cb.checked = hoIds.includes(parseInt(cb.value));
+                    });
+                    
                     document.getElementById('brNotes').value = br.Notes || '';
                 }
                 
@@ -4165,10 +4192,17 @@ router.get('/', (req, res) => {
                     e.preventDefault();
                     
                     const id = document.getElementById('brandResponsibleId').value;
+                    
+                    // Get selected area managers
+                    const areaManagerIds = Array.from(document.querySelectorAll('.br-area-manager-cb:checked')).map(cb => parseInt(cb.value));
+                    
+                    // Get selected heads of ops
+                    const headOfOpsIds = Array.from(document.querySelectorAll('.br-head-of-ops-cb:checked')).map(cb => parseInt(cb.value));
+                    
                     const data = {
                         brandId: document.getElementById('brBrandId').value,
-                        areaManagerId: document.getElementById('brAreaManagerId').value,
-                        headOfOpsId: document.getElementById('brHeadOfOpsId').value || null,
+                        areaManagerIds: areaManagerIds,
+                        headOfOpsIds: headOfOpsIds,
                         notes: document.getElementById('brNotes').value
                     };
                     
@@ -5565,7 +5599,44 @@ router.get('/api/brand-responsibles', async (req, res) => {
             WHERE br.IsActive = 1
             ORDER BY b.BrandName
         `);
-        res.json(result.recordset);
+        
+        // Get all area managers and heads of ops for name lookup
+        const usersResult = await pool.request().query('SELECT Id, DisplayName FROM Users WHERE IsActive = 1');
+        const usersMap = {};
+        usersResult.recordset.forEach(u => usersMap[u.Id] = u.DisplayName);
+        
+        // Enhance results with multiple names
+        const enhanced = result.recordset.map(br => {
+            // Parse area manager IDs and get names
+            let areaManagerNames = br.AreaManagerName || null;
+            if (br.AreaManagerIds) {
+                try {
+                    const ids = JSON.parse(br.AreaManagerIds);
+                    if (Array.isArray(ids) && ids.length > 0) {
+                        areaManagerNames = ids.map(id => usersMap[id] || 'Unknown').join(', ');
+                    }
+                } catch(e) {}
+            }
+            
+            // Parse head of ops IDs and get names
+            let headOfOpsNames = br.HeadOfOpsName || null;
+            if (br.HeadOfOpsIds) {
+                try {
+                    const ids = JSON.parse(br.HeadOfOpsIds);
+                    if (Array.isArray(ids) && ids.length > 0) {
+                        headOfOpsNames = ids.map(id => usersMap[id] || 'Unknown').join(', ');
+                    }
+                } catch(e) {}
+            }
+            
+            return {
+                ...br,
+                AreaManagerNames: areaManagerNames,
+                HeadOfOpsNames: headOfOpsNames
+            };
+        });
+        
+        res.json(enhanced);
     } catch (err) {
         console.error('Error fetching brand responsibles:', err);
         res.status(500).json({ error: 'Failed to fetch data' });
@@ -5574,7 +5645,7 @@ router.get('/api/brand-responsibles', async (req, res) => {
 
 router.post('/api/brand-responsibles', async (req, res) => {
     try {
-        const { brandId, areaManagerId, headOfOpsId, notes } = req.body;
+        const { brandId, areaManagerIds, headOfOpsIds, notes } = req.body;
         const pool = await getPool();
         
         // Check if brand already has an assignment
@@ -5586,15 +5657,23 @@ router.post('/api/brand-responsibles', async (req, res) => {
             return res.status(400).json({ error: 'This brand already has managers assigned. Edit or remove the existing assignment first.' });
         }
         
+        // Store arrays as JSON, also store first ID in legacy column for backward compat
+        const amIdsJson = Array.isArray(areaManagerIds) && areaManagerIds.length > 0 ? JSON.stringify(areaManagerIds) : null;
+        const hoIdsJson = Array.isArray(headOfOpsIds) && headOfOpsIds.length > 0 ? JSON.stringify(headOfOpsIds) : null;
+        const legacyAmId = Array.isArray(areaManagerIds) && areaManagerIds.length > 0 ? areaManagerIds[0] : null;
+        const legacyHoId = Array.isArray(headOfOpsIds) && headOfOpsIds.length > 0 ? headOfOpsIds[0] : null;
+        
         await pool.request()
             .input('brandId', sql.Int, brandId)
-            .input('areaManagerId', sql.Int, areaManagerId)
-            .input('headOfOpsId', sql.Int, headOfOpsId || null)
+            .input('areaManagerId', sql.Int, legacyAmId)
+            .input('areaManagerIds', sql.NVarChar(sql.MAX), amIdsJson)
+            .input('headOfOpsId', sql.Int, legacyHoId)
+            .input('headOfOpsIds', sql.NVarChar(sql.MAX), hoIdsJson)
             .input('notes', sql.NVarChar, notes || null)
             .input('createdBy', sql.Int, req.currentUser?.userId || null)
             .query(`
-                INSERT INTO OE_BrandResponsibles (BrandId, AreaManagerId, HeadOfOpsId, Notes, CreatedBy, CreatedAt, IsActive)
-                VALUES (@brandId, @areaManagerId, @headOfOpsId, @notes, @createdBy, GETDATE(), 1)
+                INSERT INTO OE_BrandResponsibles (BrandId, AreaManagerId, AreaManagerIds, HeadOfOpsId, HeadOfOpsIds, Notes, CreatedBy, CreatedAt, IsActive)
+                VALUES (@brandId, @areaManagerId, @areaManagerIds, @headOfOpsId, @headOfOpsIds, @notes, @createdBy, GETDATE(), 1)
             `);
         
         res.json({ success: true });
@@ -5606,19 +5685,28 @@ router.post('/api/brand-responsibles', async (req, res) => {
 
 router.put('/api/brand-responsibles/:id', async (req, res) => {
     try {
-        const { brandId, areaManagerId, headOfOpsId, notes } = req.body;
+        const { brandId, areaManagerIds, headOfOpsIds, notes } = req.body;
         const pool = await getPool();
+        
+        // Store arrays as JSON, also store first ID in legacy column for backward compat
+        const amIdsJson = Array.isArray(areaManagerIds) && areaManagerIds.length > 0 ? JSON.stringify(areaManagerIds) : null;
+        const hoIdsJson = Array.isArray(headOfOpsIds) && headOfOpsIds.length > 0 ? JSON.stringify(headOfOpsIds) : null;
+        const legacyAmId = Array.isArray(areaManagerIds) && areaManagerIds.length > 0 ? areaManagerIds[0] : null;
+        const legacyHoId = Array.isArray(headOfOpsIds) && headOfOpsIds.length > 0 ? headOfOpsIds[0] : null;
         
         await pool.request()
             .input('id', sql.Int, req.params.id)
             .input('brandId', sql.Int, brandId)
-            .input('areaManagerId', sql.Int, areaManagerId)
-            .input('headOfOpsId', sql.Int, headOfOpsId || null)
+            .input('areaManagerId', sql.Int, legacyAmId)
+            .input('areaManagerIds', sql.NVarChar(sql.MAX), amIdsJson)
+            .input('headOfOpsId', sql.Int, legacyHoId)
+            .input('headOfOpsIds', sql.NVarChar(sql.MAX), hoIdsJson)
             .input('notes', sql.NVarChar, notes || null)
             .input('updatedBy', sql.Int, req.currentUser?.userId || null)
             .query(`
                 UPDATE OE_BrandResponsibles 
-                SET BrandId = @brandId, AreaManagerId = @areaManagerId, HeadOfOpsId = @headOfOpsId, Notes = @notes, 
+                SET BrandId = @brandId, AreaManagerId = @areaManagerId, AreaManagerIds = @areaManagerIds, 
+                    HeadOfOpsId = @headOfOpsId, HeadOfOpsIds = @headOfOpsIds, Notes = @notes, 
                     UpdatedBy = @updatedBy, UpdatedAt = GETDATE()
                 WHERE Id = @id
             `);
