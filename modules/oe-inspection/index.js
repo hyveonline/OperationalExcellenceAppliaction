@@ -631,7 +631,10 @@ router.get('/api/templates/schemas/:schemaId', async (req, res) => {
             const itemsResult = await pool.request()
                 .input('sectionId', sql.Int, section.sectionId)
                 .query(`
-                    SELECT Id as itemId, ReferenceValue as referenceValue, Question as title, Coefficient as coeff, AnswerOptions as answer, Criteria as cr
+                    SELECT Id as itemId, ReferenceValue as referenceValue, Question as title, Coefficient as coeff, 
+                           AnswerOptions as answer, Criteria as cr, Quantity as quantity, DefaultSeverity as defaultSeverity,
+                           IsQuantitative as isQuantitative, Range1From as range1From, Range1To as range1To,
+                           Range2From as range2From, Range2To as range2To, Range3From as range3From
                     FROM OE_InspectionTemplateItems
                     WHERE SectionId = @sectionId AND IsActive = 1
                     ORDER BY 
