@@ -888,7 +888,11 @@
                                     <td>${store.brandName 
                                         ? `<span class="template-badge" style="background: linear-gradient(135deg, #8b5cf6, #6d28d9); color: white;">${store.brandName}</span>` 
                                         : '<span style="color: #ef4444; font-weight: 600;">⚠️ Not Set</span>'}</td>
-                                    <td>${store.location || '-'}</td>
+                                    <td>${store.location 
+                                        ? (store.location.includes('http') || store.location.includes('maps.') || store.location.includes('goo.gl')
+                                            ? `<a href="${store.location}" target="_blank" style="color: #2563eb; text-decoration: none;">📍 View Map</a>`
+                                            : store.location)
+                                        : '-'}</td>
                                     <td><span class="status-badge ${store.storeSize === 'Large' ? 'status-active' : 'status-inactive'}">${store.storeSize || '-'}</span></td>
                                     <td><span class="template-badge">${store.templateName || 'Not set'}</span></td>
                                     <td>
