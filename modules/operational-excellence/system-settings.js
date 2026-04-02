@@ -4209,9 +4209,8 @@ router.get('/', (req, res) => {
 // ========== STORES API ==========
 router.get('/api/stores', async (req, res) => {
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const result = await pool.request().query('SELECT * FROM Stores ORDER BY StoreName');
-        await pool.close();
         res.json(result.recordset);
     } catch (err) {
         console.error('Error loading stores:', err);
@@ -4222,14 +4221,13 @@ router.get('/api/stores', async (req, res) => {
 router.post('/api/stores', async (req, res) => {
     try {
         const { name, code, isActive } = req.body;
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         await pool.request()
             .input('name', sql.NVarChar, name)
             .input('code', sql.NVarChar, code || null)
             .input('isActive', sql.Bit, isActive)
             .input('createdBy', sql.NVarChar, req.currentUser?.DisplayName || 'System')
             .query('INSERT INTO Stores (StoreName, StoreCode, IsActive, CreatedBy) VALUES (@name, @code, @isActive, @createdBy)');
-        await pool.close();
         res.json({ success: true });
     } catch (err) {
         console.error('Error adding store:', err);
@@ -4245,7 +4243,7 @@ router.post('/api/stores/bulk', async (req, res) => {
             return res.status(400).json({ error: 'No stores provided' });
         }
         
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const createdBy = req.currentUser?.DisplayName || 'System';
         
         // Get existing store names to avoid duplicates
@@ -4270,7 +4268,6 @@ router.post('/api/stores/bulk', async (req, res) => {
             imported++;
         }
         
-        await pool.close();
         res.json({ success: true, imported, skipped });
     } catch (err) {
         console.error('Error bulk importing stores:', err);
@@ -4281,14 +4278,13 @@ router.post('/api/stores/bulk', async (req, res) => {
 router.put('/api/stores/:id', async (req, res) => {
     try {
         const { name, code, isActive } = req.body;
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         await pool.request()
             .input('id', sql.Int, req.params.id)
             .input('name', sql.NVarChar, name)
             .input('code', sql.NVarChar, code || null)
             .input('isActive', sql.Bit, isActive)
             .query('UPDATE Stores SET StoreName = @name, StoreCode = @code, IsActive = @isActive WHERE Id = @id');
-        await pool.close();
         res.json({ success: true });
     } catch (err) {
         console.error('Error updating store:', err);
@@ -4300,33 +4296,21 @@ router.delete('/api/stores/:id', async (req, res) => {
     try {
         const pool = await getPool();
         
-        // Check if store is used in OE_StoreResponsibles
-        const checkUsage = await pool.request()
+        // First delete related records
+        await pool.request()
             .input('id', sql.Int, req.params.id)
-            .query(`
-                SELECT 
-                    (SELECT COUNT(*) FROM OE_StoreResponsibles WHERE StoreId = @id AND IsActive = 1) as ResponsibleCount,
-                    (SELECT COUNT(*) FROM Complaints WHERE StoreId = @id) as ComplaintCount
-            `);
+            .query('DELETE FROM OE_StoreResponsibles WHERE StoreId = @id');
         
-        const usage = checkUsage.recordset[0];
-        if (usage.ResponsibleCount > 0 || usage.ComplaintCount > 0) {
-            // Soft delete - set IsActive to 0 instead of hard delete
-            await pool.request()
-                .input('id', sql.Int, req.params.id)
-                .query('UPDATE Stores SET IsActive = 0 WHERE Id = @id');
-            res.json({ success: true, message: 'Store deactivated (has related records)' });
-        } else {
-            // Hard delete if no references
-            await pool.request()
-                .input('id', sql.Int, req.params.id)
-                .query('DELETE FROM Stores WHERE Id = @id');
-            res.json({ success: true });
-        }
+        // Then delete the store
+        await pool.request()
+            .input('id', sql.Int, req.params.id)
+            .query('DELETE FROM Stores WHERE Id = @id');
+        
+        res.json({ success: true, message: 'Store deleted permanently' });
     } catch (err) {
         console.error('Error deleting store:', err);
         if (err.message && err.message.includes('REFERENCE constraint')) {
-            res.status(400).json({ error: 'Cannot delete store - it has related records. The store has been deactivated instead.' });
+            res.status(400).json({ error: 'Cannot delete store - it has related records in other tables' });
         } else {
             res.status(500).json({ error: 'Failed to delete store: ' + err.message });
         }

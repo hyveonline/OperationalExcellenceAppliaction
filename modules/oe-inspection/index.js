@@ -963,6 +963,7 @@ router.get('/api/stores', async (req, res) => {
             FROM Stores s
             LEFT JOIN OE_InspectionTemplates t ON s.TemplateId = t.Id
             LEFT JOIN Brands b ON s.BrandId = b.Id
+            WHERE s.IsActive = 1
             ORDER BY s.StoreName
         `);
         await pool.close();
