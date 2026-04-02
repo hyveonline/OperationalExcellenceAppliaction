@@ -4297,6 +4297,22 @@ router.delete('/api/stores/:id', async (req, res) => {
         const pool = await getPool();
         const storeId = parseInt(req.params.id);
         
+        // First delete OE_Inspections child tables (they reference InspectionId)
+        const inspectionChildTables = [
+            'OE_InspectionSections',
+            'OE_InspectionItems',
+            'OE_InspectionActionItems',
+            'OE_ActionItemVerification',
+            'OE_InspectionGallery',
+            'OE_ActionPlanEscalations'
+        ];
+        
+        for (const table of inspectionChildTables) {
+            await pool.request()
+                .input('id', sql.Int, storeId)
+                .query(`DELETE FROM ${table} WHERE InspectionId IN (SELECT Id FROM OE_Inspections WHERE StoreId = @id)`);
+        }
+        
         // Delete from all tables with FK constraints to Stores (in order)
         const fkTables = [
             'LegalCaseStores',
