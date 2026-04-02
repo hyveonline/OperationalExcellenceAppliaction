@@ -2249,7 +2249,7 @@ router.get('/', (req, res) => {
                 let deleteType = '';
                 let deleteId = 0;
                 
-                function deleteItem(type, id) {
+                function confirmDelete(type, id) {
                     deleteType = type;
                     deleteId = id;
                     document.getElementById('deleteModal').classList.add('show');
