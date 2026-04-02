@@ -2749,15 +2749,28 @@ router.get('/', (req, res) => {
                     try {
                         const res = await fetch('/operational-excellence/system-settings/api/shifts');
                         const shifts = await res.json();
-                        renderShiftsTable(shifts);
+                        if (Array.isArray(shifts)) {
+                            renderShiftsTable(shifts);
+                        } else {
+                            console.error('Invalid shifts response:', shifts);
+                            const container = document.getElementById('shifts-table');
+                            if (container) container.innerHTML = '<div style="text-align: center; color: #666; padding: 40px;">Error loading shifts</div>';
+                        }
                     } catch (err) {
                         console.error('Error loading shifts:', err);
+                        const container = document.getElementById('shifts-table');
+                        if (container) container.innerHTML = '<div style="text-align: center; color: #666; padding: 40px;">Error loading shifts</div>';
                     }
                 }
                 
                 function renderShiftsTable(shifts) {
                     const container = document.getElementById('shifts-table');
                     if (!container) return;
+                    
+                    if (!Array.isArray(shifts)) {
+                        container.innerHTML = '<div style="text-align: center; color: #666; padding: 40px;">Error loading shifts</div>';
+                        return;
+                    }
                     
                     if (shifts.length === 0) {
                         container.innerHTML = '<div style="text-align: center; color: #666; padding: 40px;">No shifts found. Click "Add Shift" to create one.</div>';
@@ -2850,15 +2863,29 @@ router.get('/', (req, res) => {
                         prodCategoriesForCost = await categoriesRes.json();
                         thirdPartiesForCost = await partiesRes.json();
                         shiftsForCost = await shiftsRes.json();
+                        
+                        // Ensure arrays
+                        if (!Array.isArray(unitCostsData)) unitCostsData = [];
+                        if (!Array.isArray(prodCategoriesForCost)) prodCategoriesForCost = [];
+                        if (!Array.isArray(thirdPartiesForCost)) thirdPartiesForCost = [];
+                        if (!Array.isArray(shiftsForCost)) shiftsForCost = [];
+                        
                         renderUnitCostsTable(unitCostsData);
                     } catch (err) {
                         console.error('Error loading unit costs:', err);
+                        const container = document.getElementById('unitcosts-table');
+                        if (container) container.innerHTML = '<div style="text-align: center; color: #666; padding: 40px;">Error loading unit costs</div>';
                     }
                 }
                 
                 function renderUnitCostsTable(costs) {
                     const container = document.getElementById('unitcosts-table');
                     if (!container) return;
+                    
+                    if (!Array.isArray(costs)) {
+                        container.innerHTML = '<div style="text-align: center; color: #666; padding: 40px;">Error loading unit costs</div>';
+                        return;
+                    }
                     
                     if (costs.length === 0) {
                         container.innerHTML = '<div style="text-align: center; color: #666; padding: 40px;">No unit costs found. Click "Add Unit Cost" to create one.</div>';
@@ -4271,15 +4298,39 @@ router.put('/api/stores/:id', async (req, res) => {
 
 router.delete('/api/stores/:id', async (req, res) => {
     try {
-        const pool = await sql.connect(dbConfig);
-        await pool.request()
+        const pool = await getPool();
+        
+        // Check if store is used in OE_StoreResponsibles
+        const checkUsage = await pool.request()
             .input('id', sql.Int, req.params.id)
-            .query('DELETE FROM Stores WHERE Id = @id');
-        await pool.close();
-        res.json({ success: true });
+            .query(`
+                SELECT 
+                    (SELECT COUNT(*) FROM OE_StoreResponsibles WHERE StoreId = @id AND IsActive = 1) as ResponsibleCount,
+                    (SELECT COUNT(*) FROM TheftIncidents WHERE StoreId = @id) as TheftCount,
+                    (SELECT COUNT(*) FROM Complaints WHERE StoreId = @id) as ComplaintCount
+            `);
+        
+        const usage = checkUsage.recordset[0];
+        if (usage.ResponsibleCount > 0 || usage.TheftCount > 0 || usage.ComplaintCount > 0) {
+            // Soft delete - set IsActive to 0 instead of hard delete
+            await pool.request()
+                .input('id', sql.Int, req.params.id)
+                .query('UPDATE Stores SET IsActive = 0 WHERE Id = @id');
+            res.json({ success: true, message: 'Store deactivated (has related records)' });
+        } else {
+            // Hard delete if no references
+            await pool.request()
+                .input('id', sql.Int, req.params.id)
+                .query('DELETE FROM Stores WHERE Id = @id');
+            res.json({ success: true });
+        }
     } catch (err) {
         console.error('Error deleting store:', err);
-        res.status(500).json({ error: 'Failed to delete store' });
+        if (err.message && err.message.includes('REFERENCE constraint')) {
+            res.status(400).json({ error: 'Cannot delete store - it has related records. The store has been deactivated instead.' });
+        } else {
+            res.status(500).json({ error: 'Failed to delete store: ' + err.message });
+        }
     }
 });
 
@@ -4813,45 +4864,38 @@ router.delete('/api/thirdpartys/:id', async (req, res) => {
 
 // ========== SHIFTS API ==========
 router.get('/api/shifts', async (req, res) => {
-    let pool;
     try {
-        pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const result = await pool.request()
             .query('SELECT * FROM ProductionShifts ORDER BY ShiftName');
         res.json(result.recordset);
     } catch (err) {
         console.error('Error loading shifts:', err);
         res.status(500).json({ error: 'Failed to load shifts' });
-    } finally {
-        if (pool) try { await pool.close(); } catch(e) {}
     }
 });
 
 router.post('/api/shifts', async (req, res) => {
-    let pool;
     try {
         const { shiftName, isActive } = req.body;
-        pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         await pool.request()
             .input('shiftName', sql.NVarChar, shiftName)
             .input('isActive', sql.Bit, isActive)
-            .input('createdBy', sql.NVarChar, req.session?.user?.name || 'System')
+            .input('createdBy', sql.NVarChar, req.currentUser?.DisplayName || 'System')
             .query(`INSERT INTO ProductionShifts (ShiftName, IsActive, CreatedDate, CreatedBy) 
                     VALUES (@shiftName, @isActive, GETDATE(), @createdBy)`);
         res.json({ success: true });
     } catch (err) {
         console.error('Error adding shift:', err);
         res.status(500).json({ error: 'Failed to add shift' });
-    } finally {
-        if (pool) try { await pool.close(); } catch(e) {}
     }
 });
 
 router.put('/api/shifts/:id', async (req, res) => {
-    let pool;
     try {
         const { shiftName, isActive } = req.body;
-        pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         await pool.request()
             .input('id', sql.Int, req.params.id)
             .input('shiftName', sql.NVarChar, shiftName)
@@ -4861,15 +4905,12 @@ router.put('/api/shifts/:id', async (req, res) => {
     } catch (err) {
         console.error('Error updating shift:', err);
         res.status(500).json({ error: 'Failed to update shift' });
-    } finally {
-        if (pool) try { await pool.close(); } catch(e) {}
     }
 });
 
 router.delete('/api/shifts/:id', async (req, res) => {
-    let pool;
     try {
-        pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         await pool.request()
             .input('id', sql.Int, req.params.id)
             .query('DELETE FROM ProductionShifts WHERE Id = @id');
@@ -4877,16 +4918,13 @@ router.delete('/api/shifts/:id', async (req, res) => {
     } catch (err) {
         console.error('Error deleting shift:', err);
         res.status(500).json({ error: 'Failed to delete shift' });
-    } finally {
-        if (pool) try { await pool.close(); } catch(e) {}
     }
 });
 
 // ========== UNIT COSTS API ==========
 router.get('/api/unitcosts', async (req, res) => {
-    let pool;
     try {
-        pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const result = await pool.request()
             .query(`SELECT uc.*, 
                     c.CategoryName, 
@@ -4901,23 +4939,20 @@ router.get('/api/unitcosts', async (req, res) => {
     } catch (err) {
         console.error('Error loading unit costs:', err);
         res.status(500).json({ error: 'Failed to load unit costs' });
-    } finally {
-        if (pool) try { await pool.close(); } catch(e) {}
     }
 });
 
 router.post('/api/unitcosts', async (req, res) => {
-    let pool;
     try {
         const { categoryId, thirdPartyId, shiftId, costValue, isActive } = req.body;
-        pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         await pool.request()
             .input('categoryId', sql.Int, categoryId)
             .input('thirdPartyId', sql.Int, thirdPartyId)
             .input('shiftId', sql.Int, shiftId)
             .input('costValue', sql.Decimal(10, 2), costValue)
             .input('isActive', sql.Bit, isActive)
-            .input('createdBy', sql.NVarChar, req.session?.user?.name || 'System')
+            .input('createdBy', sql.NVarChar, req.currentUser?.DisplayName || 'System')
             .query(`INSERT INTO ProductionUnitCosts (CategoryId, ThirdPartyId, ShiftId, CostValue, IsActive, CreatedDate, CreatedBy) 
                     VALUES (@categoryId, @thirdPartyId, @shiftId, @costValue, @isActive, GETDATE(), @createdBy)`);
         res.json({ success: true });
@@ -4928,16 +4963,13 @@ router.post('/api/unitcosts', async (req, res) => {
         } else {
             res.status(500).json({ error: 'Failed to add unit cost' });
         }
-    } finally {
-        if (pool) try { await pool.close(); } catch(e) {}
     }
 });
 
 router.put('/api/unitcosts/:id', async (req, res) => {
-    let pool;
     try {
         const { categoryId, thirdPartyId, shiftId, costValue, isActive } = req.body;
-        pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         await pool.request()
             .input('id', sql.Int, req.params.id)
             .input('categoryId', sql.Int, categoryId)
@@ -4954,15 +4986,12 @@ router.put('/api/unitcosts/:id', async (req, res) => {
         } else {
             res.status(500).json({ error: 'Failed to update unit cost' });
         }
-    } finally {
-        if (pool) try { await pool.close(); } catch(e) {}
     }
 });
 
 router.delete('/api/unitcosts/:id', async (req, res) => {
-    let pool;
     try {
-        pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         await pool.request()
             .input('id', sql.Int, req.params.id)
             .query('DELETE FROM ProductionUnitCosts WHERE Id = @id');
@@ -4970,8 +4999,6 @@ router.delete('/api/unitcosts/:id', async (req, res) => {
     } catch (err) {
         console.error('Error deleting unit cost:', err);
         res.status(500).json({ error: 'Failed to delete unit cost' });
-    } finally {
-        if (pool) try { await pool.close(); } catch(e) {}
     }
 });
 
