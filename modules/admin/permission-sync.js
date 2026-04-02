@@ -84,6 +84,38 @@ router.get('/', async (req, res) => {
             ORDER BY u.DisplayName
         `);
         
+        // Get UserRoleAssignments from both (multi-role support)
+        const uatRoleAssignments = await uatPool.request().query(`
+            SELECT ura.UserId, u.Email, ura.RoleId, r.RoleName
+            FROM UserRoleAssignments ura
+            JOIN Users u ON ura.UserId = u.Id
+            JOIN UserRoles r ON ura.RoleId = r.Id
+            WHERE u.IsActive = 1
+            ORDER BY u.Email, r.RoleName
+        `);
+        const liveRoleAssignments = await livePool.request().query(`
+            SELECT ura.UserId, u.Email, ura.RoleId, r.RoleName
+            FROM UserRoleAssignments ura
+            JOIN Users u ON ura.UserId = u.Id
+            JOIN UserRoles r ON ura.RoleId = r.Id
+            WHERE u.IsActive = 1
+            ORDER BY u.Email, r.RoleName
+        `);
+        
+        // Build role assignments map by email
+        const uatRoleAssignmentsMap = new Map();
+        uatRoleAssignments.recordset.forEach(ra => {
+            const email = ra.Email.toLowerCase();
+            if (!uatRoleAssignmentsMap.has(email)) uatRoleAssignmentsMap.set(email, []);
+            uatRoleAssignmentsMap.get(email).push(ra.RoleName);
+        });
+        const liveRoleAssignmentsMap = new Map();
+        liveRoleAssignments.recordset.forEach(ra => {
+            const email = ra.Email.toLowerCase();
+            if (!liveRoleAssignmentsMap.has(email)) liveRoleAssignmentsMap.set(email, []);
+            liveRoleAssignmentsMap.get(email).push(ra.RoleName);
+        });
+        
         // Get Stores from both
         const uatStores = await uatPool.request().query(`
             SELECT s.Id, s.StoreCode, s.StoreName, s.Location, s.StoreSize, s.IsActive, s.BrandId, b.BrandName
@@ -227,18 +259,34 @@ router.get('/', async (req, res) => {
             let status = 'same';
             let diff = [];
             
+            // Get assigned roles from UserRoleAssignments
+            const uatRoles = uatRoleAssignmentsMap.get(email) || [];
+            const liveRoles = liveRoleAssignmentsMap.get(email) || [];
+            const uatRolesStr = uatRoles.sort().join(', ');
+            const liveRolesStr = liveRoles.sort().join(', ');
+            
             if (!live) {
                 status = 'missing-live';
             } else if (!uat) {
                 status = 'missing-uat';
             } else {
-                if (uat.RoleName !== live.RoleName) diff.push('Role');
+                // Compare assigned roles instead of legacy RoleId
+                if (uatRolesStr !== liveRolesStr) diff.push('Roles');
                 if (uat.DisplayName !== live.DisplayName) diff.push('DisplayName');
                 if (uat.IsApproved !== live.IsApproved) diff.push('IsApproved');
                 if (diff.length > 0) status = 'different';
             }
             
-            usersComparison.push({ email, uat, live, status, diff });
+            // Include roles info for display and sync
+            usersComparison.push({ 
+                email, 
+                uat: uat ? { ...uat, AssignedRoles: uatRoles } : null, 
+                live: live ? { ...live, AssignedRoles: liveRoles } : null, 
+                status, 
+                diff,
+                uatRolesStr,
+                liveRolesStr
+            });
         });
         
         // Stores comparison
@@ -850,8 +898,8 @@ router.get('/', async (req, res) => {
                                             <th class="checkbox-col"><input type="checkbox" id="selectAllUsers" onchange="toggleSelectAll('users')"></th>
                                             <th>Email</th>
                                             <th>Display Name</th>
-                                            <th>UAT Role</th>
-                                            <th>Live Role</th>
+                                            <th>UAT Roles</th>
+                                            <th>Live Roles</th>
                                             <th>Status</th>
                                             <th>Differences</th>
                                         </tr>
@@ -865,8 +913,8 @@ router.get('/', async (req, res) => {
                                                 </td>
                                                 <td>${u.email}</td>
                                                 <td>${u.uat?.DisplayName || u.live?.DisplayName || '-'}</td>
-                                                <td>${u.uat?.RoleName || '<em style="color:#1565c0">N/A</em>'}</td>
-                                                <td>${u.live?.RoleName || '<em style="color:#ef6c00">Missing</em>'}</td>
+                                                <td>${u.uatRolesStr || '<em style="color:#1565c0">No roles assigned</em>'}</td>
+                                                <td>${u.liveRolesStr || '<em style="color:#ef6c00">No roles assigned</em>'}</td>
                                                 <td><span class="status-badge status-${u.status}">${
                                                     u.status === 'same' ? '&#10004; In Sync' :
                                                     u.status === 'missing-live' ? '&#9888; Missing' :
@@ -1422,7 +1470,7 @@ router.post('/sync', async (req, res) => {
                 const uatUser = user.uat;
                 if (!uatUser) continue;
                 
-                // Get the Live RoleId that matches the UAT RoleName
+                // Get the Live RoleId that matches the UAT RoleName (for legacy column)
                 let liveRoleId = null;
                 if (uatUser.RoleName) {
                     const liveRole = await livePool.request()
@@ -1433,11 +1481,13 @@ router.post('/sync', async (req, res) => {
                     }
                 }
                 
+                let liveUserId = null;
                 const exists = await livePool.request()
                     .input('email', sql.NVarChar, user.email)
                     .query('SELECT Id FROM Users WHERE Email = @email');
                 
                 if (exists.recordset.length > 0) {
+                    liveUserId = exists.recordset[0].Id;
                     await livePool.request()
                         .input('email', sql.NVarChar, user.email)
                         .input('displayName', sql.NVarChar, uatUser.DisplayName)
@@ -1446,13 +1496,37 @@ router.post('/sync', async (req, res) => {
                         .input('isApproved', sql.Bit, uatUser.IsApproved)
                         .query('UPDATE Users SET DisplayName=@displayName, RoleId=@roleId, IsActive=@isActive, IsApproved=@isApproved WHERE Email=@email');
                 } else {
-                    await livePool.request()
+                    const insertResult = await livePool.request()
                         .input('email', sql.NVarChar, user.email)
                         .input('displayName', sql.NVarChar, uatUser.DisplayName)
                         .input('roleId', sql.Int, liveRoleId)
                         .input('isActive', sql.Bit, uatUser.IsActive)
                         .input('isApproved', sql.Bit, uatUser.IsApproved)
-                        .query('INSERT INTO Users (Email, DisplayName, RoleId, IsActive, IsApproved) VALUES (@email, @displayName, @roleId, @isActive, @isApproved)');
+                        .query('INSERT INTO Users (Email, DisplayName, RoleId, IsActive, IsApproved) OUTPUT INSERTED.Id VALUES (@email, @displayName, @roleId, @isActive, @isApproved)');
+                    liveUserId = insertResult.recordset[0]?.Id;
+                }
+                
+                // Sync UserRoleAssignments (multi-role support)
+                if (liveUserId && uatUser.AssignedRoles && uatUser.AssignedRoles.length > 0) {
+                    // Delete existing role assignments for this user in Live
+                    await livePool.request()
+                        .input('userId', sql.Int, liveUserId)
+                        .query('DELETE FROM UserRoleAssignments WHERE UserId = @userId');
+                    
+                    // Insert new role assignments based on UAT
+                    for (const roleName of uatUser.AssignedRoles) {
+                        const liveRoleResult = await livePool.request()
+                            .input('roleName', sql.NVarChar, roleName)
+                            .query('SELECT Id FROM UserRoles WHERE RoleName = @roleName');
+                        
+                        if (liveRoleResult.recordset.length > 0) {
+                            const roleId = liveRoleResult.recordset[0].Id;
+                            await livePool.request()
+                                .input('userId', sql.Int, liveUserId)
+                                .input('roleId', sql.Int, roleId)
+                                .query('INSERT INTO UserRoleAssignments (UserId, RoleId) VALUES (@userId, @roleId)');
+                        }
+                    }
                 }
                 count++;
             }
@@ -1733,7 +1807,7 @@ router.post('/sync-all', async (req, res) => {
             const uatUser = user.uat;
             if (!uatUser) continue;
             
-            // Get the Live RoleId that matches the UAT RoleName
+            // Get the Live RoleId that matches the UAT RoleName (for legacy column)
             let liveRoleId = null;
             if (uatUser.RoleName) {
                 const liveRole = await livePool.request()
@@ -1744,11 +1818,13 @@ router.post('/sync-all', async (req, res) => {
                 }
             }
             
+            let liveUserId = null;
             const exists = await livePool.request()
                 .input('email', sql.NVarChar, user.email)
                 .query('SELECT Id FROM Users WHERE Email = @email');
             
             if (exists.recordset.length > 0) {
+                liveUserId = exists.recordset[0].Id;
                 await livePool.request()
                     .input('email', sql.NVarChar, user.email)
                     .input('displayName', sql.NVarChar, uatUser.DisplayName)
@@ -1757,13 +1833,37 @@ router.post('/sync-all', async (req, res) => {
                     .input('isApproved', sql.Bit, uatUser.IsApproved)
                     .query('UPDATE Users SET DisplayName=@displayName, RoleId=@roleId, IsActive=@isActive, IsApproved=@isApproved WHERE Email=@email');
             } else {
-                await livePool.request()
+                const insertResult = await livePool.request()
                     .input('email', sql.NVarChar, user.email)
                     .input('displayName', sql.NVarChar, uatUser.DisplayName)
                     .input('roleId', sql.Int, liveRoleId)
                     .input('isActive', sql.Bit, uatUser.IsActive)
                     .input('isApproved', sql.Bit, uatUser.IsApproved)
-                    .query('INSERT INTO Users (Email, DisplayName, RoleId, IsActive, IsApproved) VALUES (@email, @displayName, @roleId, @isActive, @isApproved)');
+                    .query('INSERT INTO Users (Email, DisplayName, RoleId, IsActive, IsApproved) OUTPUT INSERTED.Id VALUES (@email, @displayName, @roleId, @isActive, @isApproved)');
+                liveUserId = insertResult.recordset[0]?.Id;
+            }
+            
+            // Sync UserRoleAssignments (multi-role support)
+            if (liveUserId && uatUser.AssignedRoles && uatUser.AssignedRoles.length > 0) {
+                // Delete existing role assignments for this user in Live
+                await livePool.request()
+                    .input('userId', sql.Int, liveUserId)
+                    .query('DELETE FROM UserRoleAssignments WHERE UserId = @userId');
+                
+                // Insert new role assignments based on UAT
+                for (const roleName of uatUser.AssignedRoles) {
+                    const liveRoleResult = await livePool.request()
+                        .input('roleName', sql.NVarChar, roleName)
+                        .query('SELECT Id FROM UserRoles WHERE RoleName = @roleName');
+                    
+                    if (liveRoleResult.recordset.length > 0) {
+                        const roleId = liveRoleResult.recordset[0].Id;
+                        await livePool.request()
+                            .input('userId', sql.Int, liveUserId)
+                            .input('roleId', sql.Int, roleId)
+                            .query('INSERT INTO UserRoleAssignments (UserId, RoleId) VALUES (@userId, @roleId)');
+                    }
+                }
             }
             usersCount++;
         }
