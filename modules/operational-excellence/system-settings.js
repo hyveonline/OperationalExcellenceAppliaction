@@ -4306,12 +4306,11 @@ router.delete('/api/stores/:id', async (req, res) => {
             .query(`
                 SELECT 
                     (SELECT COUNT(*) FROM OE_StoreResponsibles WHERE StoreId = @id AND IsActive = 1) as ResponsibleCount,
-                    (SELECT COUNT(*) FROM TheftIncidents WHERE StoreId = @id) as TheftCount,
                     (SELECT COUNT(*) FROM Complaints WHERE StoreId = @id) as ComplaintCount
             `);
         
         const usage = checkUsage.recordset[0];
-        if (usage.ResponsibleCount > 0 || usage.TheftCount > 0 || usage.ComplaintCount > 0) {
+        if (usage.ResponsibleCount > 0 || usage.ComplaintCount > 0) {
             // Soft delete - set IsActive to 0 instead of hard delete
             await pool.request()
                 .input('id', sql.Int, req.params.id)
@@ -4361,9 +4360,8 @@ router.get('/api/users/by-email', async (req, res) => {
 // ========== CATEGORIES API ==========
 router.get('/api/categories', async (req, res) => {
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const result = await pool.request().query('SELECT * FROM CleaningCategories ORDER BY CategoryName');
-        await pool.close();
         res.json(result.recordset);
     } catch (err) {
         console.error('Error loading categories:', err);
@@ -4374,13 +4372,12 @@ router.get('/api/categories', async (req, res) => {
 router.post('/api/categories', async (req, res) => {
     try {
         const { name, isActive } = req.body;
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         await pool.request()
             .input('name', sql.NVarChar, name)
             .input('isActive', sql.Bit, isActive)
             .input('createdBy', sql.NVarChar, req.currentUser?.DisplayName || 'System')
             .query('INSERT INTO CleaningCategories (CategoryName, IsActive, CreatedBy) VALUES (@name, @isActive, @createdBy)');
-        await pool.close();
         res.json({ success: true });
     } catch (err) {
         console.error('Error adding category:', err);
@@ -4391,13 +4388,12 @@ router.post('/api/categories', async (req, res) => {
 router.put('/api/categories/:id', async (req, res) => {
     try {
         const { name, isActive } = req.body;
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         await pool.request()
             .input('id', sql.Int, req.params.id)
             .input('name', sql.NVarChar, name)
             .input('isActive', sql.Bit, isActive)
             .query('UPDATE CleaningCategories SET CategoryName = @name, IsActive = @isActive WHERE Id = @id');
-        await pool.close();
         res.json({ success: true });
     } catch (err) {
         console.error('Error updating category:', err);
@@ -4407,11 +4403,10 @@ router.put('/api/categories/:id', async (req, res) => {
 
 router.delete('/api/categories/:id', async (req, res) => {
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         await pool.request()
             .input('id', sql.Int, req.params.id)
             .query('DELETE FROM CleaningCategories WHERE Id = @id');
-        await pool.close();
         res.json({ success: true });
     } catch (err) {
         console.error('Error deleting category:', err);
@@ -4422,14 +4417,13 @@ router.delete('/api/categories/:id', async (req, res) => {
 // ========== PROVIDERS API ==========
 router.get('/api/providers', async (req, res) => {
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const result = await pool.request().query(`
             SELECT p.*, c.CategoryName 
             FROM ThirdPartyProviders p
             LEFT JOIN CleaningCategories c ON p.CategoryId = c.Id
             ORDER BY c.CategoryName, p.ProviderName
         `);
-        await pool.close();
         res.json(result.recordset);
     } catch (err) {
         console.error('Error loading providers:', err);
@@ -4440,11 +4434,10 @@ router.get('/api/providers', async (req, res) => {
 // Get providers by category (for filtering in forms)
 router.get('/api/providers/by-category/:categoryId', async (req, res) => {
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const result = await pool.request()
             .input('categoryId', sql.Int, req.params.categoryId)
             .query('SELECT * FROM ThirdPartyProviders WHERE CategoryId = @categoryId AND IsActive = 1 ORDER BY ProviderName');
-        await pool.close();
         res.json(result.recordset);
     } catch (err) {
         console.error('Error loading providers by category:', err);
@@ -4455,14 +4448,13 @@ router.get('/api/providers/by-category/:categoryId', async (req, res) => {
 router.post('/api/providers', async (req, res) => {
     try {
         const { categoryId, name, isActive } = req.body;
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         await pool.request()
             .input('categoryId', sql.Int, categoryId || null)
             .input('name', sql.NVarChar, name)
             .input('isActive', sql.Bit, isActive)
             .input('createdBy', sql.NVarChar, req.currentUser?.DisplayName || 'System')
             .query('INSERT INTO ThirdPartyProviders (CategoryId, ProviderName, IsActive, CreatedBy) VALUES (@categoryId, @name, @isActive, @createdBy)');
-        await pool.close();
         res.json({ success: true });
     } catch (err) {
         console.error('Error adding provider:', err);
@@ -4473,14 +4465,13 @@ router.post('/api/providers', async (req, res) => {
 router.put('/api/providers/:id', async (req, res) => {
     try {
         const { categoryId, name, isActive } = req.body;
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         await pool.request()
             .input('id', sql.Int, req.params.id)
             .input('categoryId', sql.Int, categoryId || null)
             .input('name', sql.NVarChar, name)
             .input('isActive', sql.Bit, isActive)
             .query('UPDATE ThirdPartyProviders SET CategoryId = @categoryId, ProviderName = @name, IsActive = @isActive WHERE Id = @id');
-        await pool.close();
         res.json({ success: true });
     } catch (err) {
         console.error('Error updating provider:', err);
@@ -4490,11 +4481,10 @@ router.put('/api/providers/:id', async (req, res) => {
 
 router.delete('/api/providers/:id', async (req, res) => {
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         await pool.request()
             .input('id', sql.Int, req.params.id)
             .query('DELETE FROM ThirdPartyProviders WHERE Id = @id');
-        await pool.close();
         res.json({ success: true });
     } catch (err) {
         console.error('Error deleting provider:', err);
@@ -4722,25 +4712,21 @@ router.delete('/api/locations/:id', async (req, res) => {
 
 // ========== PRODUCTION CATEGORIES API ==========
 router.get('/api/prodcategorys', async (req, res) => {
-    let pool;
     try {
-        pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const result = await pool.request()
             .query('SELECT * FROM ProductionCategories ORDER BY CategoryName');
         res.json(result.recordset);
     } catch (err) {
         console.error('Error loading production categories:', err);
         res.status(500).json({ error: 'Failed to load categories' });
-    } finally {
-        if (pool) try { await pool.close(); } catch(e) {}
     }
 });
 
 router.post('/api/prodcategorys', async (req, res) => {
-    let pool;
     try {
         const { categoryName, isActive } = req.body;
-        pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         await pool.request()
             .input('categoryName', sql.NVarChar, categoryName)
             .input('isActive', sql.Bit, isActive)
@@ -4751,16 +4737,13 @@ router.post('/api/prodcategorys', async (req, res) => {
     } catch (err) {
         console.error('Error adding category:', err);
         res.status(500).json({ error: 'Failed to add category' });
-    } finally {
-        if (pool) try { await pool.close(); } catch(e) {}
     }
 });
 
 router.put('/api/prodcategorys/:id', async (req, res) => {
-    let pool;
     try {
         const { categoryName, isActive } = req.body;
-        pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         await pool.request()
             .input('id', sql.Int, req.params.id)
             .input('categoryName', sql.NVarChar, categoryName)
@@ -4770,15 +4753,12 @@ router.put('/api/prodcategorys/:id', async (req, res) => {
     } catch (err) {
         console.error('Error updating category:', err);
         res.status(500).json({ error: 'Failed to update category' });
-    } finally {
-        if (pool) try { await pool.close(); } catch(e) {}
     }
 });
 
 router.delete('/api/prodcategorys/:id', async (req, res) => {
-    let pool;
     try {
-        pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         await pool.request()
             .input('id', sql.Int, req.params.id)
             .query('DELETE FROM ProductionCategories WHERE Id = @id');
@@ -4786,32 +4766,26 @@ router.delete('/api/prodcategorys/:id', async (req, res) => {
     } catch (err) {
         console.error('Error deleting category:', err);
         res.status(500).json({ error: 'Failed to delete category' });
-    } finally {
-        if (pool) try { await pool.close(); } catch(e) {}
     }
 });
 
 // ========== THIRD PARTIES API ==========
 router.get('/api/thirdpartys', async (req, res) => {
-    let pool;
     try {
-        pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const result = await pool.request()
             .query('SELECT * FROM ProductionThirdParties ORDER BY ThirdPartyName');
         res.json(result.recordset);
     } catch (err) {
         console.error('Error loading third parties:', err);
         res.status(500).json({ error: 'Failed to load third parties' });
-    } finally {
-        if (pool) try { await pool.close(); } catch(e) {}
     }
 });
 
 router.post('/api/thirdpartys', async (req, res) => {
-    let pool;
     try {
         const { thirdPartyName, isActive } = req.body;
-        pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         await pool.request()
             .input('thirdPartyName', sql.NVarChar, thirdPartyName)
             .input('isActive', sql.Bit, isActive)
