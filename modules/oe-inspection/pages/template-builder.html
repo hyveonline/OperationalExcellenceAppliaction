@@ -1386,13 +1386,13 @@
                                     answer: itemData.answer || 'Yes/No',
                                     cr: itemData.cr || false,
                                     defaultSeverity: itemData.defaultSeverity || null,
-                                    quantity: itemData.quantity || null,
-                                    isQuantitative: itemData.isQuantitative || false,
-                                    range1From: itemData.range1From || null,
-                                    range1To: itemData.range1To || null,
-                                    range2From: itemData.range2From || null,
-                                    range2To: itemData.range2To || null,
-                                    range3From: itemData.range3From || null
+                                    quantity: itemData.quantity != null ? itemData.quantity : null,
+                                    isQuantitative: itemData.isQuantitative === true,
+                                    range1From: itemData.range1From != null ? itemData.range1From : null,
+                                    range1To: itemData.range1To != null ? itemData.range1To : null,
+                                    range2From: itemData.range2From != null ? itemData.range2From : null,
+                                    range2To: itemData.range2To != null ? itemData.range2To : null,
+                                    range3From: itemData.range3From != null ? itemData.range3From : null
                                 })
                             });
 
@@ -1511,13 +1511,13 @@
                                     answer: itemData.answer || 'Yes/No',
                                     cr: itemData.cr || false,
                                     defaultSeverity: itemData.defaultSeverity || null,
-                                    quantity: itemData.quantity || null,
-                                    isQuantitative: itemData.isQuantitative || false,
-                                    range1From: itemData.range1From || null,
-                                    range1To: itemData.range1To || null,
-                                    range2From: itemData.range2From || null,
-                                    range2To: itemData.range2To || null,
-                                    range3From: itemData.range3From || null
+                                    quantity: itemData.quantity != null ? itemData.quantity : null,
+                                    isQuantitative: itemData.isQuantitative === true,
+                                    range1From: itemData.range1From != null ? itemData.range1From : null,
+                                    range1To: itemData.range1To != null ? itemData.range1To : null,
+                                    range2From: itemData.range2From != null ? itemData.range2From : null,
+                                    range2To: itemData.range2To != null ? itemData.range2To : null,
+                                    range3From: itemData.range3From != null ? itemData.range3From : null
                                 })
                             });
 
