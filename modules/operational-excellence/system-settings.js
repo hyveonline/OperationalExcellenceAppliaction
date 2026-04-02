@@ -1386,9 +1386,9 @@ router.get('/', (req, res) => {
                             </select>
                         </div>
                         <div class="form-group">
-                            <label>Area Manager *</label>
-                            <select id="srAreaManagerId" required style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px;">
-                                <option value="">Loading...</option>
+                            <label>Area Manager</label>
+                            <select id="srAreaManagerId" style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px;">
+                                <option value="">Select Area Manager (Optional)...</option>
                             </select>
                         </div>
                         <div class="form-group">
@@ -5408,7 +5408,7 @@ router.post('/api/store-responsibles', async (req, res) => {
         
         await pool.request()
             .input('storeId', sql.Int, storeId)
-            .input('areaManagerId', sql.Int, areaManagerId)
+            .input('areaManagerId', sql.Int, areaManagerId || null)
             .input('headOfOpsId', sql.Int, headOfOpsId || null)
             .input('notes', sql.NVarChar, notes || null)
             .input('createdBy', sql.NVarChar, req.currentUser?.DisplayName || 'System')
@@ -5432,7 +5432,7 @@ router.put('/api/store-responsibles/:id', async (req, res) => {
         await pool.request()
             .input('id', sql.Int, req.params.id)
             .input('storeId', sql.Int, storeId)
-            .input('areaManagerId', sql.Int, areaManagerId)
+            .input('areaManagerId', sql.Int, areaManagerId || null)
             .input('headOfOpsId', sql.Int, headOfOpsId || null)
             .input('notes', sql.NVarChar, notes || null)
             .input('updatedBy', sql.NVarChar, req.currentUser?.DisplayName || 'System')
