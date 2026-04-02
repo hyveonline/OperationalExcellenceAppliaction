@@ -4295,25 +4295,41 @@ router.put('/api/stores/:id', async (req, res) => {
 router.delete('/api/stores/:id', async (req, res) => {
     try {
         const pool = await getPool();
+        const storeId = parseInt(req.params.id);
         
-        // First delete related records
-        await pool.request()
-            .input('id', sql.Int, req.params.id)
-            .query('DELETE FROM OE_StoreResponsibles WHERE StoreId = @id');
+        // Delete from all tables with FK constraints to Stores (in order)
+        const fkTables = [
+            'LegalCaseStores',
+            'ThirdPartyBlacklist', 
+            'SecurityDailyReporting',
+            'OE_Inspections',
+            'LostAndFoundItems',
+            'FiveDaysReminderLog',
+            'OE_InspectionSchedule',
+            'FiveDaysCycleStatus',
+            'StoreManagerAssignments',
+            'Complaints',
+            'InternalInvestigations',
+            'OE_StoreResponsibles',
+            'ORAAssessments',
+            'FiveDaysEntries'
+        ];
         
-        // Then delete the store
+        for (const table of fkTables) {
+            await pool.request()
+                .input('id', sql.Int, storeId)
+                .query(`DELETE FROM ${table} WHERE StoreId = @id`);
+        }
+        
+        // Finally delete the store
         await pool.request()
-            .input('id', sql.Int, req.params.id)
+            .input('id', sql.Int, storeId)
             .query('DELETE FROM Stores WHERE Id = @id');
         
-        res.json({ success: true, message: 'Store deleted permanently' });
+        res.json({ success: true, message: 'Store and all related data deleted permanently' });
     } catch (err) {
         console.error('Error deleting store:', err);
-        if (err.message && err.message.includes('REFERENCE constraint')) {
-            res.status(400).json({ error: 'Cannot delete store - it has related records in other tables' });
-        } else {
-            res.status(500).json({ error: 'Failed to delete store: ' + err.message });
-        }
+        res.status(500).json({ error: 'Failed to delete store: ' + err.message });
     }
 });
 
