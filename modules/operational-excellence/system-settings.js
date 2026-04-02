@@ -5344,7 +5344,7 @@ router.get('/api/store-responsibles', async (req, res) => {
                    h.DisplayName as HeadOfOpsName
             FROM OE_StoreResponsibles sr
             INNER JOIN Stores s ON sr.StoreId = s.Id
-            INNER JOIN Users u ON sr.AreaManagerId = u.Id
+            LEFT JOIN Users u ON sr.AreaManagerId = u.Id
             LEFT JOIN Users h ON sr.HeadOfOpsId = h.Id
             WHERE sr.IsActive = 1
             ORDER BY s.StoreName
