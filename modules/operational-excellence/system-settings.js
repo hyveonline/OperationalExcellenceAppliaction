@@ -4297,12 +4297,24 @@ router.delete('/api/stores/:id', async (req, res) => {
         const pool = await getPool();
         const storeId = parseInt(req.params.id);
         
-        // First delete OE_Inspections child tables (they reference InspectionId)
+        // Delete grandchild tables first (they reference OE_InspectionItems/ActionItems)
+        await pool.request()
+            .input('id', sql.Int, storeId)
+            .query(`DELETE FROM OE_InspectionGalleryLinks WHERE ResponseId IN (
+                SELECT Id FROM OE_InspectionItems WHERE InspectionId IN (SELECT Id FROM OE_Inspections WHERE StoreId = @id)
+            )`);
+        
+        await pool.request()
+            .input('id', sql.Int, storeId)
+            .query(`DELETE FROM OE_ActionItemVerification WHERE ActionItemId IN (
+                SELECT Id FROM OE_InspectionActionItems WHERE InspectionId IN (SELECT Id FROM OE_Inspections WHERE StoreId = @id)
+            )`);
+        
+        // Delete OE_Inspections child tables (they reference InspectionId)
         const inspectionChildTables = [
             'OE_InspectionSections',
             'OE_InspectionItems',
             'OE_InspectionActionItems',
-            'OE_ActionItemVerification',
             'OE_InspectionGallery',
             'OE_ActionPlanEscalations'
         ];
