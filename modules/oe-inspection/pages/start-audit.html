@@ -468,7 +468,13 @@
                 selectedStore = stores.find(s => s.storeId === storeId);
                 
                 if (selectedStore) {
-                    document.getElementById('storeLocation').textContent = selectedStore.location || 'N/A';
+                    const loc = selectedStore.location || 'N/A';
+                    const locEl = document.getElementById('storeLocation');
+                    if (loc && (loc.includes('http') || loc.includes('maps.') || loc.includes('goo.gl'))) {
+                        locEl.innerHTML = `<a href="${loc}" target="_blank" style="color: #2563eb; text-decoration: none;">📍 View Map</a>`;
+                    } else {
+                        locEl.textContent = loc;
+                    }
                     document.getElementById('storeSchema').textContent = selectedStore.templateName || 'Not assigned';
                     storeInfo.classList.add('show');
                     
