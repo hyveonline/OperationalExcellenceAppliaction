@@ -108,6 +108,17 @@ function getRequiredAction(method, url) {
         }
     }
     
+    // System-settings API operations (stores, categories, etc.) should require edit permission
+    // These are admin CRUD operations on configuration data, not deleting main business entities
+    if (lowerUrl.includes('/system-settings/api/')) {
+        if (method.toUpperCase() === 'DELETE') {
+            return 'edit'; // Deleting a store = editing system settings
+        }
+        if (method.toUpperCase() === 'POST') {
+            return 'edit'; // Adding a store = editing system settings
+        }
+    }
+    
     // Check URL patterns for action hints
     if (lowerUrl.includes('/delete') || lowerUrl.includes('/remove')) {
         return 'delete';
