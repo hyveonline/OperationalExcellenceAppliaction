@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  IIS Reverse Proxy Configuration for Operational Excellence App
+  IIS Reverse Proxy Configuration for Operational Excellence App - UAT
   
   This web.config should be placed in the IIS site root folder.
   
@@ -8,12 +8,16 @@
   1. Install URL Rewrite Module: https://www.iis.net/downloads/microsoft/url-rewrite
   2. Install Application Request Routing (ARR)
   3. Enable ARR proxy in IIS Manager
+  4. IMPORTANT: Disable disk cache in ARR (IIS Manager > Server > ARR > Proxy > Disable disk cache)
   
   Site Bindings:
   - UAT:  https://oeapp-uat.gmrlapps.com -> https://localhost:3010
 -->
 <configuration>
     <system.webServer>
+        <!-- Disable output caching at IIS level -->
+        <caching enabled="false" enableKernelCache="false" />
+        
         <rewrite>
             <rules>
                 <rule name="ReverseProxyToNode" stopProcessing="true">
@@ -29,10 +33,25 @@
                     </serverVariables>
                 </rule>
             </rules>
+            <outboundRules>
+                <!-- Ensure no-cache headers are preserved from Node.js -->
+                <rule name="AddNoCacheVary" preCondition="ResponseIsHtml">
+                    <match serverVariable="RESPONSE_Vary" pattern=".*" />
+                    <action type="Rewrite" value="Cookie" />
+                </rule>
+                <preConditions>
+                    <preCondition name="ResponseIsHtml">
+                        <add input="{RESPONSE_CONTENT_TYPE}" pattern="text/html" />
+                    </preCondition>
+                </preConditions>
+            </outboundRules>
         </rewrite>
         
         <httpProtocol>
             <customHeaders>
+                <add name="Cache-Control" value="no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0" />
+                <add name="Pragma" value="no-cache" />
+                <add name="Expires" value="0" />
                 <add name="X-Content-Type-Options" value="nosniff" />
                 <add name="X-Frame-Options" value="SAMEORIGIN" />
                 <add name="X-XSS-Protection" value="1; mode=block" />

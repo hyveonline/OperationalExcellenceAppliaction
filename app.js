@@ -65,6 +65,26 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 initializeAuth(app);
 
 // ==========================================
+// Prevent Caching of Authenticated Content
+// ==========================================
+// This is CRITICAL to prevent users seeing each other's data
+// All HTML responses for authenticated routes must not be cached
+app.use((req, res, next) => {
+    // Skip static files
+    if (req.path.startsWith('/uploads/') || req.path.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf)$/)) {
+        return next();
+    }
+    
+    // Set aggressive no-cache headers for all dynamic content
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0, s-maxage=0');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+    res.set('Surrogate-Control', 'no-store');
+    res.set('Vary', 'Cookie');  // Response varies by session cookie - CRITICAL for per-user content
+    next();
+});
+
+// ==========================================
 // Dynamic Form Access Middleware (SQL-Driven)
 // ==========================================
 // This middleware checks UserFormAccess table based on URL patterns from Forms table
