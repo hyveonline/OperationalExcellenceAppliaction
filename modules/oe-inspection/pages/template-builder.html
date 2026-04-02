@@ -1261,7 +1261,7 @@
                 const backup = {
                     exportDate: new Date().toISOString(),
                     exportedBy: 'OE Inspection Template Builder',
-                    version: '1.0',
+                    version: '1.1',
                     schema: {
                         schemaName: schema.schemaName,
                         description: schema.description,
@@ -1275,7 +1275,14 @@
                                 coeff: item.coeff,
                                 answer: item.answer,
                                 cr: item.cr,
-                                defaultSeverity: item.defaultSeverity
+                                defaultSeverity: item.defaultSeverity,
+                                quantity: item.quantity,
+                                isQuantitative: item.isQuantitative,
+                                range1From: item.range1From,
+                                range1To: item.range1To,
+                                range2From: item.range2From,
+                                range2To: item.range2To,
+                                range3From: item.range3From
                             }))
                         }))
                     }
@@ -1378,7 +1385,14 @@
                                     coeff: itemData.coeff || 1,
                                     answer: itemData.answer || 'Yes/No',
                                     cr: itemData.cr || false,
-                                    defaultSeverity: itemData.defaultSeverity || null
+                                    defaultSeverity: itemData.defaultSeverity || null,
+                                    quantity: itemData.quantity || null,
+                                    isQuantitative: itemData.isQuantitative || false,
+                                    range1From: itemData.range1From || null,
+                                    range1To: itemData.range1To || null,
+                                    range2From: itemData.range2From || null,
+                                    range2To: itemData.range2To || null,
+                                    range3From: itemData.range3From || null
                                 })
                             });
 
@@ -1495,7 +1509,15 @@
                                     title: itemData.title,
                                     coeff: itemData.coeff || 1,
                                     answer: itemData.answer || 'Yes/No',
-                                    cr: itemData.cr || false
+                                    cr: itemData.cr || false,
+                                    defaultSeverity: itemData.defaultSeverity || null,
+                                    quantity: itemData.quantity || null,
+                                    isQuantitative: itemData.isQuantitative || false,
+                                    range1From: itemData.range1From || null,
+                                    range1To: itemData.range1To || null,
+                                    range2From: itemData.range2From || null,
+                                    range2To: itemData.range2To || null,
+                                    range3From: itemData.range3From || null
                                 })
                             });
 
