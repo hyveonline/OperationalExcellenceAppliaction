@@ -1,8 +1,11 @@
 /**
  * Check and fix corrupted icons in Forms table
+ * 
+ * Usage: node check-form-icons.js [live|uat]
  */
 
-require('dotenv').config({ path: '.env.live' });
+const env = process.argv[2] || 'live';
+require('dotenv').config({ path: env === 'uat' ? '.env' : '.env.live' });
 const sql = require('mssql');
 
 const config = {
