@@ -107,6 +107,66 @@ app.use('/public/approve', publicApprovalRoutes);
 const notificationsRoutes = require('./routes/notifications');
 app.use('/notifications', requireAuth, notificationsRoutes);
 
+// ==========================================
+// Broadcasts API - accessible by all authenticated users
+// ==========================================
+app.get('/api/broadcasts/my', requireAuth, async (req, res) => {
+    try {
+        const userRole = req.currentUser.role;
+        const userId = req.currentUser.userId;
+        
+        const pool = await sql.connect(dbConfig);
+        
+        const result = await pool.request()
+            .input('userId', sql.Int, userId)
+            .query(`
+                SELECT 
+                    b.Id, b.Title, b.Message, b.Priority, b.CreatedAt, b.TargetRoles,
+                    u.DisplayName as SentBy,
+                    CASE WHEN brs.Id IS NOT NULL THEN 1 ELSE 0 END as IsRead
+                FROM Broadcasts b
+                JOIN Users u ON b.CreatedBy = u.Id
+                LEFT JOIN BroadcastReadStatus brs ON brs.BroadcastId = b.Id AND brs.UserId = @userId
+                WHERE b.IsActive = 1
+                AND (b.ExpiresAt IS NULL OR b.ExpiresAt > GETDATE())
+                ORDER BY b.CreatedAt DESC
+            `);
+        
+        // Filter by user's role
+        const broadcasts = result.recordset.filter(b => {
+            const targetRoles = b.TargetRoles ? b.TargetRoles.split(',').map(r => r.trim().toLowerCase()) : [];
+            return targetRoles.includes(userRole.toLowerCase()) || targetRoles.length === 0;
+        });
+        
+        await pool.close();
+        
+        res.json({ success: true, data: broadcasts });
+    } catch (err) {
+        console.error('Error fetching broadcasts:', err);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+app.post('/api/broadcasts/:id/read', requireAuth, async (req, res) => {
+    try {
+        const pool = await sql.connect(dbConfig);
+        
+        await pool.request()
+            .input('broadcastId', sql.Int, req.params.id)
+            .input('userId', sql.Int, req.currentUser.userId)
+            .query(`
+                IF NOT EXISTS (SELECT 1 FROM BroadcastReadStatus WHERE BroadcastId = @broadcastId AND UserId = @userId)
+                INSERT INTO BroadcastReadStatus (BroadcastId, UserId) VALUES (@broadcastId, @userId)
+            `);
+        
+        await pool.close();
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Error marking broadcast as read:', err);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
 // Mount Modules (with form access enforcement)
 app.use('/stores', requireAuth, formAccessMiddleware, storesModule);
 app.use('/admin', requireAuth, adminModule);  // Admin has its own requireSysAdmin check
@@ -659,7 +719,7 @@ app.get('/dashboard', requireAuth, async (req, res) => {
                 // Load broadcasts
                 async function loadBroadcasts() {
                     try {
-                        const res = await fetch('/admin/api/broadcasts/my');
+                        const res = await fetch('/api/broadcasts/my');
                         const data = await res.json();
                         const panel = document.getElementById('broadcastPanel');
                         
@@ -696,7 +756,7 @@ app.get('/dashboard', requireAuth, async (req, res) => {
                 
                 async function dismissBroadcast(id) {
                     try {
-                        await fetch('/admin/api/broadcasts/' + id + '/read', { method: 'POST' });
+                        await fetch('/api/broadcasts/' + id + '/read', { method: 'POST' });
                         const item = document.getElementById('broadcast-' + id);
                         if (item) item.remove();
                         
