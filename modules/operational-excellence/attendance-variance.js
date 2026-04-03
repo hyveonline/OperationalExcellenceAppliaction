@@ -1157,7 +1157,9 @@ router.get('/api/thirdparty', async (req, res) => {
             FROM ScheduledShifts ss
             LEFT JOIN ThirdpartyAttendance a ON 
                 a.AttendanceDate = ss.ScheduleDate
-                AND (a.FirstName + ' ' + a.LastName = ss.EmployeeName OR a.FirstName = ss.EmployeeName)
+                AND (LTRIM(RTRIM(ISNULL(a.FirstName, '') + ' ' + ISNULL(a.LastName, ''))) = ss.EmployeeName 
+                     OR LTRIM(RTRIM(a.FirstName)) = ss.EmployeeName
+                     OR LTRIM(RTRIM(ISNULL(a.FirstName, '') + ISNULL(a.LastName, ''))) = REPLACE(ss.EmployeeName, ' ', ''))
                 AND a.StoreName = ss.StoreName
             WHERE ss.IsDayOff = 0 OR a.Id IS NOT NULL
             OPTION (MAXRECURSION 400)
@@ -1403,7 +1405,9 @@ router.get('/api/thirdparty/export', async (req, res) => {
             FROM ScheduledShifts ss
             LEFT JOIN ThirdpartyAttendance a ON 
                 a.AttendanceDate = ss.ScheduleDate
-                AND (a.FirstName + ' ' + a.LastName = ss.EmployeeName OR a.FirstName = ss.EmployeeName)
+                AND (LTRIM(RTRIM(ISNULL(a.FirstName, '') + ' ' + ISNULL(a.LastName, ''))) = ss.EmployeeName 
+                     OR LTRIM(RTRIM(a.FirstName)) = ss.EmployeeName
+                     OR LTRIM(RTRIM(ISNULL(a.FirstName, '') + ISNULL(a.LastName, ''))) = REPLACE(ss.EmployeeName, ' ', ''))
                 AND a.StoreName = ss.StoreName
             WHERE ss.IsDayOff = 0 OR a.Id IS NOT NULL
             OPTION (MAXRECURSION 400)
