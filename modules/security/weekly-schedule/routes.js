@@ -147,7 +147,10 @@ router.get('/api/shifts/:shiftId/timeslots', async (req, res) => {
         const result = await pool.request()
             .input('shiftId', sql.Int, shiftId)
             .query(`
-                SELECT Id, ShiftId, SlotName, StartTime, EndTime, TaskDescription, IsBreak, IsActive, SortOrder
+                SELECT Id, ShiftId, SlotName, 
+                    CONVERT(VARCHAR(5), StartTime, 108) AS StartTime, 
+                    CONVERT(VARCHAR(5), EndTime, 108) AS EndTime, 
+                    TaskDescription, IsBreak, IsActive, SortOrder
                 FROM WeeklySchedule_TimeSlots
                 WHERE ShiftId = @shiftId AND IsActive = 1
                 ORDER BY SortOrder
