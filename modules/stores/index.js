@@ -261,8 +261,50 @@ router.get('/', (req, res) => {
                     const container = document.getElementById('staffSummaryCards');
                     const months = data.months || [];
                     
+                    // Helper function to match branch name to store name
+                    function matchBranchToStore(branchName, storeNames) {
+                        // Exact match first
+                        if (storeNames.includes(branchName)) return branchName;
+                        
+                        // Normalize for comparison
+                        const branchLower = branchName.toLowerCase().trim();
+                        
+                        for (const storeName of storeNames) {
+                            const storeLower = storeName.toLowerCase().trim();
+                            
+                            // GNG variations: "Grab'n Go Awkar" matches "GNG Awkar"
+                            if (storeLower.startsWith('gng ')) {
+                                const suffix = storeLower.substring(4);
+                                if (branchLower.includes(suffix) || 
+                                    branchLower === 'grab\\'n go ' + suffix ||
+                                    branchLower === 'gng ' + suffix) {
+                                    return storeName;
+                                }
+                            }
+                            
+                            // Happy variations
+                            if (storeLower.startsWith('happy ')) {
+                                const suffix = storeLower.substring(6);
+                                if (branchLower.includes(suffix) && branchLower.includes('happy')) {
+                                    return storeName;
+                                }
+                            }
+                            
+                            // Spinneys variations
+                            if (storeLower.startsWith('spinneys ')) {
+                                const suffix = storeLower.substring(9);
+                                if (branchLower.includes(suffix)) {
+                                    return storeName;
+                                }
+                            }
+                        }
+                        return null;
+                    }
+                    
                     // Group data by store
                     const storeData = {};
+                    const storeNames = data.stores.map(s => s.StoreName);
+                    
                     data.stores.forEach(store => {
                         storeData[store.StoreName] = {
                             storeName: store.StoreName,
@@ -270,16 +312,17 @@ router.get('/', (req, res) => {
                         };
                     });
                     
-                    // Populate with summary data
+                    // Populate with summary data using flexible matching
                     (data.summary || []).forEach(row => {
-                        if (!storeData[row.Branch]) return;
+                        const matchedStore = matchBranchToStore(row.Branch, storeNames);
+                        if (!matchedStore || !storeData[matchedStore]) return;
                         
-                        if (!storeData[row.Branch].categories[row.Category]) {
-                            storeData[row.Branch].categories[row.Category] = {};
+                        if (!storeData[matchedStore].categories[row.Category]) {
+                            storeData[matchedStore].categories[row.Category] = {};
                         }
                         
                         const key = row.Year + '-' + row.Month;
-                        storeData[row.Branch].categories[row.Category][key] = {
+                        storeData[matchedStore].categories[row.Category][key] = {
                             count: row.TotalCount || 0,
                             salary: row.TotalSalary || 0,
                             total: row.TotalCost || 0
@@ -379,8 +422,30 @@ router.get('/api/master-table-summary', async (req, res) => {
         // Get summary data from MasterTableEntries grouped by Branch, Category, Year, Month
         const currentYear = new Date().getFullYear();
         
-        // Build IN clause safely
-        const inClause = storeNames.map(name => "'" + name.replace(/'/g, "''") + "'").join(',');
+        // Build WHERE clause with flexible matching for GNG/Grab'n Go variations
+        // GNG Awkar should match "Grab'n Go Awkar" or "GnG Awkar" or "GNG Awkar"
+        const matchConditions = storeNames.map(name => {
+            const escapedName = name.replace(/'/g, "''");
+            // If store name starts with "GNG ", also match "Grab'n Go " and "GnG "
+            if (name.toUpperCase().startsWith('GNG ')) {
+                const suffix = name.substring(4); // e.g., "Awkar" from "GNG Awkar"
+                const escapedSuffix = suffix.replace(/'/g, "''");
+                return `(e.Branch = '${escapedName}' OR e.Branch LIKE 'Grab''n Go ${escapedSuffix}%' OR e.Branch LIKE 'GnG ${escapedSuffix}%')`;
+            }
+            // If store name starts with "Happy ", also match variations
+            if (name.toUpperCase().startsWith('HAPPY ')) {
+                const suffix = name.substring(6);
+                const escapedSuffix = suffix.replace(/'/g, "''");
+                return `(e.Branch = '${escapedName}' OR e.Branch LIKE 'Happy ${escapedSuffix}%' OR e.Branch LIKE 'Happy / ${escapedSuffix}%')`;
+            }
+            // If store name starts with "Spinneys ", also match variations
+            if (name.toUpperCase().startsWith('SPINNEYS ')) {
+                const suffix = name.substring(9);
+                const escapedSuffix = suffix.replace(/'/g, "''");
+                return `(e.Branch = '${escapedName}' OR e.Branch LIKE '${escapedSuffix}%' OR e.Branch LIKE 'Spinneys ${escapedSuffix}%')`;
+            }
+            return `e.Branch = '${escapedName}'`;
+        }).join(' OR ');
         
         const summaryResult = await pool.request()
             .input('year', sql.Int, currentYear)
@@ -397,7 +462,7 @@ router.get('/api/master-table-summary', async (req, res) => {
                 JOIN MasterTableMonthlyData m ON e.Id = m.EntryId
                 WHERE e.IsActive = 1 
                     AND m.Year = @year
-                    AND e.Branch IN (${inClause})
+                    AND (${matchConditions})
                 GROUP BY e.Branch, e.Category, m.Year, m.Month
                 ORDER BY e.Branch, e.Category, m.Year DESC, m.Month DESC
             `);
