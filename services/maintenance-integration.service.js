@@ -99,13 +99,22 @@ class MaintenanceIntegrationService {
                 referenceValue: data.referenceValue
             };
             
+            console.log(`[MaintenanceIntegration] Calling ${this.baseUrl}/api/external/create-wr`);
+            console.log(`[MaintenanceIntegration] Request data:`, JSON.stringify(mappedData));
+            
             const response = await axios.post(`${this.baseUrl}/api/external/create-wr`, mappedData, {
                 headers: this._getHeaders(data.sourceApp || 'OE_INSPECTION'),
                 timeout: 15000
             });
+            
+            console.log(`[MaintenanceIntegration] Response:`, JSON.stringify(response.data));
             return response.data;
         } catch (error) {
             console.error('MaintenanceIntegrationService.createWorkRequest error:', error.message);
+            if (error.response) {
+                console.error('MaintenanceIntegrationService response status:', error.response.status);
+                console.error('MaintenanceIntegrationService response data:', JSON.stringify(error.response.data));
+            }
             return { 
                 success: false, 
                 message: error.response?.data?.message || error.message 
