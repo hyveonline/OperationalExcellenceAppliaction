@@ -440,24 +440,55 @@ router.get('/view/:batchId', async (req, res) => {
         const uploadedAt = new Date(upload.UploadedAt).toLocaleDateString('en-GB') + ' ' +
                           new Date(upload.UploadedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
         
-        const tableRows = records.recordset.map((r, idx) => {
-            const attendanceDate = r.AttendanceDate ? new Date(r.AttendanceDate).toLocaleDateString('en-GB') : '-';
-            return `
-                <tr>
-                    <td>${idx + 1}</td>
-                    <td>${r.StoreName || '-'}</td>
-                    <td>${r.StoreCode || '-'}</td>
-                    <td>${r.FirstName || '-'}</td>
-                    <td>${r.LastName || '-'}</td>
-                    <td>${r.Company || '-'}</td>
-                    <td>${attendanceDate}</td>
-                    <td>${r.WorkerType || '-'}</td>
-                    <td>${r.TimeIn || '-'}</td>
-                    <td>${r.TimeOut || '-'}</td>
-                    <td>${r.TotalHours || '-'}</td>
-                </tr>
-            `;
-        }).join('');
+        // Group records by employee and organize by day of week
+        const employeeMap = {};
+        records.recordset.forEach(r => {
+            const key = `${r.FirstName || ''}_${r.LastName || ''}_${r.Company || ''}_${r.StoreName || ''}`;
+            if (!employeeMap[key]) {
+                employeeMap[key] = {
+                    firstName: r.FirstName || '-',
+                    lastName: r.LastName || '',
+                    company: r.Company || '-',
+                    storeName: r.StoreName || '-',
+                    storeCode: r.StoreCode || '-',
+                    workerType: r.WorkerType || '-',
+                    days: { mon: null, tue: null, wed: null, thu: null, fri: null, sat: null, sun: null }
+                };
+            }
+            if (r.AttendanceDate) {
+                const date = new Date(r.AttendanceDate);
+                const dayNum = date.getDay(); // 0=Sun, 1=Mon...
+                const dayNames = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+                const dayName = dayNames[dayNum];
+                employeeMap[key].days[dayName] = {
+                    timeIn: r.TimeIn || '-',
+                    timeOut: r.TimeOut || '-',
+                    totalHours: r.TotalHours || '-'
+                };
+            }
+        });
+        
+        // Helper function to format day cells like the schedule view
+        const formatDayCells = (dayData) => {
+            if (!dayData) return '<td colspan="2" style="color:#dc3545; font-weight:600; text-align:center;">Off</td>';
+            return `<td>${dayData.timeIn}</td><td>${dayData.timeOut}</td>`;
+        };
+        
+        const tableRows = Object.values(employeeMap).map((emp, idx) => `
+            <tr>
+                <td>${idx + 1}</td>
+                <td>${emp.company}</td>
+                <td>${emp.firstName} ${emp.lastName}</td>
+                <td>${emp.workerType}</td>
+                ${formatDayCells(emp.days.mon)}
+                ${formatDayCells(emp.days.tue)}
+                ${formatDayCells(emp.days.wed)}
+                ${formatDayCells(emp.days.thu)}
+                ${formatDayCells(emp.days.fri)}
+                ${formatDayCells(emp.days.sat)}
+                ${formatDayCells(emp.days.sun)}
+            </tr>
+        `).join('');
         
         // Build employee totals table rows
         const employeeTotalRows = employeeTotals.recordset.map((e, idx) => {
@@ -580,21 +611,30 @@ router.get('/view/:batchId', async (req, res) => {
                             <table>
                                 <thead>
                                     <tr>
-                                        <th>#</th>
-                                        <th>Store</th>
-                                        <th>Code</th>
-                                        <th>First Name</th>
-                                        <th>Last Name</th>
-                                        <th>Company</th>
-                                        <th>Date</th>
-                                        <th>Worker Type</th>
-                                        <th>In</th>
-                                        <th>Out</th>
-                                        <th>Total Hours</th>
+                                        <th rowspan="2">#</th>
+                                        <th rowspan="2">Company</th>
+                                        <th rowspan="2">Employee Name</th>
+                                        <th rowspan="2">Position</th>
+                                        <th colspan="2" style="font-size:12px;">Monday</th>
+                                        <th colspan="2" style="font-size:12px;">Tuesday</th>
+                                        <th colspan="2" style="font-size:12px;">Wednesday</th>
+                                        <th colspan="2" style="font-size:12px;">Thursday</th>
+                                        <th colspan="2" style="font-size:12px;">Friday</th>
+                                        <th colspan="2" style="font-size:12px;">Saturday</th>
+                                        <th colspan="2" style="font-size:12px;">Sunday</th>
+                                    </tr>
+                                    <tr>
+                                        <th style="font-size:11px;">In</th><th style="font-size:11px;">Out</th>
+                                        <th style="font-size:11px;">In</th><th style="font-size:11px;">Out</th>
+                                        <th style="font-size:11px;">In</th><th style="font-size:11px;">Out</th>
+                                        <th style="font-size:11px;">In</th><th style="font-size:11px;">Out</th>
+                                        <th style="font-size:11px;">In</th><th style="font-size:11px;">Out</th>
+                                        <th style="font-size:11px;">In</th><th style="font-size:11px;">Out</th>
+                                        <th style="font-size:11px;">In</th><th style="font-size:11px;">Out</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    ${tableRows || '<tr><td colspan="11" style="text-align:center;color:#666;">No records</td></tr>'}
+                                    ${tableRows || '<tr><td colspan="18" style="text-align:center;color:#666;">No records</td></tr>'}
                                 </tbody>
                             </table>
                         </div>
