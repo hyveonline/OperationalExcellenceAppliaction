@@ -18,7 +18,7 @@
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 1600px;
             margin: 0 auto;
             padding: 20px;
         }
@@ -69,8 +69,14 @@
             background: white;
             border-radius: 15px;
             box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-            overflow: hidden;
+            overflow: visible;
             padding: 30px;
+        }
+
+        /* Table wrapper for horizontal scroll */
+        .table-wrapper {
+            overflow-x: auto;
+            margin-top: 20px;
         }
 
         /* Form Section */
@@ -180,21 +186,27 @@
 
         .stores-table th,
         .stores-table td {
-            padding: 15px;
+            padding: 12px 10px;
             text-align: left;
             border-bottom: 1px solid #e0e0e0;
+            font-size: 13px;
         }
 
         .stores-table th {
-            background: #f8f9fa;
+            background: linear-gradient(135deg, #e17055 0%, #d63031 100%);
+            color: white;
             font-weight: 600;
-            color: #555;
-            font-size: 13px;
+            font-size: 12px;
             text-transform: uppercase;
+            white-space: nowrap;
         }
 
         .stores-table tr:hover {
-            background: #f8f9fa;
+            background: #fff5f3;
+        }
+
+        .stores-table td:last-child {
+            white-space: nowrap;
         }
 
         .template-badge {
@@ -483,7 +495,36 @@
 
         .action-btns {
             display: flex;
-            gap: 5px;
+            gap: 6px;
+            justify-content: flex-start;
+        }
+
+        .action-btns .btn {
+            padding: 6px 12px;
+            font-size: 12px;
+            border-radius: 6px;
+        }
+
+        .action-btns .btn-warning {
+            background: #f59e0b;
+            color: white;
+            border: none;
+        }
+
+        .action-btns .btn-warning:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+        }
+
+        .action-btns .btn-danger {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+            border: none;
+        }
+
+        .action-btns .btn-danger:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
         }
     </style>
 </head>
@@ -775,16 +816,14 @@
                 }
 
                 container.innerHTML = `
+                    <div class="table-wrapper">
                     <table class="stores-table">
                         <thead>
                             <tr>
-                                <th>Code</th>
-                                <th>Store Name</th>
+                                <th>Store</th>
                                 <th>Brand</th>
-                                <th>Location</th>
                                 <th>Template</th>
-                                <th>Head of Ops</th>
-                                <th>Area Manager</th>
+                                <th>Responsibles</th>
                                 <th>Store Managers</th>
                                 <th>Status</th>
                                 <th>Actions</th>
@@ -796,46 +835,50 @@
                                 const responsible = storeResponsibles[store.storeId] || {};
                                 return `
                                 <tr>
-                                    <td><strong>${store.storeCode || '-'}</strong></td>
-                                    <td>${store.storeName}</td>
+                                    <td>
+                                        <strong style="color: #d63031;">${store.storeCode || '-'}</strong><br>
+                                        <span style="font-size: 14px;">${store.storeName}</span>
+                                        ${store.location ? `<br><span style="font-size: 11px;">${store.location.startsWith('http') ? `<a href="${store.location}" target="_blank" style="color: #2563eb; text-decoration: none;">📍 View on Map</a>` : `<span style="color: #888;">📍 ${store.location}</span>`}</span>` : ''}
+                                    </td>
                                     <td>${store.brandName 
-                                        ? `<span class="template-badge" style="background: linear-gradient(135deg, #059669 0%, #047857 100%);">${store.brandName}</span>`
-                                        : '<span style="color: #f59e0b; font-size: 12px;">⚠️ Not Set</span>'}</td>
-                                    <td>${store.location || '-'}</td>
+                                        ? `<span class="template-badge" style="background: #059669;">${store.brandName}</span>`
+                                        : '<span style="color: #f59e0b; font-size: 11px;">⚠️ Not Set</span>'}</td>
                                     <td><span class="template-badge">${store.templateName || 'Not set'}</span></td>
-                                    <td>
+                                    <td style="font-size: 12px;">
                                         ${responsible.headOfOpsName 
-                                            ? `<span class="manager-badge" style="background: #ede9fe; color: #7c3aed;">👔 ${responsible.headOfOpsName}</span>`
-                                            : '<span style="color: #999; font-size: 12px;">Not assigned</span>'}
+                                            ? `<div style="margin-bottom: 4px;"><span style="background: #ede9fe; color: #7c3aed; padding: 2px 8px; border-radius: 10px; font-size: 11px;">👔 ${responsible.headOfOpsName}</span></div>`
+                                            : ''}
+                                        ${responsible.areaManagerName 
+                                            ? `<div><span style="background: #dbeafe; color: #2563eb; padding: 2px 8px; border-radius: 10px; font-size: 11px;">👥 ${responsible.areaManagerName}</span></div>`
+                                            : ''}
+                                        ${!responsible.headOfOpsName && !responsible.areaManagerName ? '<span style="color: #999; font-size: 11px;">-</span>' : ''}
                                     </td>
                                     <td>
-                                        ${responsible.areaManagerName 
-                                            ? `<span class="manager-badge" style="background: #dbeafe; color: #2563eb;">👥 ${responsible.areaManagerName}</span>`
-                                            : '<span style="color: #999; font-size: 12px;">Not assigned</span>'}
-                                    </td>
-                                    <td class="managers-cell">
-                                        ${managers.length > 0 ? managers.map(m => `
-                                            <span class="manager-badge ${m.isPrimary ? 'primary' : ''}">
+                                        ${managers.length > 0 ? managers.slice(0,2).map(m => `
+                                            <span class="manager-badge ${m.isPrimary ? 'primary' : ''}" style="font-size: 11px;">
                                                 ${m.displayName || m.email}
                                                 ${m.isPrimary ? '⭐' : ''}
                                             </span>
-                                        `).join('') : '<span style="color: #999;">Not assigned</span>'}
-                                        <br style="margin-bottom: 5px;">
-                                        <button class="assign-btn" onclick="openAssignModal(${store.storeId})">👥 Assign</button>
+                                        `).join('') : ''}
+                                        ${managers.length > 2 ? `<span style="color:#666;font-size:11px;">+${managers.length-2} more</span>` : ''}
+                                        ${managers.length === 0 ? '<span style="color: #999; font-size:11px;">-</span>' : ''}
+                                        <br>
+                                        <button class="assign-btn" onclick="openAssignModal(${store.storeId})" style="margin-top:4px;font-size:11px;padding:4px 8px;">👥 Assign</button>
                                     </td>
                                     <td>
-                                        <span class="status-badge ${store.isActive ? 'status-active' : 'status-inactive'}">
+                                        <span class="status-badge ${store.isActive ? 'status-active' : 'status-inactive'}" style="font-size:11px;padding:4px 10px;">
                                             ${store.isActive ? '✅ Active' : '❌ Inactive'}
                                         </span>
                                     </td>
                                     <td class="action-btns">
-                                        <button class="btn btn-warning btn-sm" onclick="editStore(${store.storeId})" title="Edit">✏️</button>
-                                        <button class="btn btn-danger btn-sm" onclick="deleteStore(${store.storeId})" title="Delete">🗑️</button>
+                                        <button class="btn btn-warning" onclick="editStore(${store.storeId})" title="Edit Store">✏️ Edit</button>
+                                        <button class="btn btn-danger" onclick="deleteStore(${store.storeId})" title="Delete Store">🗑️</button>
                                     </td>
                                 </tr>
                             `}).join('')}
                         </tbody>
                     </table>
+                    </div>
                 `;
             } catch (error) {
                 container.innerHTML = `<div class="empty-state"><p>Error loading stores: ${error.message}</p></div>`;
