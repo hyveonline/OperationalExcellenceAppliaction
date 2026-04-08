@@ -320,7 +320,8 @@ router.get('/', (req, res) => {
                 <div class="header">
                     <h1>🅿️ Parking Violation</h1>
                     <div class="header-nav">
-                        <a href="/security">← Back to Security</a>
+                        <a href="/security-services/parking-violation/history">📜 My History</a>
+                        <a href="/security-services">← Back to Security Services</a>
                     </div>
                 </div>
                 
@@ -581,6 +582,204 @@ router.post('/save', uploadMultiple, async (req, res) => {
     }
 });
 
+// Parking Violation History
+router.get('/history', async (req, res) => {
+    const user = req.currentUser;
+    
+    let pool;
+    try {
+        pool = await sql.connect(dbConfig);
+        
+        // Get all parking violations, ordered by most recent
+        const result = await pool.request()
+            .query(`SELECT v.*, 
+                    (SELECT COUNT(*) FROM Security_ParkingViolation_Images WHERE ViolationId = v.Id) as ImageCount
+                    FROM Security_ParkingViolations v
+                    ORDER BY v.ViolationDate DESC, v.CreatedAt DESC`);
+        
+        await pool.close();
+        
+        const tableRows = result.recordset.map(v => {
+            const violationDate = new Date(v.ViolationDate).toLocaleDateString('en-GB', {
+                day: '2-digit', month: 'short', year: 'numeric'
+            });
+            const createdDate = new Date(v.CreatedAt).toLocaleDateString('en-GB', {
+                day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+            });
+            const imageCount = v.ImageCount || (v.ImagePath ? 1 : 0);
+            
+            return `
+                <tr onclick="window.location='/security-services/parking-violation/${v.Id}'" style="cursor: pointer;">
+                    <td><strong style="color: #c62828;">PV-${v.Id}</strong></td>
+                    <td>${violationDate}</td>
+                    <td>${v.Location}</td>
+                    <td>${v.ViolatorName || '<span style="color: #999;">Unknown</span>'}</td>
+                    <td><code style="background: #f5f5f5; padding: 4px 8px; border-radius: 4px; font-size: 13px;">${v.CarPlateNumber || '-'}</code></td>
+                    <td>${imageCount > 0 ? '📷 ' + imageCount : '<span style="color: #999;">-</span>'}</td>
+                    <td>${v.CreatedBy}</td>
+                    <td>
+                        <a href="/security-services/parking-violation/${v.Id}" class="btn-view">View</a>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+        
+        res.send(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <title>Parking Violations History - ${process.env.APP_NAME}</title>
+                <style>
+                    * { box-sizing: border-box; margin: 0; padding: 0; }
+                    body { font-family: 'Segoe UI', Arial, sans-serif; background: #f5f6fa; min-height: 100vh; }
+                    .header { 
+                        background: linear-gradient(135deg, #c62828 0%, #b71c1c 100%); 
+                        color: white; 
+                        padding: 20px 30px; 
+                        display: flex; 
+                        justify-content: space-between; 
+                        align-items: center; 
+                        flex-wrap: wrap; 
+                        gap: 10px; 
+                    }
+                    .header h1 { font-size: 24px; display: flex; align-items: center; gap: 10px; }
+                    .header-nav { display: flex; gap: 15px; flex-wrap: wrap; }
+                    .header-nav a { 
+                        color: white; 
+                        text-decoration: none; 
+                        padding: 8px 16px; 
+                        border-radius: 5px; 
+                        background: rgba(255,255,255,0.15); 
+                        transition: background 0.3s;
+                    }
+                    .header-nav a:hover { background: rgba(255,255,255,0.25); }
+                    .container { max-width: 1400px; margin: 30px auto; padding: 0 20px; }
+                    .stats-bar {
+                        display: flex;
+                        gap: 20px;
+                        margin-bottom: 25px;
+                        flex-wrap: wrap;
+                    }
+                    .stat-card {
+                        background: white;
+                        padding: 20px 25px;
+                        border-radius: 12px;
+                        box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+                        display: flex;
+                        align-items: center;
+                        gap: 15px;
+                    }
+                    .stat-icon { font-size: 32px; }
+                    .stat-value { font-size: 28px; font-weight: 700; color: #c62828; }
+                    .stat-label { font-size: 13px; color: #666; }
+                    .table-container { 
+                        background: white; 
+                        border-radius: 12px; 
+                        overflow: hidden; 
+                        box-shadow: 0 2px 15px rgba(0,0,0,0.08); 
+                        overflow-x: auto;
+                    }
+                    table { width: 100%; border-collapse: collapse; min-width: 900px; }
+                    th { 
+                        background: #f8f9fa; 
+                        padding: 15px; 
+                        text-align: left; 
+                        font-size: 12px; 
+                        text-transform: uppercase; 
+                        color: #666; 
+                        border-bottom: 2px solid #dee2e6; 
+                    }
+                    td { padding: 15px; border-bottom: 1px solid #eee; }
+                    tr:hover { background: #fef5f5; }
+                    .btn-view {
+                        color: #c62828;
+                        text-decoration: none;
+                        padding: 6px 12px;
+                        border-radius: 5px;
+                        border: 1px solid #c62828;
+                        font-size: 13px;
+                        transition: all 0.2s;
+                    }
+                    .btn-view:hover {
+                        background: #c62828;
+                        color: white;
+                    }
+                    .empty-state { 
+                        text-align: center; 
+                        padding: 60px 20px; 
+                        color: #666; 
+                    }
+                    .empty-state .icon { font-size: 64px; margin-bottom: 20px; }
+                    .empty-state h3 { margin-bottom: 10px; color: #333; }
+                    .empty-state a {
+                        display: inline-block;
+                        margin-top: 20px;
+                        background: #c62828;
+                        color: white;
+                        padding: 12px 24px;
+                        border-radius: 8px;
+                        text-decoration: none;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h1>🅿️ Parking Violations History</h1>
+                    <div class="header-nav">
+                        <a href="/security-services/parking-violation">➕ Report New Violation</a>
+                        <a href="/security-services">← Back to Security Services</a>
+                    </div>
+                </div>
+                <div class="container">
+                    <div class="stats-bar">
+                        <div class="stat-card">
+                            <div class="stat-icon">📋</div>
+                            <div>
+                                <div class="stat-value">${result.recordset.length}</div>
+                                <div class="stat-label">Total Violations</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        ${result.recordset.length > 0 ? `
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Date</th>
+                                        <th>Location</th>
+                                        <th>Violator Name</th>
+                                        <th>Car Plate</th>
+                                        <th>Photos</th>
+                                        <th>Reported By</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${tableRows}
+                                </tbody>
+                            </table>
+                        ` : `
+                            <div class="empty-state">
+                                <div class="icon">🅿️</div>
+                                <h3>No parking violations recorded yet</h3>
+                                <p>Report a parking violation to get started.</p>
+                                <a href="/security-services/parking-violation">➕ Report New Violation</a>
+                            </div>
+                        `}
+                    </div>
+                </div>
+            </body>
+            </html>
+        `);
+    } catch (err) {
+        console.error('Error loading parking violation history:', err);
+        if (pool) await pool.close();
+        res.status(500).send('Error loading history: ' + err.message);
+    }
+});
+
 // View Parking Violation
 router.get('/:id', async (req, res) => {
     const user = req.currentUser;
@@ -815,7 +1014,7 @@ router.get('/:id', async (req, res) => {
                         <h1>🅿️ Parking Violation #${violation.Id}</h1>
                         <div class="header-nav">
                             <a href="/security-services/parking-violation">+ New Report</a>
-                            <a href="/security/parking-violations">← Back to History</a>
+                            <a href="/security-services/parking-violation/history">← Back to History</a>
                         </div>
                     </div>
                     
