@@ -20,6 +20,7 @@ const fiveDaysDashboard = require('./five-days-dashboard');
 const masterTable = require('./master-table');
 const calendar = require('./calendar');
 const attendanceVariance = require('./attendance-variance');
+const personnelEmployees = require('./personnel-employees-dashboard');
 
 // Mount sub-routes
 router.use('/theft-dashboard', theftDashboard);
@@ -35,6 +36,7 @@ router.use('/five-days-dashboard', fiveDaysDashboard);
 router.use('/master-table', masterTable);
 router.use('/calendar', calendar);
 router.use('/attendance-variance', attendanceVariance);
+router.use('/personnel-employees-dashboard', personnelEmployees);
 
 // Landing page
 router.get('/', (req, res) => {
@@ -362,6 +364,30 @@ router.get('/', (req, res) => {
                         </div>
                     </a>
                     
+                    <!-- Personnel Employees Dashboard -->
+                    <a href="/operational-excellence/personnel-employees-dashboard" class="card" style="border-left: 4px solid #16a085;">
+                        <div class="card-icon">👥</div>
+                        <div class="card-title">Personnel Employees</div>
+                        <div class="card-desc">
+                            View all employees entered by Personnel in Schedule & Attendance.
+                            Auto-refreshes to show latest updates.
+                        </div>
+                        <div class="card-stats">
+                            <div class="stat">
+                                <div class="stat-value" id="personnelTotal" style="color: #16a085;">-</div>
+                                <div class="stat-label">Employees</div>
+                            </div>
+                            <div class="stat">
+                                <div class="stat-value" id="personnelCompanies" style="color: #28a745;">-</div>
+                                <div class="stat-label">Companies</div>
+                            </div>
+                            <div class="stat">
+                                <div class="stat-value" id="personnelStores" style="color: #17a2b8;">-</div>
+                                <div class="stat-label">Stores</div>
+                            </div>
+                        </div>
+                    </a>
+                    
                     <!-- Thirdparty Attendance Dashboard -->
                     <a href="/operational-excellence/attendance-dashboard" class="card" style="border-left: 4px solid #e67e22;">
                         <div class="card-icon">📋</div>
@@ -585,6 +611,18 @@ router.get('/', (req, res) => {
                     })
                     .catch(err => {
                         console.error('Error loading 5 days stats:', err);
+                    });
+                
+                // Load stats for personnel employees dashboard card
+                fetch('/operational-excellence/personnel-employees-dashboard/api/stats')
+                    .then(r => r.json())
+                    .then(data => {
+                        document.getElementById('personnelTotal').textContent = data.total || 0;
+                        document.getElementById('personnelCompanies').textContent = data.companies || 0;
+                        document.getElementById('personnelStores').textContent = data.stores || 0;
+                    })
+                    .catch(err => {
+                        console.error('Error loading personnel stats:', err);
                     });
             </script>
         </body>

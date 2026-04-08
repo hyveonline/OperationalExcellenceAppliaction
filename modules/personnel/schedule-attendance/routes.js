@@ -110,6 +110,7 @@ router.get('/', async (req, res) => {
                 <tr class="${emp.IsActive ? '' : 'inactive-row'}">
                     <td>${idx + 1}</td>
                     <td>${emp.Company}</td>
+                    <td>${emp.Store || '-'}</td>
                     <td>${emp.EmployeeId || '-'}</td>
                     <td>${emp.PhoneNumber || '-'}</td>
                     <td><strong>${emp.Name}</strong></td>
@@ -462,6 +463,7 @@ router.get('/', async (req, res) => {
                                     <tr>
                                         <th>#</th>
                                         <th>Company</th>
+                                        <th>Store</th>
                                         <th>Emp ID</th>
                                         <th>Phone</th>
                                         <th>Name</th>
@@ -487,9 +489,15 @@ router.get('/', async (req, res) => {
                         </div>
                         <form id="employeeForm">
                             <input type="hidden" id="empId" value="">
-                            <div class="form-group">
-                                <label>Company *</label>
-                                <input type="text" id="empCompany" required placeholder="Enter company name">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Company *</label>
+                                    <input type="text" id="empCompany" required placeholder="Enter company name">
+                                </div>
+                                <div class="form-group">
+                                    <label>Store</label>
+                                    <input type="text" id="empStore" placeholder="Store location">
+                                </div>
                             </div>
                             <div class="form-row">
                                 <div class="form-group">
@@ -555,6 +563,7 @@ router.get('/', async (req, res) => {
                             document.getElementById('submitBtn').textContent = 'Save Changes';
                             document.getElementById('empId').value = emp.Id;
                             document.getElementById('empCompany').value = emp.Company;
+                            document.getElementById('empStore').value = emp.Store || '';
                             document.getElementById('empEmployeeId').value = emp.EmployeeId || '';
                             document.getElementById('empPhone').value = emp.PhoneNumber || '';
                             document.getElementById('empName').value = emp.Name;
@@ -572,6 +581,7 @@ router.get('/', async (req, res) => {
                         const id = document.getElementById('empId').value;
                         const data = {
                             company: document.getElementById('empCompany').value,
+                            store: document.getElementById('empStore').value,
                             employeeId: document.getElementById('empEmployeeId').value,
                             phoneNumber: document.getElementById('empPhone').value,
                             name: document.getElementById('empName').value,
@@ -763,7 +773,7 @@ router.get('/api/employee/:id', async (req, res) => {
 // API: Add employee
 router.post('/api/employee', async (req, res) => {
     const user = req.currentUser;
-    const { company, employeeId, phoneNumber, name, position } = req.body;
+    const { company, store, employeeId, phoneNumber, name, position } = req.body;
     
     if (!company || !name) {
         return res.json({ success: false, message: 'Company and Name are required' });
@@ -774,6 +784,7 @@ router.post('/api/employee', async (req, res) => {
         pool = await sql.connect(dbConfig);
         await pool.request()
             .input('company', sql.NVarChar, company)
+            .input('store', sql.NVarChar, store || null)
             .input('employeeId', sql.NVarChar, employeeId || null)
             .input('phoneNumber', sql.NVarChar, phoneNumber || null)
             .input('name', sql.NVarChar, name)
@@ -781,8 +792,8 @@ router.post('/api/employee', async (req, res) => {
             .input('createdBy', sql.NVarChar, user.displayName)
             .input('createdById', sql.NVarChar, user.id)
             .query(`
-                INSERT INTO Personnel_Employees (Company, EmployeeId, PhoneNumber, Name, Position, CreatedBy, CreatedById)
-                VALUES (@company, @employeeId, @phoneNumber, @name, @position, @createdBy, @createdById)
+                INSERT INTO Personnel_Employees (Company, Store, EmployeeId, PhoneNumber, Name, Position, CreatedBy, CreatedById)
+                VALUES (@company, @store, @employeeId, @phoneNumber, @name, @position, @createdBy, @createdById)
             `);
         await pool.close();
         res.json({ success: true });
@@ -794,7 +805,7 @@ router.post('/api/employee', async (req, res) => {
 
 // API: Update employee
 router.put('/api/employee/:id', async (req, res) => {
-    const { company, employeeId, phoneNumber, name, position } = req.body;
+    const { company, store, employeeId, phoneNumber, name, position } = req.body;
     
     if (!company || !name) {
         return res.json({ success: false, message: 'Company and Name are required' });
@@ -806,13 +817,14 @@ router.put('/api/employee/:id', async (req, res) => {
         await pool.request()
             .input('id', sql.Int, req.params.id)
             .input('company', sql.NVarChar, company)
+            .input('store', sql.NVarChar, store || null)
             .input('employeeId', sql.NVarChar, employeeId || null)
             .input('phoneNumber', sql.NVarChar, phoneNumber || null)
             .input('name', sql.NVarChar, name)
             .input('position', sql.NVarChar, position || null)
             .query(`
                 UPDATE Personnel_Employees 
-                SET Company = @company, EmployeeId = @employeeId, PhoneNumber = @phoneNumber, 
+                SET Company = @company, Store = @store, EmployeeId = @employeeId, PhoneNumber = @phoneNumber, 
                     Name = @name, Position = @position, UpdatedAt = GETDATE()
                 WHERE Id = @id
             `);

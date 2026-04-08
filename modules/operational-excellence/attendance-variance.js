@@ -410,6 +410,9 @@ router.get('/', async (req, res) => {
                     <button class="tab" onclick="switchTab('security')">
                         <i class="mdi mdi-shield-account"></i> Security Attendance
                     </button>
+                    <button class="tab" onclick="switchTab('personnel')">
+                        <i class="mdi mdi-account-clock"></i> Personnel Schedule
+                    </button>
                 </div>
                 
                 <!-- Third Party Tab -->
@@ -617,6 +620,104 @@ router.get('/', async (req, res) => {
                         </div>
                     </div>
                 </div>
+                
+                <!-- Personnel Tab -->
+                <div id="personnel-tab" class="tab-content">
+                    <div class="filters-card">
+                        <div class="filters-row">
+                            <div class="filter-group">
+                                <label>From Date</label>
+                                <input type="date" id="per-from-date">
+                            </div>
+                            <div class="filter-group">
+                                <label>To Date</label>
+                                <input type="date" id="per-to-date">
+                            </div>
+                            <div class="filter-group">
+                                <label>Store</label>
+                                <select id="per-store">
+                                    <option value="">All Stores</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label>Company</label>
+                                <select id="per-company">
+                                    <option value="">All Companies</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label>Variance Type</label>
+                                <select id="per-variance-type">
+                                    <option value="">All Types</option>
+                                    <option value="no-show">No Show</option>
+                                    <option value="late">Late</option>
+                                    <option value="early-leave">Early Leave</option>
+                                    <option value="overtime">Overtime</option>
+                                    <option value="match">Match</option>
+                                </select>
+                            </div>
+                            <button class="btn btn-primary" onclick="loadPersonnelVariance()">
+                                <i class="mdi mdi-magnify"></i> Search
+                            </button>
+                            <button class="btn btn-secondary" onclick="resetPersonnelFilters()">
+                                <i class="mdi mdi-refresh"></i> Reset
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Stats -->
+                    <div class="stats-grid" id="per-stats">
+                        <div class="stat-card total">
+                            <div class="stat-value" id="per-stat-total">-</div>
+                            <div class="stat-label">Total Records</div>
+                        </div>
+                        <div class="stat-card no-show">
+                            <div class="stat-value" id="per-stat-no-show">-</div>
+                            <div class="stat-label">No Show</div>
+                        </div>
+                        <div class="stat-card late">
+                            <div class="stat-value" id="per-stat-late">-</div>
+                            <div class="stat-label">Late</div>
+                        </div>
+                        <div class="stat-card early">
+                            <div class="stat-value" id="per-stat-early">-</div>
+                            <div class="stat-label">Early Leave</div>
+                        </div>
+                        <div class="stat-card overtime">
+                            <div class="stat-value" id="per-stat-overtime">-</div>
+                            <div class="stat-label">Overtime</div>
+                        </div>
+                        <div class="stat-card match">
+                            <div class="stat-value" id="per-stat-match">-</div>
+                            <div class="stat-label">Match</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Results Table -->
+                    <div class="table-card">
+                        <div class="table-header">
+                            <div class="table-title">Personnel Schedule vs Actual</div>
+                            <div class="table-actions">
+                                <div class="group-toggle">
+                                    <button class="active" onclick="setGroupBy('none', 'per')">Detail</button>
+                                    <button onclick="setGroupBy('store', 'per')">By Store</button>
+                                    <button onclick="setGroupBy('company', 'per')">By Company</button>
+                                    <button onclick="setGroupBy('employee', 'per')">By Employee</button>
+                                </div>
+                                <button class="btn btn-success" onclick="exportPersonnel()">
+                                    <i class="mdi mdi-file-excel"></i> Export
+                                </button>
+                            </div>
+                        </div>
+                        <div id="per-table-container">
+                            <div class="empty-state">
+                                <i class="mdi mdi-filter-outline"></i>
+                                <h3>Select Date Range</h3>
+                                <p>Choose a date range and click Search to view variance data</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
             
             <div class="loading" id="loading">
@@ -626,8 +727,10 @@ router.get('/', async (req, res) => {
             <script>
                 let tpGroupBy = 'none';
                 let secGroupBy = 'none';
+                let perGroupBy = 'none';
                 let tpData = [];
                 let secData = [];
+                let perData = [];
                 
                 // Initialize
                 document.addEventListener('DOMContentLoaded', () => {
@@ -640,6 +743,8 @@ router.get('/', async (req, res) => {
                     document.getElementById('tp-to-date').value = formatDate(today);
                     document.getElementById('sec-from-date').value = formatDate(weekAgo);
                     document.getElementById('sec-to-date').value = formatDate(today);
+                    document.getElementById('per-from-date').value = formatDate(weekAgo);
+                    document.getElementById('per-to-date').value = formatDate(today);
                     
                     // Load filter options
                     loadFilterOptions();
@@ -700,6 +805,24 @@ router.get('/', async (req, res) => {
                             opt.textContent = company;
                             secCompanySelect.appendChild(opt);
                         });
+                        
+                        // Populate Personnel filters
+                        const perStoreSelect = document.getElementById('per-store');
+                        const perCompanySelect = document.getElementById('per-company');
+                        
+                        (data.perStores || []).forEach(store => {
+                            const opt = document.createElement('option');
+                            opt.value = store;
+                            opt.textContent = store;
+                            perStoreSelect.appendChild(opt);
+                        });
+                        
+                        (data.perCompanies || []).forEach(company => {
+                            const opt = document.createElement('option');
+                            opt.value = company;
+                            opt.textContent = company;
+                            perCompanySelect.appendChild(opt);
+                        });
                     } catch (err) {
                         console.error('Error loading filters:', err);
                     }
@@ -748,6 +871,15 @@ router.get('/', async (req, res) => {
                     }
                 }
                 
+                function formatVarianceMinutes(mins) {
+                    if (mins === null || mins === undefined) return '-';
+                    const sign = mins >= 0 ? '+' : '-';
+                    const absMins = Math.abs(mins);
+                    const hours = Math.floor(absMins / 60);
+                    const minutes = absMins % 60;
+                    return sign + hours + 'h ' + minutes + 'm';
+                }
+                
                 function renderThirdPartyTable(records) {
                     const container = document.getElementById('tp-table-container');
                     
@@ -761,12 +893,14 @@ router.get('/', async (req, res) => {
                         let html = '<table><thead><tr>';
                         html += '<th>Date</th><th>Store</th><th>Company</th><th>Employee</th><th>Position</th>';
                         html += '<th>Scheduled In</th><th>Actual In</th><th>Scheduled Out</th><th>Actual Out</th>';
-                        html += '<th>Variance</th></tr></thead><tbody>';
+                        html += '<th>Variance (hrs)</th><th>Status</th></tr></thead><tbody>';
                         
                         records.forEach(r => {
                             const varBadge = getVarianceBadge(r.varianceType);
                             const inDiff = r.lateMinutes ? '<span class="time-diff positive">+' + r.lateMinutes + 'm</span>' : '';
                             const outDiff = r.earlyMinutes ? '<span class="time-diff positive">-' + r.earlyMinutes + 'm</span>' : '';
+                            const varianceDisplay = formatVarianceMinutes(r.varianceMinutes);
+                            const varianceClass = r.varianceMinutes === null ? '' : (r.varianceMinutes >= 0 ? 'time-diff negative' : 'time-diff positive');
                             
                             html += '<tr>';
                             html += '<td>' + formatDisplayDate(r.date) + '</td>';
@@ -778,6 +912,7 @@ router.get('/', async (req, res) => {
                             html += '<td class="time-actual">' + (r.actualIn || '-') + inDiff + '</td>';
                             html += '<td class="time-scheduled">' + (r.scheduledOut || '-') + '</td>';
                             html += '<td class="time-actual">' + (r.actualOut || '-') + outDiff + '</td>';
+                            html += '<td><span class="' + varianceClass + '" style="font-weight:600;">' + varianceDisplay + '</span></td>';
                             html += '<td>' + varBadge + '</td>';
                             html += '</tr>';
                         });
@@ -865,12 +1000,14 @@ router.get('/', async (req, res) => {
                         let html = '<table><thead><tr>';
                         html += '<th>Date</th><th>Store</th><th>Company</th><th>Employee</th><th>Position</th>';
                         html += '<th>Scheduled In</th><th>Actual In</th><th>Scheduled Out</th><th>Actual Out</th>';
-                        html += '<th>Variance</th></tr></thead><tbody>';
+                        html += '<th>Variance (hrs)</th><th>Status</th></tr></thead><tbody>';
                         
                         records.forEach(r => {
                             const varBadge = getVarianceBadge(r.varianceType);
                             const inDiff = r.lateMinutes ? '<span class="time-diff positive">+' + r.lateMinutes + 'm</span>' : '';
                             const outDiff = r.earlyMinutes ? '<span class="time-diff positive">-' + r.earlyMinutes + 'm</span>' : '';
+                            const varianceDisplay = formatVarianceMinutes(r.varianceMinutes);
+                            const varianceClass = r.varianceMinutes === null ? '' : (r.varianceMinutes >= 0 ? 'time-diff negative' : 'time-diff positive');
                             
                             html += '<tr>';
                             html += '<td>' + formatDisplayDate(r.date) + '</td>';
@@ -882,6 +1019,7 @@ router.get('/', async (req, res) => {
                             html += '<td class="time-actual">' + (r.actualIn || '-') + inDiff + '</td>';
                             html += '<td class="time-scheduled">' + (r.scheduledOut || '-') + '</td>';
                             html += '<td class="time-actual">' + (r.actualOut || '-') + outDiff + '</td>';
+                            html += '<td><span class="' + varianceClass + '" style="font-weight:600;">' + varianceDisplay + '</span></td>';
                             html += '<td>' + varBadge + '</td>';
                             html += '</tr>';
                         });
@@ -921,9 +1059,12 @@ router.get('/', async (req, res) => {
                     if (type === 'tp') {
                         tpGroupBy = group;
                         loadThirdPartyVariance();
-                    } else {
+                    } else if (type === 'sec') {
                         secGroupBy = group;
                         loadSecurityVariance();
+                    } else if (type === 'per') {
+                        perGroupBy = group;
+                        loadPersonnelVariance();
                     }
                 }
                 
@@ -1011,6 +1152,143 @@ router.get('/', async (req, res) => {
                     window.location.href = 'attendance-variance/api/security/export?' + params;
                 }
                 
+                // Personnel Functions
+                async function loadPersonnelVariance() {
+                    const fromDate = document.getElementById('per-from-date').value;
+                    const toDate = document.getElementById('per-to-date').value;
+                    const store = document.getElementById('per-store').value;
+                    const company = document.getElementById('per-company').value;
+                    const varianceType = document.getElementById('per-variance-type').value;
+                    
+                    if (!fromDate || !toDate) {
+                        alert('Please select both From and To dates');
+                        return;
+                    }
+                    
+                    showLoading(true);
+                    
+                    try {
+                        const params = new URLSearchParams({
+                            fromDate, toDate, store, company, varianceType, groupBy: perGroupBy
+                        });
+                        
+                        const resp = await fetch('attendance-variance/api/personnel?' + params);
+                        const data = await resp.json();
+                        
+                        perData = data.records;
+                        
+                        // Update stats
+                        document.getElementById('per-stat-total').textContent = data.stats.total;
+                        document.getElementById('per-stat-no-show').textContent = data.stats.noShow;
+                        document.getElementById('per-stat-late').textContent = data.stats.late;
+                        document.getElementById('per-stat-early').textContent = data.stats.earlyLeave;
+                        document.getElementById('per-stat-overtime').textContent = data.stats.overtime;
+                        document.getElementById('per-stat-match').textContent = data.stats.match;
+                        
+                        // Render table
+                        renderPersonnelTable(data.records);
+                    } catch (err) {
+                        console.error('Error loading personnel variance:', err);
+                        alert('Error loading data');
+                    } finally {
+                        showLoading(false);
+                    }
+                }
+                
+                function renderPersonnelTable(records) {
+                    const container = document.getElementById('per-table-container');
+                    
+                    if (!records || records.length === 0) {
+                        container.innerHTML = '<div class="empty-state"><i class="mdi mdi-check-circle-outline"></i><h3>No Variance Found</h3><p>No records match your filter criteria</p></div>';
+                        return;
+                    }
+                    
+                    if (perGroupBy === 'none') {
+                        // Detail view
+                        let html = '<table><thead><tr>';
+                        html += '<th>Date</th><th>Store</th><th>Company</th><th>Employee</th><th>Position</th>';
+                        html += '<th>Scheduled In</th><th>Actual In</th><th>Scheduled Out</th><th>Actual Out</th>';
+                        html += '<th>Variance (hrs)</th><th>Status</th></tr></thead><tbody>';
+                        
+                        records.forEach(r => {
+                            const varBadge = getVarianceBadge(r.varianceType);
+                            const inDiff = r.lateMinutes ? '<span class="time-diff positive">+' + r.lateMinutes + 'm</span>' : '';
+                            const outDiff = r.earlyMinutes ? '<span class="time-diff positive">-' + r.earlyMinutes + 'm</span>' : '';
+                            const varianceDisplay = formatVarianceMinutes(r.varianceMinutes);
+                            const varianceClass = r.varianceMinutes === null ? '' : (r.varianceMinutes >= 0 ? 'time-diff negative' : 'time-diff positive');
+                            
+                            html += '<tr>';
+                            html += '<td>' + formatDisplayDate(r.date) + '</td>';
+                            html += '<td>' + (r.storeName || '-') + '</td>';
+                            html += '<td>' + (r.company || '-') + '</td>';
+                            html += '<td>' + (r.employeeName || '-') + '</td>';
+                            html += '<td>' + (r.position || '-') + '</td>';
+                            html += '<td class="time-scheduled">' + (r.scheduledIn || '-') + '</td>';
+                            html += '<td class="time-actual">' + (r.actualIn || '-') + inDiff + '</td>';
+                            html += '<td class="time-scheduled">' + (r.scheduledOut || '-') + '</td>';
+                            html += '<td class="time-actual">' + (r.actualOut || '-') + outDiff + '</td>';
+                            html += '<td><span class="' + varianceClass + '" style="font-weight:600;">' + varianceDisplay + '</span></td>';
+                            html += '<td>' + varBadge + '</td>';
+                            html += '</tr>';
+                        });
+                        
+                        html += '</tbody></table>';
+                        container.innerHTML = html;
+                    } else {
+                        // Grouped view
+                        let html = '<table><thead><tr>';
+                        html += '<th>' + capitalize(perGroupBy) + '</th>';
+                        html += '<th>Total</th><th>No Show</th><th>Late</th><th>Early Leave</th>';
+                        html += '<th>Overtime</th><th>Match</th></tr></thead><tbody>';
+                        
+                        records.forEach(r => {
+                            html += '<tr>';
+                            html += '<td><strong>' + (r.groupName || '-') + '</strong></td>';
+                            html += '<td>' + r.total + '</td>';
+                            html += '<td>' + r.noShow + '</td>';
+                            html += '<td>' + r.late + '</td>';
+                            html += '<td>' + r.earlyLeave + '</td>';
+                            html += '<td>' + r.overtime + '</td>';
+                            html += '<td>' + r.match + '</td>';
+                            html += '</tr>';
+                        });
+                        
+                        html += '</tbody></table>';
+                        container.innerHTML = html;
+                    }
+                }
+                
+                function resetPersonnelFilters() {
+                    const today = new Date();
+                    const weekAgo = new Date(today);
+                    weekAgo.setDate(weekAgo.getDate() - 7);
+                    
+                    document.getElementById('per-from-date').value = formatDate(weekAgo);
+                    document.getElementById('per-to-date').value = formatDate(today);
+                    document.getElementById('per-store').value = '';
+                    document.getElementById('per-company').value = '';
+                    document.getElementById('per-variance-type').value = '';
+                    
+                    perGroupBy = 'none';
+                    document.querySelector('#personnel-tab .group-toggle').querySelectorAll('button').forEach((b, i) => {
+                        b.classList.toggle('active', i === 0);
+                    });
+                }
+                
+                async function exportPersonnel() {
+                    const fromDate = document.getElementById('per-from-date').value;
+                    const toDate = document.getElementById('per-to-date').value;
+                    const store = document.getElementById('per-store').value;
+                    const company = document.getElementById('per-company').value;
+                    const varianceType = document.getElementById('per-variance-type').value;
+                    
+                    const params = new URLSearchParams({
+                        fromDate, toDate, store, company, varianceType, groupBy: perGroupBy
+                    });
+                    
+                    window.location.href = 'attendance-variance/api/personnel/export?' + params;
+                }
+                
                 function showLoading(show) {
                     document.getElementById('loading').classList.toggle('active', show);
                 }
@@ -1051,13 +1329,28 @@ router.get('/api/filters', async (req, res) => {
             ORDER BY CompanyName
         `);
         
+        // Personnel filters
+        const perStores = await pool.request().query(`
+            SELECT DISTINCT Store FROM Personnel_Employees 
+            WHERE Store IS NOT NULL AND Store != '' AND IsActive = 1
+            ORDER BY Store
+        `);
+        
+        const perCompanies = await pool.request().query(`
+            SELECT DISTINCT Company FROM Personnel_Employees 
+            WHERE Company IS NOT NULL AND Company != '' AND IsActive = 1
+            ORDER BY Company
+        `);
+        
         await pool.close();
         
         res.json({
             tpStores: tpStores.recordset.map(r => r.StoreName),
             tpCompanies: tpCompanies.recordset.map(r => r.CompanyName),
             secStores: secStores.recordset.map(r => r.StoreName),
-            secCompanies: secCompanies.recordset.map(r => r.CompanyName)
+            secCompanies: secCompanies.recordset.map(r => r.CompanyName),
+            perStores: perStores.recordset.map(r => r.Store),
+            perCompanies: perCompanies.recordset.map(r => r.Company)
         });
     } catch (err) {
         console.error('Error loading filters:', err);
@@ -1218,6 +1511,19 @@ router.get('/api/thirdparty', async (req, res) => {
             let varianceType = r.baseVariance;
             let lateMinutes = 0;
             let earlyMinutes = 0;
+            let varianceMinutes = null;
+            
+            // Calculate variance: (Actual Out - Actual In) - (Scheduled Out - Scheduled In)
+            const actualInMins = parseTimeToMinutes(r.actualIn);
+            const actualOutMins = parseTimeToMinutes(r.actualOut);
+            const schedInMins = parseTimeToMinutes(r.scheduledIn);
+            const schedOutMins = parseTimeToMinutes(r.scheduledOut);
+            
+            if (actualInMins !== null && actualOutMins !== null && schedInMins !== null && schedOutMins !== null) {
+                const actualHours = actualOutMins - actualInMins;
+                const scheduledHours = schedOutMins - schedInMins;
+                varianceMinutes = actualHours - scheduledHours;
+            }
             
             if (varianceType === 'scheduled' && r.scheduledIn && r.actualIn) {
                 const lateVar = calculateVariance(r.scheduledIn, r.actualIn, 'in');
@@ -1245,6 +1551,7 @@ router.get('/api/thirdparty', async (req, res) => {
             return {
                 ...r,
                 varianceType,
+                varianceMinutes,
                 lateMinutes: lateMinutes > 0 ? lateMinutes : null,
                 earlyMinutes: earlyMinutes > 0 ? earlyMinutes : null
             };
@@ -1421,6 +1728,19 @@ router.get('/api/thirdparty/export', async (req, res) => {
             let vType = r.baseVariance;
             let lateMinutes = 0;
             let earlyMinutes = 0;
+            let varianceMinutes = null;
+            
+            // Calculate variance: (Actual Out - Actual In) - (Scheduled Out - Scheduled In)
+            const actualInMins = parseTimeToMinutes(r.actualIn);
+            const actualOutMins = parseTimeToMinutes(r.actualOut);
+            const schedInMins = parseTimeToMinutes(r.scheduledIn);
+            const schedOutMins = parseTimeToMinutes(r.scheduledOut);
+            
+            if (actualInMins !== null && actualOutMins !== null && schedInMins !== null && schedOutMins !== null) {
+                const actualHours = actualOutMins - actualInMins;
+                const scheduledHours = schedOutMins - schedInMins;
+                varianceMinutes = actualHours - scheduledHours;
+            }
             
             if (vType === 'scheduled' && r.scheduledIn && r.actualIn) {
                 const lateVar = calculateVariance(r.scheduledIn, r.actualIn, 'in');
@@ -1439,7 +1759,7 @@ router.get('/api/thirdparty/export', async (req, res) => {
                 }
             }
             
-            return { ...r, varianceType: vType, lateMinutes, earlyMinutes };
+            return { ...r, varianceType: vType, varianceMinutes, lateMinutes, earlyMinutes };
         });
         
         let filteredRecords = processedRecords;
@@ -1506,12 +1826,23 @@ router.get('/api/thirdparty/export', async (req, res) => {
                 { header: 'Actual In', key: 'actualIn', width: 12 },
                 { header: 'Scheduled Out', key: 'scheduledOut', width: 12 },
                 { header: 'Actual Out', key: 'actualOut', width: 12 },
-                { header: 'Variance Type', key: 'varianceType', width: 15 },
+                { header: 'Variance (hrs)', key: 'varianceHours', width: 15 },
+                { header: 'Status', key: 'varianceType', width: 15 },
                 { header: 'Late (mins)', key: 'lateMinutes', width: 12 },
                 { header: 'Early (mins)', key: 'earlyMinutes', width: 12 }
             ];
             
             filteredRecords.forEach(r => {
+                // Format variance as hours and minutes
+                let varianceHours = '';
+                if (r.varianceMinutes !== null && r.varianceMinutes !== undefined) {
+                    const sign = r.varianceMinutes >= 0 ? '+' : '-';
+                    const absMins = Math.abs(r.varianceMinutes);
+                    const hrs = Math.floor(absMins / 60);
+                    const mins = absMins % 60;
+                    varianceHours = sign + hrs + 'h ' + mins + 'm';
+                }
+                
                 sheet.addRow({
                     date: r.date ? new Date(r.date).toLocaleDateString('en-GB') : '',
                     storeName: r.storeName || '',
@@ -1522,6 +1853,7 @@ router.get('/api/thirdparty/export', async (req, res) => {
                     actualIn: r.actualIn || '',
                     scheduledOut: r.scheduledOut || '',
                     actualOut: r.actualOut || '',
+                    varianceHours: varianceHours,
                     varianceType: r.varianceType || '',
                     lateMinutes: r.lateMinutes || '',
                     earlyMinutes: r.earlyMinutes || ''
@@ -1653,6 +1985,19 @@ router.get('/api/security', async (req, res) => {
             let varianceType = r.baseVariance;
             let lateMinutes = 0;
             let earlyMinutes = 0;
+            let varianceMinutes = null;
+            
+            // Calculate variance: (Actual Out - Actual In) - (Scheduled Out - Scheduled In)
+            const actualInMins = parseTimeToMinutes(r.actualIn);
+            const actualOutMins = parseTimeToMinutes(r.actualOut);
+            const schedInMins = parseTimeToMinutes(r.scheduledIn);
+            const schedOutMins = parseTimeToMinutes(r.scheduledOut);
+            
+            if (actualInMins !== null && actualOutMins !== null && schedInMins !== null && schedOutMins !== null) {
+                const actualHours = actualOutMins - actualInMins;
+                const scheduledHours = schedOutMins - schedInMins;
+                varianceMinutes = actualHours - scheduledHours;
+            }
             
             if (varianceType === 'scheduled' && r.scheduledIn && r.actualIn) {
                 const lateVar = calculateVariance(r.scheduledIn, r.actualIn, 'in');
@@ -1671,7 +2016,7 @@ router.get('/api/security', async (req, res) => {
                 }
             }
             
-            return { ...r, varianceType, lateMinutes: lateMinutes > 0 ? lateMinutes : null, earlyMinutes: earlyMinutes > 0 ? earlyMinutes : null };
+            return { ...r, varianceType, varianceMinutes, lateMinutes: lateMinutes > 0 ? lateMinutes : null, earlyMinutes: earlyMinutes > 0 ? earlyMinutes : null };
         });
         
         let filteredRecords = processedRecords;
@@ -1826,6 +2171,19 @@ router.get('/api/security/export', async (req, res) => {
             let vType = r.baseVariance;
             let lateMinutes = 0;
             let earlyMinutes = 0;
+            let varianceMinutes = null;
+            
+            // Calculate variance: (Actual Out - Actual In) - (Scheduled Out - Scheduled In)
+            const actualInMins = parseTimeToMinutes(r.actualIn);
+            const actualOutMins = parseTimeToMinutes(r.actualOut);
+            const schedInMins = parseTimeToMinutes(r.scheduledIn);
+            const schedOutMins = parseTimeToMinutes(r.scheduledOut);
+            
+            if (actualInMins !== null && actualOutMins !== null && schedInMins !== null && schedOutMins !== null) {
+                const actualHours = actualOutMins - actualInMins;
+                const scheduledHours = schedOutMins - schedInMins;
+                varianceMinutes = actualHours - scheduledHours;
+            }
             
             if (vType === 'scheduled' && r.scheduledIn && r.actualIn) {
                 const lateVar = calculateVariance(r.scheduledIn, r.actualIn, 'in');
@@ -1844,7 +2202,7 @@ router.get('/api/security/export', async (req, res) => {
                 }
             }
             
-            return { ...r, varianceType: vType, lateMinutes, earlyMinutes };
+            return { ...r, varianceType: vType, varianceMinutes, lateMinutes, earlyMinutes };
         });
         
         let filteredRecords = processedRecords;
@@ -1905,12 +2263,23 @@ router.get('/api/security/export', async (req, res) => {
                 { header: 'Actual In', key: 'actualIn', width: 12 },
                 { header: 'Scheduled Out', key: 'scheduledOut', width: 12 },
                 { header: 'Actual Out', key: 'actualOut', width: 12 },
-                { header: 'Variance Type', key: 'varianceType', width: 15 },
+                { header: 'Variance (hrs)', key: 'varianceHours', width: 15 },
+                { header: 'Status', key: 'varianceType', width: 15 },
                 { header: 'Late (mins)', key: 'lateMinutes', width: 12 },
                 { header: 'Early (mins)', key: 'earlyMinutes', width: 12 }
             ];
             
             filteredRecords.forEach(r => {
+                // Format variance as hours and minutes
+                let varianceHours = '';
+                if (r.varianceMinutes !== null && r.varianceMinutes !== undefined) {
+                    const sign = r.varianceMinutes >= 0 ? '+' : '-';
+                    const absMins = Math.abs(r.varianceMinutes);
+                    const hrs = Math.floor(absMins / 60);
+                    const mins = absMins % 60;
+                    varianceHours = sign + hrs + 'h ' + mins + 'm';
+                }
+                
                 sheet.addRow({
                     date: r.date ? new Date(r.date).toLocaleDateString('en-GB') : '',
                     storeName: r.storeName || '',
@@ -1921,6 +2290,7 @@ router.get('/api/security/export', async (req, res) => {
                     actualIn: r.actualIn || '',
                     scheduledOut: r.scheduledOut || '',
                     actualOut: r.actualOut || '',
+                    varianceHours: varianceHours,
                     varianceType: r.varianceType || '',
                     lateMinutes: r.lateMinutes || '',
                     earlyMinutes: r.earlyMinutes || ''
@@ -1940,6 +2310,489 @@ router.get('/api/security/export', async (req, res) => {
         res.end();
     } catch (err) {
         console.error('Error exporting security variance:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// API: Get Personnel variance
+router.get('/api/personnel', async (req, res) => {
+    try {
+        const { fromDate, toDate, store, company, varianceType, groupBy } = req.query;
+        
+        const pool = await sql.connect(dbConfig);
+        const request = pool.request();
+        
+        request.input('fromDate', sql.Date, fromDate);
+        request.input('toDate', sql.Date, toDate);
+        
+        // Build filter conditions
+        let filters = '';
+        if (store) {
+            request.input('store', sql.NVarChar, store);
+            filters += ' AND e.Store = @store';
+        }
+        if (company) {
+            request.input('company', sql.NVarChar, company);
+            filters += ' AND e.Company = @company';
+        }
+        
+        // Get all scheduled entries for the date range from Personnel_EmployeeSchedule
+        const scheduledQuery = `
+            WITH DateRange AS (
+                SELECT CAST(@fromDate AS DATE) as TheDate
+                UNION ALL
+                SELECT DATEADD(DAY, 1, TheDate) FROM DateRange WHERE TheDate < @toDate
+            ),
+            ScheduledShifts AS (
+                SELECT 
+                    d.TheDate as ScheduleDate,
+                    e.Store as StoreName,
+                    e.Company,
+                    e.Id as EmployeeId,
+                    e.Name as EmployeeName,
+                    e.Position,
+                    CASE DATENAME(WEEKDAY, d.TheDate)
+                        WHEN 'Monday' THEN CASE WHEN s.MondayOff = 1 THEN NULL ELSE s.MondayFrom1 END
+                        WHEN 'Tuesday' THEN CASE WHEN s.TuesdayOff = 1 THEN NULL ELSE s.TuesdayFrom1 END
+                        WHEN 'Wednesday' THEN CASE WHEN s.WednesdayOff = 1 THEN NULL ELSE s.WednesdayFrom1 END
+                        WHEN 'Thursday' THEN CASE WHEN s.ThursdayOff = 1 THEN NULL ELSE s.ThursdayFrom1 END
+                        WHEN 'Friday' THEN CASE WHEN s.FridayOff = 1 THEN NULL ELSE s.FridayFrom1 END
+                        WHEN 'Saturday' THEN CASE WHEN s.SaturdayOff = 1 THEN NULL ELSE s.SaturdayFrom1 END
+                        WHEN 'Sunday' THEN CASE WHEN s.SundayOff = 1 THEN NULL ELSE s.SundayFrom1 END
+                    END as ScheduledIn,
+                    CASE DATENAME(WEEKDAY, d.TheDate)
+                        WHEN 'Monday' THEN CASE WHEN s.MondayOff = 1 THEN NULL ELSE s.MondayTo1 END
+                        WHEN 'Tuesday' THEN CASE WHEN s.TuesdayOff = 1 THEN NULL ELSE s.TuesdayTo1 END
+                        WHEN 'Wednesday' THEN CASE WHEN s.WednesdayOff = 1 THEN NULL ELSE s.WednesdayTo1 END
+                        WHEN 'Thursday' THEN CASE WHEN s.ThursdayOff = 1 THEN NULL ELSE s.ThursdayTo1 END
+                        WHEN 'Friday' THEN CASE WHEN s.FridayOff = 1 THEN NULL ELSE s.FridayTo1 END
+                        WHEN 'Saturday' THEN CASE WHEN s.SaturdayOff = 1 THEN NULL ELSE s.SaturdayTo1 END
+                        WHEN 'Sunday' THEN CASE WHEN s.SundayOff = 1 THEN NULL ELSE s.SundayTo1 END
+                    END as ScheduledOut,
+                    CASE DATENAME(WEEKDAY, d.TheDate)
+                        WHEN 'Monday' THEN s.MondayActualIn
+                        WHEN 'Tuesday' THEN s.TuesdayActualIn
+                        WHEN 'Wednesday' THEN s.WednesdayActualIn
+                        WHEN 'Thursday' THEN s.ThursdayActualIn
+                        WHEN 'Friday' THEN s.FridayActualIn
+                        WHEN 'Saturday' THEN s.SaturdayActualIn
+                        WHEN 'Sunday' THEN s.SundayActualIn
+                    END as ActualIn,
+                    CASE DATENAME(WEEKDAY, d.TheDate)
+                        WHEN 'Monday' THEN s.MondayActualOut
+                        WHEN 'Tuesday' THEN s.TuesdayActualOut
+                        WHEN 'Wednesday' THEN s.WednesdayActualOut
+                        WHEN 'Thursday' THEN s.ThursdayActualOut
+                        WHEN 'Friday' THEN s.FridayActualOut
+                        WHEN 'Saturday' THEN s.SaturdayActualOut
+                        WHEN 'Sunday' THEN s.SundayActualOut
+                    END as ActualOut,
+                    CASE DATENAME(WEEKDAY, d.TheDate)
+                        WHEN 'Monday' THEN s.MondayOff
+                        WHEN 'Tuesday' THEN s.TuesdayOff
+                        WHEN 'Wednesday' THEN s.WednesdayOff
+                        WHEN 'Thursday' THEN s.ThursdayOff
+                        WHEN 'Friday' THEN s.FridayOff
+                        WHEN 'Saturday' THEN s.SaturdayOff
+                        WHEN 'Sunday' THEN s.SundayOff
+                    END as IsDayOff
+                FROM DateRange d
+                CROSS JOIN Personnel_Employees e
+                LEFT JOIN Personnel_EmployeeSchedule s ON s.EmployeeId = e.Id 
+                    AND d.TheDate >= s.WeekStartDate 
+                    AND d.TheDate < DATEADD(DAY, 7, s.WeekStartDate)
+                WHERE e.IsActive = 1
+                ${filters}
+            )
+            SELECT 
+                ScheduleDate as [date],
+                StoreName as storeName,
+                Company as company,
+                EmployeeId as employeeId,
+                EmployeeName as employeeName,
+                Position as position,
+                ScheduledIn as scheduledIn,
+                ScheduledOut as scheduledOut,
+                ActualIn as actualIn,
+                ActualOut as actualOut,
+                IsDayOff as isDayOff,
+                CASE 
+                    WHEN IsDayOff = 1 THEN 'off'
+                    WHEN ScheduledIn IS NOT NULL AND ActualIn IS NULL THEN 'no-show'
+                    ELSE 'scheduled'
+                END as baseVariance
+            FROM ScheduledShifts
+            WHERE IsDayOff = 0 OR IsDayOff IS NULL
+            ORDER BY ScheduleDate, StoreName, EmployeeName
+            OPTION (MAXRECURSION 400)
+        `;
+        
+        const scheduled = await request.query(scheduledQuery);
+        await pool.close();
+        
+        // Process all records and calculate variances
+        const processedRecords = scheduled.recordset.map(r => {
+            let varianceType = r.baseVariance;
+            let lateMinutes = 0;
+            let earlyMinutes = 0;
+            let varianceMinutes = null;
+            
+            // Calculate variance: (Actual Out - Actual In) - (Scheduled Out - Scheduled In)
+            const actualInMins = parseTimeToMinutes(r.actualIn);
+            const actualOutMins = parseTimeToMinutes(r.actualOut);
+            const schedInMins = parseTimeToMinutes(r.scheduledIn);
+            const schedOutMins = parseTimeToMinutes(r.scheduledOut);
+            
+            if (actualInMins !== null && actualOutMins !== null && schedInMins !== null && schedOutMins !== null) {
+                const actualHours = actualOutMins - actualInMins;
+                const scheduledHours = schedOutMins - schedInMins;
+                varianceMinutes = actualHours - scheduledHours;
+            }
+            
+            if (varianceType === 'scheduled' && r.scheduledIn && r.actualIn) {
+                const lateVar = calculateVariance(r.scheduledIn, r.actualIn, 'in');
+                const earlyVar = calculateVariance(r.scheduledOut, r.actualOut, 'out');
+                
+                // Check for late (more than 15 minutes late)
+                if (lateVar !== null && lateVar > 15) {
+                    varianceType = 'late';
+                    lateMinutes = lateVar;
+                }
+                // Check for early leave (more than 15 minutes early)
+                else if (earlyVar !== null && earlyVar > 15) {
+                    varianceType = 'early-leave';
+                    earlyMinutes = earlyVar;
+                }
+                // Check for overtime (stayed more than 30 minutes extra)
+                else if (earlyVar !== null && earlyVar < -30) {
+                    varianceType = 'overtime';
+                }
+                else {
+                    varianceType = 'match';
+                }
+            }
+            
+            return {
+                ...r,
+                varianceType,
+                varianceMinutes,
+                lateMinutes: lateMinutes > 0 ? lateMinutes : null,
+                earlyMinutes: earlyMinutes > 0 ? earlyMinutes : null
+            };
+        });
+        
+        // Filter by variance type if specified
+        let filteredRecords = processedRecords;
+        if (varianceType) {
+            filteredRecords = processedRecords.filter(r => r.varianceType === varianceType);
+        }
+        
+        // Calculate stats
+        const stats = {
+            total: filteredRecords.length,
+            noShow: processedRecords.filter(r => r.varianceType === 'no-show').length,
+            late: processedRecords.filter(r => r.varianceType === 'late').length,
+            earlyLeave: processedRecords.filter(r => r.varianceType === 'early-leave').length,
+            overtime: processedRecords.filter(r => r.varianceType === 'overtime').length,
+            match: processedRecords.filter(r => r.varianceType === 'match').length
+        };
+        
+        // Group if needed
+        let resultRecords = filteredRecords;
+        if (groupBy && groupBy !== 'none') {
+            const grouped = {};
+            filteredRecords.forEach(r => {
+                let key;
+                if (groupBy === 'store') key = r.storeName || 'Unknown';
+                else if (groupBy === 'company') key = r.company || 'Unknown';
+                else if (groupBy === 'employee') key = r.employeeName || 'Unknown';
+                else key = 'All';
+                
+                if (!grouped[key]) {
+                    grouped[key] = {
+                        groupName: key,
+                        total: 0,
+                        noShow: 0,
+                        late: 0,
+                        earlyLeave: 0,
+                        overtime: 0,
+                        match: 0
+                    };
+                }
+                
+                grouped[key].total++;
+                if (r.varianceType === 'no-show') grouped[key].noShow++;
+                else if (r.varianceType === 'late') grouped[key].late++;
+                else if (r.varianceType === 'early-leave') grouped[key].earlyLeave++;
+                else if (r.varianceType === 'overtime') grouped[key].overtime++;
+                else if (r.varianceType === 'match') grouped[key].match++;
+            });
+            
+            resultRecords = Object.values(grouped).sort((a, b) => b.total - a.total);
+        }
+        
+        res.json({ records: resultRecords, stats });
+    } catch (err) {
+        console.error('Error getting personnel variance:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// API: Export Personnel variance
+router.get('/api/personnel/export', async (req, res) => {
+    try {
+        const { fromDate, toDate, store, company, varianceType, groupBy } = req.query;
+        
+        const pool = await sql.connect(dbConfig);
+        const request = pool.request();
+        
+        request.input('fromDate', sql.Date, fromDate);
+        request.input('toDate', sql.Date, toDate);
+        
+        let filters = '';
+        if (store) {
+            request.input('store', sql.NVarChar, store);
+            filters += ' AND e.Store = @store';
+        }
+        if (company) {
+            request.input('company', sql.NVarChar, company);
+            filters += ' AND e.Company = @company';
+        }
+        
+        const scheduledQuery = `
+            WITH DateRange AS (
+                SELECT CAST(@fromDate AS DATE) as TheDate
+                UNION ALL
+                SELECT DATEADD(DAY, 1, TheDate) FROM DateRange WHERE TheDate < @toDate
+            ),
+            ScheduledShifts AS (
+                SELECT 
+                    d.TheDate as ScheduleDate,
+                    e.Store as StoreName,
+                    e.Company,
+                    e.Id as EmployeeId,
+                    e.Name as EmployeeName,
+                    e.Position,
+                    CASE DATENAME(WEEKDAY, d.TheDate)
+                        WHEN 'Monday' THEN CASE WHEN s.MondayOff = 1 THEN NULL ELSE s.MondayFrom1 END
+                        WHEN 'Tuesday' THEN CASE WHEN s.TuesdayOff = 1 THEN NULL ELSE s.TuesdayFrom1 END
+                        WHEN 'Wednesday' THEN CASE WHEN s.WednesdayOff = 1 THEN NULL ELSE s.WednesdayFrom1 END
+                        WHEN 'Thursday' THEN CASE WHEN s.ThursdayOff = 1 THEN NULL ELSE s.ThursdayFrom1 END
+                        WHEN 'Friday' THEN CASE WHEN s.FridayOff = 1 THEN NULL ELSE s.FridayFrom1 END
+                        WHEN 'Saturday' THEN CASE WHEN s.SaturdayOff = 1 THEN NULL ELSE s.SaturdayFrom1 END
+                        WHEN 'Sunday' THEN CASE WHEN s.SundayOff = 1 THEN NULL ELSE s.SundayFrom1 END
+                    END as ScheduledIn,
+                    CASE DATENAME(WEEKDAY, d.TheDate)
+                        WHEN 'Monday' THEN CASE WHEN s.MondayOff = 1 THEN NULL ELSE s.MondayTo1 END
+                        WHEN 'Tuesday' THEN CASE WHEN s.TuesdayOff = 1 THEN NULL ELSE s.TuesdayTo1 END
+                        WHEN 'Wednesday' THEN CASE WHEN s.WednesdayOff = 1 THEN NULL ELSE s.WednesdayTo1 END
+                        WHEN 'Thursday' THEN CASE WHEN s.ThursdayOff = 1 THEN NULL ELSE s.ThursdayTo1 END
+                        WHEN 'Friday' THEN CASE WHEN s.FridayOff = 1 THEN NULL ELSE s.FridayTo1 END
+                        WHEN 'Saturday' THEN CASE WHEN s.SaturdayOff = 1 THEN NULL ELSE s.SaturdayTo1 END
+                        WHEN 'Sunday' THEN CASE WHEN s.SundayOff = 1 THEN NULL ELSE s.SundayTo1 END
+                    END as ScheduledOut,
+                    CASE DATENAME(WEEKDAY, d.TheDate)
+                        WHEN 'Monday' THEN s.MondayActualIn
+                        WHEN 'Tuesday' THEN s.TuesdayActualIn
+                        WHEN 'Wednesday' THEN s.WednesdayActualIn
+                        WHEN 'Thursday' THEN s.ThursdayActualIn
+                        WHEN 'Friday' THEN s.FridayActualIn
+                        WHEN 'Saturday' THEN s.SaturdayActualIn
+                        WHEN 'Sunday' THEN s.SundayActualIn
+                    END as ActualIn,
+                    CASE DATENAME(WEEKDAY, d.TheDate)
+                        WHEN 'Monday' THEN s.MondayActualOut
+                        WHEN 'Tuesday' THEN s.TuesdayActualOut
+                        WHEN 'Wednesday' THEN s.WednesdayActualOut
+                        WHEN 'Thursday' THEN s.ThursdayActualOut
+                        WHEN 'Friday' THEN s.FridayActualOut
+                        WHEN 'Saturday' THEN s.SaturdayActualOut
+                        WHEN 'Sunday' THEN s.SundayActualOut
+                    END as ActualOut,
+                    CASE DATENAME(WEEKDAY, d.TheDate)
+                        WHEN 'Monday' THEN s.MondayOff
+                        WHEN 'Tuesday' THEN s.TuesdayOff
+                        WHEN 'Wednesday' THEN s.WednesdayOff
+                        WHEN 'Thursday' THEN s.ThursdayOff
+                        WHEN 'Friday' THEN s.FridayOff
+                        WHEN 'Saturday' THEN s.SaturdayOff
+                        WHEN 'Sunday' THEN s.SundayOff
+                    END as IsDayOff
+                FROM DateRange d
+                CROSS JOIN Personnel_Employees e
+                LEFT JOIN Personnel_EmployeeSchedule s ON s.EmployeeId = e.Id 
+                    AND d.TheDate >= s.WeekStartDate 
+                    AND d.TheDate < DATEADD(DAY, 7, s.WeekStartDate)
+                WHERE e.IsActive = 1
+                ${filters}
+            )
+            SELECT 
+                ScheduleDate as [date],
+                StoreName as storeName,
+                Company as company,
+                EmployeeId as employeeId,
+                EmployeeName as employeeName,
+                Position as position,
+                ScheduledIn as scheduledIn,
+                ScheduledOut as scheduledOut,
+                ActualIn as actualIn,
+                ActualOut as actualOut,
+                IsDayOff as isDayOff,
+                CASE 
+                    WHEN IsDayOff = 1 THEN 'off'
+                    WHEN ScheduledIn IS NOT NULL AND ActualIn IS NULL THEN 'no-show'
+                    ELSE 'scheduled'
+                END as baseVariance
+            FROM ScheduledShifts
+            WHERE IsDayOff = 0 OR IsDayOff IS NULL
+            ORDER BY ScheduleDate, StoreName, EmployeeName
+            OPTION (MAXRECURSION 400)
+        `;
+        
+        const scheduled = await request.query(scheduledQuery);
+        await pool.close();
+        
+        // Process records
+        const processedRecords = scheduled.recordset.map(r => {
+            let vType = r.baseVariance;
+            let lateMinutes = 0;
+            let earlyMinutes = 0;
+            let varianceMinutes = null;
+            
+            const actualInMins = parseTimeToMinutes(r.actualIn);
+            const actualOutMins = parseTimeToMinutes(r.actualOut);
+            const schedInMins = parseTimeToMinutes(r.scheduledIn);
+            const schedOutMins = parseTimeToMinutes(r.scheduledOut);
+            
+            if (actualInMins !== null && actualOutMins !== null && schedInMins !== null && schedOutMins !== null) {
+                const actualHours = actualOutMins - actualInMins;
+                const scheduledHours = schedOutMins - schedInMins;
+                varianceMinutes = actualHours - scheduledHours;
+            }
+            
+            if (vType === 'scheduled' && r.scheduledIn && r.actualIn) {
+                const lateVar = calculateVariance(r.scheduledIn, r.actualIn, 'in');
+                const earlyVar = calculateVariance(r.scheduledOut, r.actualOut, 'out');
+                
+                if (lateVar !== null && lateVar > 15) {
+                    vType = 'late';
+                    lateMinutes = lateVar;
+                } else if (earlyVar !== null && earlyVar > 15) {
+                    vType = 'early-leave';
+                    earlyMinutes = earlyVar;
+                } else if (earlyVar !== null && earlyVar < -30) {
+                    vType = 'overtime';
+                } else {
+                    vType = 'match';
+                }
+            }
+            
+            return { ...r, varianceType: vType, varianceMinutes, lateMinutes, earlyMinutes };
+        });
+        
+        let filteredRecords = processedRecords;
+        if (varianceType) {
+            filteredRecords = processedRecords.filter(r => r.varianceType === varianceType);
+        }
+        
+        // Create Excel
+        const workbook = new ExcelJS.Workbook();
+        const sheet = workbook.addWorksheet('Personnel Variance');
+        
+        const headerStyle = {
+            font: { bold: true, color: { argb: 'FFFFFFFF' } },
+            fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2C3E50' } }
+        };
+        
+        if (groupBy && groupBy !== 'none') {
+            sheet.columns = [
+                { header: groupBy.charAt(0).toUpperCase() + groupBy.slice(1), key: 'groupName', width: 30 },
+                { header: 'Total', key: 'total', width: 12 },
+                { header: 'No Show', key: 'noShow', width: 12 },
+                { header: 'Late', key: 'late', width: 12 },
+                { header: 'Early Leave', key: 'earlyLeave', width: 12 },
+                { header: 'Overtime', key: 'overtime', width: 12 },
+                { header: 'Match', key: 'match', width: 12 }
+            ];
+            
+            const grouped = {};
+            filteredRecords.forEach(r => {
+                let key;
+                if (groupBy === 'store') key = r.storeName || 'Unknown';
+                else if (groupBy === 'company') key = r.company || 'Unknown';
+                else if (groupBy === 'employee') key = r.employeeName || 'Unknown';
+                else key = 'All';
+                
+                if (!grouped[key]) {
+                    grouped[key] = { groupName: key, total: 0, noShow: 0, late: 0, earlyLeave: 0, overtime: 0, match: 0 };
+                }
+                
+                grouped[key].total++;
+                if (r.varianceType === 'no-show') grouped[key].noShow++;
+                else if (r.varianceType === 'late') grouped[key].late++;
+                else if (r.varianceType === 'early-leave') grouped[key].earlyLeave++;
+                else if (r.varianceType === 'overtime') grouped[key].overtime++;
+                else if (r.varianceType === 'match') grouped[key].match++;
+            });
+            
+            Object.values(grouped).sort((a, b) => b.total - a.total).forEach(row => sheet.addRow(row));
+        } else {
+            sheet.columns = [
+                { header: 'Date', key: 'date', width: 12 },
+                { header: 'Store', key: 'storeName', width: 25 },
+                { header: 'Company', key: 'company', width: 20 },
+                { header: 'Employee', key: 'employeeName', width: 25 },
+                { header: 'Position', key: 'position', width: 15 },
+                { header: 'Scheduled In', key: 'scheduledIn', width: 12 },
+                { header: 'Actual In', key: 'actualIn', width: 12 },
+                { header: 'Scheduled Out', key: 'scheduledOut', width: 12 },
+                { header: 'Actual Out', key: 'actualOut', width: 12 },
+                { header: 'Variance (hrs)', key: 'varianceHours', width: 15 },
+                { header: 'Status', key: 'varianceType', width: 15 },
+                { header: 'Late (mins)', key: 'lateMinutes', width: 12 },
+                { header: 'Early (mins)', key: 'earlyMinutes', width: 12 }
+            ];
+            
+            filteredRecords.forEach(r => {
+                let varianceHours = '';
+                if (r.varianceMinutes !== null && r.varianceMinutes !== undefined) {
+                    const sign = r.varianceMinutes >= 0 ? '+' : '-';
+                    const absMins = Math.abs(r.varianceMinutes);
+                    const hrs = Math.floor(absMins / 60);
+                    const mins = absMins % 60;
+                    varianceHours = sign + hrs + 'h ' + mins + 'm';
+                }
+                
+                sheet.addRow({
+                    date: r.date ? new Date(r.date).toLocaleDateString('en-GB') : '',
+                    storeName: r.storeName || '',
+                    company: r.company || '',
+                    employeeName: r.employeeName || '',
+                    position: r.position || '',
+                    scheduledIn: r.scheduledIn || '',
+                    actualIn: r.actualIn || '',
+                    scheduledOut: r.scheduledOut || '',
+                    actualOut: r.actualOut || '',
+                    varianceHours: varianceHours,
+                    varianceType: r.varianceType || '',
+                    lateMinutes: r.lateMinutes || '',
+                    earlyMinutes: r.earlyMinutes || ''
+                });
+            });
+        }
+        
+        sheet.getRow(1).eachCell(cell => {
+            cell.font = headerStyle.font;
+            cell.fill = headerStyle.fill;
+        });
+        
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename=Personnel_Variance_${fromDate}_to_${toDate}.xlsx`);
+        
+        await workbook.xlsx.write(res);
+        res.end();
+    } catch (err) {
+        console.error('Error exporting personnel variance:', err);
         res.status(500).json({ error: err.message });
     }
 });
