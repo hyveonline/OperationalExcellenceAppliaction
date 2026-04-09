@@ -263,7 +263,7 @@ router.get('/', async (req, res) => {
                 <h1><i class="mdi mdi-account-group"></i> Personnel Employees</h1>
                 <div class="header-nav">
                     <a href="/operational-excellence"><i class="mdi mdi-arrow-left"></i> Back</a>
-                    <a href="/"><i class="mdi mdi-home"></i> Home</a>
+                    <a href="/dashboard"><i class="mdi mdi-home"></i> Home</a>
                 </div>
             </div>
             
