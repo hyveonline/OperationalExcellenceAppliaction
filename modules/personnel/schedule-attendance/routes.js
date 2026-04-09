@@ -496,7 +496,9 @@ router.get('/', async (req, res) => {
                                 </div>
                                 <div class="form-group">
                                     <label>Store</label>
-                                    <input type="text" id="empStore" placeholder="Store location">
+                                    <select id="empStore">
+                                        <option value="">Select Store</option>
+                                    </select>
                                 </div>
                             </div>
                             <div class="form-row">
@@ -524,6 +526,30 @@ router.get('/', async (req, res) => {
                 
                 <script>
                     const weekStart = '${weekStartStr}';
+                    let storesList = [];
+                    
+                    // Load stores from system settings
+                    async function loadStores() {
+                        try {
+                            const res = await fetch('/operational-excellence/system-settings/api/stores');
+                            const stores = await res.json();
+                            storesList = stores.filter(s => s.IsActive !== false);
+                            
+                            const select = document.getElementById('empStore');
+                            select.innerHTML = '<option value="">Select Store</option>';
+                            storesList.forEach(store => {
+                                const opt = document.createElement('option');
+                                opt.value = store.StoreName;
+                                opt.textContent = store.StoreName;
+                                select.appendChild(opt);
+                            });
+                        } catch (err) {
+                            console.error('Error loading stores:', err);
+                        }
+                    }
+                    
+                    // Initialize stores on page load
+                    document.addEventListener('DOMContentLoaded', loadStores);
                     
                     function showAlert(message, type) {
                         const alert = document.getElementById('alert');
