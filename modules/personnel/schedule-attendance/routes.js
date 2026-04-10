@@ -57,9 +57,9 @@ router.get('/', async (req, res) => {
         }
         const weekEndStr = weekEnd.toISOString().split('T')[0];
         
-        // Get all employees
+        // Get all employees (including inactive)
         const employees = await pool.request()
-            .query(`SELECT * FROM Personnel_Employees WHERE IsActive = 1 ORDER BY Company, Store, Name`);
+            .query(`SELECT * FROM Personnel_Employees ORDER BY IsActive DESC, Company, Store, Name`);
         
         // Get schedules for the selected week
         const schedules = await pool.request()
@@ -97,6 +97,7 @@ router.get('/', async (req, res) => {
                 phone: emp.PhoneNumber || '',
                 name: emp.Name || '',
                 position: emp.Position || '',
+                isActive: emp.IsActive === true || emp.IsActive === 1,
                 schedule: DAYS.reduce((acc, day) => {
                     acc[day] = {
                         from: schedule[`${day}From1`] || '',
@@ -395,6 +396,15 @@ router.get('/', async (req, res) => {
                     }
                     .row-actions button:hover { background: #e2e8f0; }
                     .row-actions .btn-delete:hover { background: #fed7d7; color: #c53030; }
+                    .row-actions .btn-toggle-active { color: #38a169; }
+                    .row-actions .btn-toggle-active.inactive { color: #a0aec0; }
+                    .row-actions .btn-toggle-active:hover { background: #c6f6d5; }
+                    .row-actions .btn-toggle-active.inactive:hover { background: #e2e8f0; }
+                    tr.row-inactive { opacity: 0.5; background: #f7fafc; }
+                    tr.row-inactive td { color: #a0aec0; }
+                    tr.row-inactive .cell-input, tr.row-inactive .time-input { color: #a0aec0; }
+                    .show-inactive-toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #4a5568; cursor: pointer; margin-left: 15px; }
+                    .show-inactive-toggle input { cursor: pointer; }
                     
                     /* Alert */
                     .alert {
@@ -470,6 +480,10 @@ router.get('/', async (req, res) => {
                         <span class="status-badge ${weekStatus === 'Submitted' ? 'status-submitted' : 'status-draft'}" style="margin-left: 15px;">${weekStatus}</span>
                     </div>
                     <div class="toolbar-actions">
+                        <label class="show-inactive-toggle">
+                            <input type="checkbox" id="showInactive" onchange="renderTable()">
+                            <span>Show Inactive</span>
+                        </label>
                         <button onclick="addNewRow()" class="btn-add-row"><i class="mdi mdi-plus"></i> Add Employee</button>
                         <button onclick="location.href='/personnel/schedule-attendance/history'"><i class="mdi mdi-history"></i> History</button>
                     </div>
@@ -544,14 +558,17 @@ router.get('/', async (req, res) => {
                     });
                     
                     function renderTable() {
+                        const showInactive = document.getElementById('showInactive') && document.getElementById('showInactive').checked;
+                        const filtered = showInactive ? employees : employees.filter(e => e.isActive !== false);
                         const tbody = document.getElementById('tableBody');
-                        tbody.innerHTML = employees.map((emp, idx) => createRow(emp, idx)).join('');
+                        tbody.innerHTML = filtered.map((emp, idx) => createRow(emp, idx)).join('');
                     }
                     
                     function createRow(emp, idx) {
                         const isNew = emp.id.toString().startsWith('new_');
+                        const inactiveClass = emp.isActive === false ? 'row-inactive' : '';
                         return \`
-                            <tr data-id="\${emp.id}" class="\${isNew ? 'new-row' : ''}">
+                            <tr data-id="\${emp.id}" class="\${isNew ? 'new-row' : ''} \${inactiveClass}">
                                 <td class="row-num">\${idx + 1}</td>
                                 <td class="emp-cell">
                                     <input type="text" class="cell-input" data-field="company" value="\${escapeHtml(emp.company)}" 
@@ -623,6 +640,9 @@ router.get('/', async (req, res) => {
                                 <td class="actions-cell">
                                     <div class="row-actions">
                                         <button onclick="duplicateRow('\${emp.id}')" title="Duplicate"><i class="mdi mdi-content-copy"></i></button>
+                                        <button class="btn-toggle-active \${emp.isActive === false ? 'inactive' : ''}" onclick="toggleActive('\${emp.id}')" title="\${emp.isActive === false ? 'Activate' : 'Deactivate'}">
+                                            <i class="mdi \${emp.isActive === false ? 'mdi-account-off' : 'mdi-account-check'}"></i>
+                                        </button>
                                         <button class="btn-delete" onclick="deleteRow('\${emp.id}')" title="Delete"><i class="mdi mdi-delete"></i></button>
                                     </div>
                                 </td>
@@ -738,6 +758,36 @@ router.get('/', async (req, res) => {
                         }
                     }
                     
+                    function toggleActive(empId) {
+                        const emp = employees.find(e => e.id.toString() === empId.toString());
+                        if (!emp) return;
+                        const isNew = empId.toString().startsWith('new_');
+                        if (isNew) {
+                            emp.isActive = emp.isActive === false ? true : false;
+                            renderTable();
+                            return;
+                        }
+                        const newStatus = emp.isActive === false ? true : false;
+                        const action = newStatus ? 'activate' : 'deactivate';
+                        if (!confirm('Are you sure you want to ' + action + ' this employee?')) return;
+                        
+                        fetch('/personnel/schedule-attendance/api/employee/' + empId + '/toggle', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ isActive: newStatus })
+                        })
+                        .then(res => res.json())
+                        .then(result => {
+                            if (result.success) {
+                                emp.isActive = newStatus;
+                                renderTable();
+                                showAlert('Employee ' + (newStatus ? 'activated' : 'deactivated'), 'success');
+                            } else {
+                                showAlert('Error: ' + result.message, 'error');
+                            }
+                        });
+                    }
+
                     function deleteRow(empId) {
                         if (!confirm('Are you sure you want to delete this employee?')) return;
                         
