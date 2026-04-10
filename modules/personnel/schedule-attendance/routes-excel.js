@@ -36,26 +36,9 @@ router.get('/', async (req, res) => {
     try {
         pool = await sql.connect(dbConfig);
         
-        // Get date range from query or default to current week
-        let weekStart;
-        if (req.query.from) {
-            weekStart = new Date(req.query.from);
-        } else if (req.query.week) {
-            weekStart = new Date(req.query.week);
-        } else {
-            weekStart = getMonday(new Date());
-        }
+        // Get week start date from query or default to current week
+        let weekStart = req.query.week ? new Date(req.query.week) : getMonday(new Date());
         const weekStartStr = weekStart.toISOString().split('T')[0];
-        
-        // Calculate week end (default 6 days after start, or use 'to' param)
-        let weekEnd;
-        if (req.query.to) {
-            weekEnd = new Date(req.query.to);
-        } else {
-            weekEnd = new Date(weekStart);
-            weekEnd.setDate(weekEnd.getDate() + 6);
-        }
-        const weekEndStr = weekEnd.toISOString().split('T')[0];
         
         // Get all employees
         const employees = await pool.request()
@@ -461,13 +444,11 @@ router.get('/', async (req, res) => {
                 
                 <div class="toolbar">
                     <div class="week-nav">
-                        <label style="font-size: 12px; color: #4a5568; font-weight: 600;">From:</label>
-                        <input type="date" id="dateFrom" value="${weekStartStr}" style="padding: 6px 10px; border: 1px solid #cbd5e0; border-radius: 4px;">
-                        <label style="font-size: 12px; color: #4a5568; font-weight: 600; margin-left: 10px;">To:</label>
-                        <input type="date" id="dateTo" value="${weekEndStr}" style="padding: 6px 10px; border: 1px solid #cbd5e0; border-radius: 4px;">
-                        <button onclick="loadDateRange()" style="padding: 6px 14px; background: #3182ce; color: white; border: none; border-radius: 4px; cursor: pointer; margin-left: 10px;"><i class="mdi mdi-reload"></i> Load</button>
-                        <button onclick="setThisWeek()" style="padding: 6px 12px; background: #718096; color: white; border: none; border-radius: 4px; cursor: pointer;">This Week</button>
-                        <span class="status-badge ${weekStatus === 'Submitted' ? 'status-submitted' : 'status-draft'}" style="margin-left: 15px;">${weekStatus}</span>
+                        <button onclick="changeWeek(-1)" title="Previous Week"><i class="mdi mdi-chevron-left"></i></button>
+                        <input type="date" id="weekPicker" value="${weekStartStr}" onchange="goToWeek(this.value)">
+                        <button onclick="changeWeek(1)" title="Next Week"><i class="mdi mdi-chevron-right"></i></button>
+                        <span class="week-info">Week of ${weekStart.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                        <span class="status-badge ${weekStatus === 'Submitted' ? 'status-submitted' : 'status-draft'}">${weekStatus}</span>
                     </div>
                     <div class="toolbar-actions">
                         <button onclick="addNewRow()" class="btn-add-row"><i class="mdi mdi-plus"></i> Add Employee</button>
@@ -870,34 +851,18 @@ router.get('/', async (req, res) => {
                         }
                     }
                     
-                    function loadDateRange() {
-                        const from = document.getElementById('dateFrom').value;
-                        const to = document.getElementById('dateTo').value;
-                        
-                        if (!from || !to) {
-                            showAlert('Please select both From and To dates', 'error');
-                            return;
-                        }
-                        
-                        if (new Date(from) > new Date(to)) {
-                            showAlert('From date must be before To date', 'error');
-                            return;
-                        }
-                        
-                        window.location.href = '?from=' + from + '&to=' + to;
+                    function changeWeek(delta) {
+                        const current = new Date(weekStart);
+                        current.setDate(current.getDate() + (delta * 7));
+                        goToWeek(current.toISOString().split('T')[0]);
                     }
                     
-                    function setThisWeek() {
-                        const today = new Date();
-                        const day = today.getDay();
-                        const diff = today.getDate() - day + (day === 0 ? -6 : 1);
-                        const monday = new Date(today.setDate(diff));
-                        const sunday = new Date(monday);
-                        sunday.setDate(sunday.getDate() + 6);
-                        
-                        document.getElementById('dateFrom').value = monday.toISOString().split('T')[0];
-                        document.getElementById('dateTo').value = sunday.toISOString().split('T')[0];
-                        loadDateRange();
+                    function goToWeek(dateStr) {
+                        const d = new Date(dateStr);
+                        const day = d.getDay();
+                        const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+                        const monday = new Date(d.setDate(diff));
+                        window.location.href = '?week=' + monday.toISOString().split('T')[0];
                     }
                     
                     function showAlert(message, type) {
@@ -1265,23 +1230,15 @@ router.get('/history', async (req, res) => {
                                 </tr>
                             </thead>
                             <tbody>
-                                ${weeks.recordset.length === 0 ? `
-                                    <tr><td colspan="5" style="text-align: center; padding: 30px; color: #718096;">No schedules saved yet</td></tr>
-                                ` : weeks.recordset.map(w => {
-                                    const weekDate = new Date(w.WeekStartDate);
-                                    const weekEnd = new Date(weekDate);
-                                    weekEnd.setDate(weekEnd.getDate() + 6);
-                                    const fromStr = weekDate.toISOString().split('T')[0];
-                                    const toStr = weekEnd.toISOString().split('T')[0];
-                                    return `
+                                ${weeks.recordset.map(w => `
                                     <tr>
-                                        <td>${weekDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
+                                        <td>${new Date(w.WeekStartDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
                                         <td>${w.EmployeeCount}</td>
                                         <td class="status-${(w.Status || 'draft').toLowerCase()}">${w.Status || 'Draft'}</td>
                                         <td>${w.SubmittedAt ? new Date(w.SubmittedAt).toLocaleString('en-GB') + ' by ' + (w.SubmittedBy || '-') : '-'}</td>
-                                        <td><a href="/personnel/schedule-attendance?from=${fromStr}&to=${toStr}" class="view-link">View</a></td>
+                                        <td><a href="?week=${w.WeekStartDate.toISOString().split('T')[0]}" class="view-link">View</a></td>
                                     </tr>
-                                `}).join('')}
+                                `).join('')}
                             </tbody>
                         </table>
                     </div>
