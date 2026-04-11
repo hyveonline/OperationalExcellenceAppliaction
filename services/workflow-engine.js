@@ -1187,12 +1187,18 @@ class WorkflowEngine {
             return;
         }
 
+        // Some tables use a different column name for status
+        const statusColumnMap = {
+            'ExtraCleaningRequests': 'OverallStatus'
+        };
+        const statusColumn = statusColumnMap[tableName] || 'Status';
+
         try {
             await pool.request()
                 .input('status', sql.NVarChar, status)
                 .input('id', sql.Int, recordId)
-                .query(`UPDATE [${tableName}] SET Status = @status WHERE Id = @id`);
-            console.log(`[WORKFLOW] Updated ${tableName} #${recordId} status to: ${status}`);
+                .query(`UPDATE [${tableName}] SET [${statusColumn}] = @status WHERE Id = @id`);
+            console.log(`[WORKFLOW] Updated ${tableName} #${recordId} ${statusColumn} to: ${status}`);
         } catch (error) {
             console.warn(`[WORKFLOW] Could not update ${tableName} status:`, error.message);
         }

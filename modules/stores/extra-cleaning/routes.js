@@ -7,6 +7,7 @@ const express = require('express');
 const router = express.Router();
 const sql = require('mssql');
 const emailService = require('../../../services/email-service');
+const workflowEngine = require('../../../services/workflow-engine');
 
 // Database configuration
 const dbConfig = {
@@ -921,41 +922,65 @@ router.post('/submit', async (req, res) => {
         // Log the approval chain that will be used
         console.log('✅ Request #' + requestId + ' created with approval chain:', approvalChain.map(a => a.role).join(' → '));
         
-        // Send email to first approver
-        if (firstApprover && firstApprover.email) {
-            console.log('📧 Sending approval email to:', firstApprover.role, '-', firstApprover.email);
+        // Check if workflow engine handles this module
+        const workflowActive = await workflowEngine.isWorkflowActive('EXTRA_CLEANING');
+        
+        if (workflowActive) {
+            // Workflow engine handles approvals, emails, and status
+            workflowEngine.start({
+                formCode: 'EXTRA_CLEANING',
+                recordId: requestId,
+                recordTable: 'ExtraCleaningRequests',
+                submitter: { userId: req.currentUser.userId, email: req.currentUser?.email || req.currentUser?.mail, name: req.currentUser?.displayName },
+                store: { storeId: null, storeName: req.body.store },
+                metaData: {
+                    category: req.body.category,
+                    store: req.body.store,
+                    areaManagerEmail: req.body.areaManagerEmail || '',
+                    areaManagerName: req.body.areaManagerName || '',
+                    headOfOpsEmail: req.body.headOfOpsEmail || '',
+                    headOfOpsName: req.body.headOfOpsName || '',
+                    hrEmail: req.body.hrEmail || '',
+                    hrName: req.body.hrName || ''
+                },
+                accessToken: req.currentUser?.accessToken || req.session?.accessToken
+            }).catch(err => console.error('[WORKFLOW] Extra cleaning error:', err));
             
-            // Determine the app URL based on environment
-            const appUrl = process.env.NODE_ENV === 'live' 
-                ? 'https://oeapp.gmrlapps.com' 
-                : 'https://oeapp-uat.gmrlapps.com';
-            
-            // Get request details for email
-            const requestDetails = {
-                Id: requestId,
-                Store: req.body.store,
-                Category: req.body.category,
-                SubmittedBy: req.session?.user?.displayName || req.session?.user?.email || 'Unknown',
-                DateRequired: req.body.start_date,
-                Description: req.body.description
-            };
-            
-            // Send email using user's access token (don't await - let it send in background)
-            emailService.sendApprovalRequestEmail({
-                approverEmail: firstApprover.email,
-                approverRole: firstApprover.role,
-                request: requestDetails,
-                appUrl: appUrl,
-                accessToken: req.currentUser?.accessToken
-            }).then(result => {
-                if (result.success) {
-                    console.log('📧 ✅ Approval email sent to', firstApprover.email);
-                } else {
-                    console.error('📧 ❌ Failed to send approval email:', result.error);
-                }
-            }).catch(err => {
-                console.error('📧 ❌ Email error:', err.message);
-            });
+            console.log('🔄 Workflow engine active for EXTRA_CLEANING - engine handles approval flow');
+        } else {
+            // Legacy: hardcoded email to first approver
+            if (firstApprover && firstApprover.email) {
+                console.log('📧 Sending approval email to:', firstApprover.role, '-', firstApprover.email);
+                
+                const appUrl = process.env.NODE_ENV === 'live' 
+                    ? 'https://oeapp.gmrlapps.com' 
+                    : 'https://oeapp-uat.gmrlapps.com';
+                
+                const requestDetails = {
+                    Id: requestId,
+                    Store: req.body.store,
+                    Category: req.body.category,
+                    SubmittedBy: req.session?.user?.displayName || req.session?.user?.email || 'Unknown',
+                    DateRequired: req.body.start_date,
+                    Description: req.body.description
+                };
+                
+                emailService.sendApprovalRequestEmail({
+                    approverEmail: firstApprover.email,
+                    approverRole: firstApprover.role,
+                    request: requestDetails,
+                    appUrl: appUrl,
+                    accessToken: req.currentUser?.accessToken
+                }).then(result => {
+                    if (result.success) {
+                        console.log('📧 ✅ Approval email sent to', firstApprover.email);
+                    } else {
+                        console.error('📧 ❌ Failed to send approval email:', result.error);
+                    }
+                }).catch(err => {
+                    console.error('📧 ❌ Email error:', err.message);
+                });
+            }
         }
         
         await pool.close();
@@ -1463,6 +1488,34 @@ router.post('/api/approve/:id', async (req, res) => {
         const approverEmail = req.currentUser?.email || req.body.approverEmail;
         const approverName = req.currentUser?.name || req.body.approverName || 'Unknown';
         
+        // Check if workflow engine handles this module
+        const workflowActive = await workflowEngine.isWorkflowActive('EXTRA_CLEANING');
+        
+        if (workflowActive) {
+            // Route through workflow engine
+            const instance = await workflowEngine.getInstanceByRecord('EXTRA_CLEANING', requestId);
+            if (instance) {
+                const result = await workflowEngine.handleApproval({
+                    instanceId: instance.Id,
+                    action: action === 'approve' ? 'Approved' : 'Rejected',
+                    actionBy: approverEmail,
+                    actionByName: approverName,
+                    comments,
+                    accessToken: req.currentUser?.accessToken || req.session?.accessToken,
+                    ipAddress: req.ip
+                });
+                await pool.close();
+                return res.json({ 
+                    success: result.success, 
+                    message: result.message,
+                    status: result.newStatus || (action === 'approve' ? 'PendingApproval' : 'Rejected')
+                });
+            }
+            // If no workflow instance found, fall through to legacy flow
+            console.log('[WORKFLOW] No instance found for ExtraCleaningRequests #' + requestId + ', using legacy flow');
+        }
+        
+        // Legacy approval flow
         // Get the current request
         const requestResult = await pool.request()
             .input('id', sql.Int, requestId)
