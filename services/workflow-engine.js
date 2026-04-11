@@ -111,10 +111,10 @@ class WorkflowEngine {
                 .input('recordTable', sql.NVarChar, recordTable)
                 .input('currentStepId', sql.Int, activeSteps[0].Id)
                 .input('currentStatus', sql.NVarChar, defaultStatus)
-                .input('submittedBy', sql.Int, submitter.userId)
+                .input('submittedBy', sql.NVarChar, submitter.userId ? String(submitter.userId) : null)
                 .input('submittedByEmail', sql.NVarChar, submitter.email)
                 .input('submittedByName', sql.NVarChar, submitter.name || null)
-                .input('storeId', sql.Int, store.storeId || null)
+                .input('storeId', sql.Int, store.storeId ? parseInt(store.storeId) || null : null)
                 .input('storeName', sql.NVarChar, store.storeName || null)
                 .input('metaData', sql.NVarChar, JSON.stringify(metaData))
                 .query(`
