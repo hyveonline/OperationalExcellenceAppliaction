@@ -944,6 +944,176 @@ router.post('/api/job-monitor/resend-theft-email/:incidentId', async (req, res) 
     }
 });
 
+// =============================================
+// WORKFLOW EMAIL TRACKING API
+// =============================================
+
+// Get all workflow instances with email tracking data
+router.get('/api/job-monitor/workflow-emails', async (req, res) => {
+    let pool;
+    try {
+        pool = await sql.connect(dbConfig);
+
+        // Get workflow instances with step email info
+        const instancesResult = await pool.request().query(`
+            SELECT TOP 200
+                wi.Id, wi.FormCode, wi.RecordId, wi.RecordTable, wi.CurrentStatus,
+                wi.SubmittedByEmail, wi.SubmittedByName, wi.StoreName, wi.CreatedAt, wi.CompletedAt,
+                wd.FormName,
+                (SELECT COUNT(*) FROM WorkflowInstanceSteps wis 
+                 WHERE wis.InstanceId = wi.Id AND wis.StepType = 'EMAIL' AND wis.EmailSentTo IS NOT NULL AND wis.EmailSentTo != '[]') as EmailsSent,
+                (SELECT COUNT(*) FROM WorkflowInstanceSteps wis 
+                 WHERE wis.InstanceId = wi.Id AND wis.StepType = 'EMAIL' AND wis.EmailError IS NOT NULL) as EmailsFailed,
+                (SELECT TOP 1 wis.EmailSentAt FROM WorkflowInstanceSteps wis 
+                 WHERE wis.InstanceId = wi.Id AND wis.EmailSentAt IS NOT NULL ORDER BY wis.EmailSentAt DESC) as LastEmailSent,
+                (SELECT TOP 1 wis.EmailError FROM WorkflowInstanceSteps wis 
+                 WHERE wis.InstanceId = wi.Id AND wis.EmailError IS NOT NULL ORDER BY wis.CreatedAt DESC) as LastError
+            FROM WorkflowInstances wi
+            JOIN WorkflowDefinitions wd ON wi.WorkflowId = wd.Id
+            ORDER BY wi.CreatedAt DESC
+        `);
+
+        // Get summary stats by form code
+        const statsResult = await pool.request().query(`
+            SELECT 
+                wi.FormCode,
+                COUNT(*) as TotalInstances,
+                SUM(CASE WHEN EXISTS (
+                    SELECT 1 FROM WorkflowInstanceSteps wis 
+                    WHERE wis.InstanceId = wi.Id AND wis.StepType = 'EMAIL' 
+                    AND wis.EmailSentTo IS NOT NULL AND wis.EmailSentTo != '[]'
+                ) THEN 1 ELSE 0 END) as WithEmailSent,
+                SUM(CASE WHEN EXISTS (
+                    SELECT 1 FROM WorkflowInstanceSteps wis 
+                    WHERE wis.InstanceId = wi.Id AND wis.EmailError IS NOT NULL
+                ) THEN 1 ELSE 0 END) as WithErrors
+            FROM WorkflowInstances wi
+            GROUP BY wi.FormCode
+        `);
+
+        // Get recent email step details
+        const emailStepsResult = await pool.request().query(`
+            SELECT TOP 100
+                wis.InstanceId, wis.StepName, wis.StepType, wis.Status, 
+                wis.EmailSentTo, wis.EmailSentAt, wis.EmailError,
+                wi.FormCode, wi.RecordId, wi.StoreName, wi.SubmittedByName
+            FROM WorkflowInstanceSteps wis
+            JOIN WorkflowInstances wi ON wis.InstanceId = wi.Id
+            WHERE wis.StepType = 'EMAIL'
+            ORDER BY wis.CreatedAt DESC
+        `);
+
+        res.json({
+            success: true,
+            instances: instancesResult.recordset,
+            stats: statsResult.recordset,
+            emailSteps: emailStepsResult.recordset
+        });
+    } catch (err) {
+        console.error('Error loading workflow emails:', err);
+        res.status(500).json({ success: false, error: err.message });
+    } finally {
+        if (pool) await pool.close();
+    }
+});
+
+// Resend workflow email for any instance
+router.post('/api/job-monitor/resend-workflow-email/:instanceId', async (req, res) => {
+    let pool;
+    try {
+        pool = await sql.connect(dbConfig);
+        const instanceId = parseInt(req.params.instanceId);
+
+        // Get instance
+        const instance = await pool.request()
+            .input('id', sql.Int, instanceId)
+            .query(`
+                SELECT wi.*, wd.FormName, wd.WorkflowType
+                FROM WorkflowInstances wi
+                JOIN WorkflowDefinitions wd ON wi.WorkflowId = wd.Id
+                WHERE wi.Id = @id
+            `);
+
+        if (instance.recordset.length === 0) {
+            return res.json({ success: false, error: 'Instance not found' });
+        }
+
+        const inst = instance.recordset[0];
+        const metaData = inst.MetaData ? JSON.parse(inst.MetaData) : {};
+
+        // Get email steps for this instance
+        const steps = await pool.request()
+            .input('instanceId', sql.Int, instanceId)
+            .query(`
+                SELECT wis.StepId, wis.StepName, wis.StepType
+                FROM WorkflowInstanceSteps wis
+                WHERE wis.InstanceId = @instanceId AND wis.StepType = 'EMAIL'
+            `);
+
+        if (steps.recordset.length === 0) {
+            return res.json({ success: false, error: 'No email steps found for this instance' });
+        }
+
+        const workflowEngine = require('../../services/workflow-engine');
+        let totalSent = 0;
+
+        for (const step of steps.recordset) {
+            // Get step definition
+            const stepDef = await pool.request()
+                .input('sid', sql.Int, step.StepId)
+                .query('SELECT * FROM WorkflowSteps WHERE Id = @sid');
+
+            if (stepDef.recordset.length === 0) continue;
+            const sd = stepDef.recordset[0];
+
+            // Resolve recipients
+            const recipients = await workflowEngine._resolveRecipients(pool, sd.Id, inst, { metaData });
+
+            // Get template
+            let subject = '', body = '';
+            if (sd.EmailTemplateKey) {
+                const tmpl = await workflowEngine._getEmailTemplate(pool, sd.EmailTemplateKey);
+                if (tmpl) {
+                    const templateData = workflowEngine._buildTemplateData(inst, { metaData });
+                    subject = workflowEngine._replaceVariables(tmpl.SubjectTemplate, templateData);
+                    body = workflowEngine._replaceVariables(tmpl.BodyTemplate, templateData);
+                }
+            }
+            if (!subject) subject = `${inst.FormCode.replace(/_/g, ' ')} - Notification`;
+
+            const toRecips = recipients.filter(r => r.emailTarget === 'TO');
+            const ccList = recipients.filter(r => r.emailTarget === 'CC').map(r => r.email).join(';');
+
+            for (const r of toRecips) {
+                const result = await workflowEngine._sendEmail({
+                    to: r.email, subject, body, cc: ccList || null,
+                    accessToken: req.currentUser?.accessToken
+                });
+                if (result && result.success) totalSent++;
+            }
+
+            // Update step record
+            await pool.request()
+                .input('instanceId', sql.Int, instanceId)
+                .input('stepId', sql.Int, sd.Id)
+                .input('sentTo', sql.NVarChar, JSON.stringify(toRecips.map(r => r.email)))
+                .query(`
+                    UPDATE WorkflowInstanceSteps 
+                    SET EmailSentTo = @sentTo, EmailSentAt = GETDATE(), EmailError = NULL
+                    WHERE InstanceId = @instanceId AND StepId = @stepId
+                `);
+        }
+
+        await pool.close();
+        res.json({ success: true, emailsSent: totalSent });
+    } catch (err) {
+        console.error('Error resending workflow email:', err);
+        res.status(500).json({ success: false, error: err.message });
+    } finally {
+        if (pool) await pool.close().catch(() => {});
+    }
+});
+
 // Dry run API - check what notifications would be sent
 router.get('/api/job-monitor/dry-run', async (req, res) => {
     let pool;
@@ -6874,6 +7044,7 @@ router.get('/job-monitor', async (req, res) => {
                         <div class="tab" data-tab="ohs-tab">📋 OHS Inspections (${ohsInspections.length})</div>
                         <div class="tab" data-tab="ohs-dept-esc-tab">🏢 OHS Dept Esc</div>
                         <div class="tab" data-tab="theft-tab">🚨 Theft Incidents (${theftIncidents.length})</div>
+                        <div class="tab" data-tab="workflow-emails-tab">📬 Workflow Emails</div>
                         <div class="tab" data-tab="fivedays-tab">📅 5 Days Reminders</div>
                         <div class="tab" data-tab="templates-tab">📧 Email Templates</div>
                     </div>
@@ -7074,6 +7245,51 @@ router.get('/job-monitor', async (req, res) => {
                                     </tbody>
                                 </table>
                             ` : '<div class="empty-state"><div class="icon">📧</div><p>No emails sent yet</p></div>'}
+                        </div>
+                    </div>
+                    
+                    <!-- Workflow Emails Tab -->
+                    <div class="tab-content" id="workflow-emails-tab">
+                        <div class="section">
+                            <div class="section-header">
+                                <h2><span class="badge" style="background:#667eea20;color:#667eea;">📬</span> Workflow Email Tracking</h2>
+                                <button class="btn btn-outline btn-sm" onclick="loadWorkflowEmails()">🔄 Refresh</button>
+                            </div>
+                            <p style="color: #666; margin-bottom: 15px; font-size: 13px;">
+                                Track all emails sent through the workflow engine across <strong>all modules</strong> (Stores, Facility Management, Security).
+                            </p>
+                            
+                            <!-- Stats cards - populated by JS -->
+                            <div id="wfStatsContainer" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 20px;">
+                                <div style="text-align:center;padding:15px;background:#f8f9fa;border-radius:8px;">
+                                    <div style="font-size:11px;color:#888;margin-bottom:5px;">Loading...</div>
+                                </div>
+                            </div>
+                            
+                            <!-- Filter -->
+                            <div style="margin-bottom: 15px; display: flex; gap: 10px; align-items: center;">
+                                <select id="wfFilterModule" onchange="filterWorkflowTable()" style="padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
+                                    <option value="">All Modules</option>
+                                </select>
+                                <select id="wfFilterStatus" onchange="filterWorkflowTable()" style="padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
+                                    <option value="">All Statuses</option>
+                                    <option value="sent">✅ Sent</option>
+                                    <option value="failed">❌ Failed</option>
+                                    <option value="nosend">⚪ No Email</option>
+                                </select>
+                                <span id="wfFilterCount" style="font-size:12px;color:#888;margin-left:auto;"></span>
+                            </div>
+                            
+                            <!-- Instances Table -->
+                            <div id="wfInstancesTable">
+                                <div class="empty-state"><div class="icon">⏳</div><p>Click the tab to load workflow data...</p></div>
+                            </div>
+                            
+                            <!-- Email Steps Log -->
+                            <h4 style="font-size: 14px; margin: 30px 0 10px; color: #333;">📧 Recent Email Steps (Last 100)</h4>
+                            <div id="wfEmailStepsTable">
+                                <div class="empty-state"><div class="icon">⏳</div><p>Loading...</p></div>
+                            </div>
                         </div>
                     </div>
                     
@@ -7558,6 +7774,171 @@ router.get('/job-monitor', async (req, res) => {
                         }
                     }
                     
+                    // ==========================================
+                    // WORKFLOW EMAIL TRACKING FUNCTIONS
+                    // ==========================================
+                    let wfData = null;
+                    
+                    async function loadWorkflowEmails() {
+                        try {
+                            const res = await fetch('/admin/api/job-monitor/workflow-emails');
+                            const data = await res.json();
+                            if (!data.success) { showToast(data.error || 'Failed to load', 'error'); return; }
+                            wfData = data;
+                            
+                            // Render stats
+                            const stats = data.stats;
+                            const totalInstances = stats.reduce((s, r) => s + r.TotalInstances, 0);
+                            const totalSent = stats.reduce((s, r) => s + r.WithEmailSent, 0);
+                            const totalFailed = stats.reduce((s, r) => s + r.WithErrors, 0);
+                            
+                            let statsHtml = \`
+                                <div style="text-align:center;padding:15px;background:#d4edda;border-radius:8px;">
+                                    <div style="font-size:24px;font-weight:bold;color:#155724;">\${totalInstances}</div>
+                                    <div style="font-size:11px;color:#155724;">Total Workflows</div>
+                                </div>
+                                <div style="text-align:center;padding:15px;background:#cce5ff;border-radius:8px;">
+                                    <div style="font-size:24px;font-weight:bold;color:#004085;">\${totalSent}</div>
+                                    <div style="font-size:11px;color:#004085;">Emails Sent</div>
+                                </div>
+                                <div style="text-align:center;padding:15px;background:\${totalFailed > 0 ? '#f8d7da' : '#e2e3e5'};border-radius:8px;">
+                                    <div style="font-size:24px;font-weight:bold;color:\${totalFailed > 0 ? '#721c24' : '#383d41'};">\${totalFailed}</div>
+                                    <div style="font-size:11px;color:\${totalFailed > 0 ? '#721c24' : '#383d41'};">Failed</div>
+                                </div>
+                                <div style="text-align:center;padding:15px;background:#fff3cd;border-radius:8px;">
+                                    <div style="font-size:24px;font-weight:bold;color:#856404;">\${stats.length}</div>
+                                    <div style="font-size:11px;color:#856404;">Active Forms</div>
+                                </div>\`;
+                            
+                            // Per-module stats
+                            stats.forEach(s => {
+                                const color = s.WithErrors > 0 ? '#dc3545' : s.WithEmailSent > 0 ? '#28a745' : '#6c757d';
+                                statsHtml += \`<div style="text-align:center;padding:12px 8px;background:#f8f9fa;border-radius:8px;border-left:3px solid \${color};">
+                                    <div style="font-size:16px;font-weight:bold;color:\${color};">\${s.TotalInstances}</div>
+                                    <div style="font-size:10px;color:#666;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="\${s.FormCode}">\${s.FormCode.replace(/_/g, ' ')}</div>
+                                </div>\`;
+                            });
+                            document.getElementById('wfStatsContainer').innerHTML = statsHtml;
+                            
+                            // Populate filter dropdown
+                            const filterSelect = document.getElementById('wfFilterModule');
+                            const existingOptions = filterSelect.querySelectorAll('option:not(:first-child)');
+                            existingOptions.forEach(o => o.remove());
+                            const modules = [...new Set(data.instances.map(i => i.FormCode))].sort();
+                            modules.forEach(m => {
+                                const opt = document.createElement('option');
+                                opt.value = m; opt.textContent = m.replace(/_/g, ' ');
+                                filterSelect.appendChild(opt);
+                            });
+                            
+                            renderWorkflowTable(data.instances);
+                            renderEmailSteps(data.emailSteps);
+                        } catch (e) {
+                            showToast('Error loading workflow data: ' + e.message, 'error');
+                        }
+                    }
+                    
+                    function renderWorkflowTable(instances) {
+                        if (!instances || instances.length === 0) {
+                            document.getElementById('wfInstancesTable').innerHTML = '<div class="empty-state"><div class="icon">📬</div><p>No workflow instances yet. Submit a form to see data here.</p></div>';
+                            document.getElementById('wfFilterCount').textContent = '';
+                            return;
+                        }
+                        document.getElementById('wfFilterCount').textContent = instances.length + ' records';
+                        let html = \`<table class="tracking-table"><thead><tr>
+                            <th>ID</th><th>Form</th><th>Record</th><th>Store</th><th>Submitted By</th><th>Status</th><th>Emails</th><th>Date</th><th>Actions</th>
+                        </tr></thead><tbody>\`;
+                        instances.forEach(i => {
+                            const sent = parseInt(i.EmailsSent || 0);
+                            const failed = parseInt(i.EmailsFailed || 0);
+                            const emailPill = sent > 0 ? '<span class="status-pill completed">✅ ' + sent + ' sent</span>'
+                                : '<span class="status-pill no-deadline">⚪ None</span>';
+                            const failPill = failed > 0 ? ' <span class="status-pill overdue">❌ ' + failed + '</span>' : '';
+                            const errTip = i.LastError ? ' title="' + i.LastError.substring(0, 80).replace(/"/g, '&quot;') + '"' : '';
+                            const date = i.CreatedAt ? new Date(i.CreatedAt).toLocaleString('en-GB', {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '-';
+                            const formLabel = (i.FormName || i.FormCode).replace(/_/g, ' ');
+                            html += \`<tr class="\${failed > 0 ? 'overdue' : ''}" data-formcode="\${i.FormCode}" data-emailstatus="\${sent > 0 ? 'sent' : (failed > 0 ? 'failed' : 'nosend')}">
+                                <td><strong>#\${i.Id}</strong></td>
+                                <td>\${formLabel}</td>
+                                <td>#\${i.RecordId}</td>
+                                <td>\${i.StoreName || '-'}</td>
+                                <td>\${i.SubmittedByName || i.SubmittedByEmail || '-'}</td>
+                                <td><span class="status-pill \${i.CurrentStatus === 'Completed' ? 'completed' : i.CurrentStatus?.includes('Pending') ? 'due-soon' : 'no-deadline'}">\${i.CurrentStatus || '-'}</span></td>
+                                <td\${errTip}>\${emailPill}\${failPill}</td>
+                                <td>\${date}</td>
+                                <td><button class="btn btn-outline btn-sm" onclick="resendWorkflowEmail(\${i.Id})">📧 Resend</button></td>
+                            </tr>\`;
+                        });
+                        html += '</tbody></table>';
+                        document.getElementById('wfInstancesTable').innerHTML = html;
+                    }
+                    
+                    function renderEmailSteps(steps) {
+                        if (!steps || steps.length === 0) {
+                            document.getElementById('wfEmailStepsTable').innerHTML = '<div class="empty-state"><div class="icon">📧</div><p>No email steps recorded yet</p></div>';
+                            return;
+                        }
+                        let html = \`<table class="tracking-table"><thead><tr>
+                            <th>Instance</th><th>Form</th><th>Store</th><th>Step</th><th>Sent To</th><th>Status</th><th>Sent At</th><th>Error</th>
+                        </tr></thead><tbody>\`;
+                        steps.forEach(s => {
+                            let sentTo = '-';
+                            try { const arr = JSON.parse(s.EmailSentTo || '[]'); sentTo = arr.join(', ') || '-'; } catch(e) { sentTo = s.EmailSentTo || '-'; }
+                            const sentAt = s.EmailSentAt ? new Date(s.EmailSentAt).toLocaleString('en-GB', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '-';
+                            const statusPill = s.EmailError 
+                                ? '<span class="status-pill overdue">❌ Error</span>' 
+                                : (s.EmailSentTo && s.EmailSentTo !== '[]' ? '<span class="status-pill completed">✅ Sent</span>' : '<span class="status-pill no-deadline">⚪ ' + s.Status + '</span>');
+                            const errMsg = s.EmailError ? '<div style="font-size:10px;color:#dc3545;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + s.EmailError.replace(/"/g, '&quot;') + '">' + s.EmailError.substring(0, 60) + '</div>' : '';
+                            html += \`<tr class="\${s.EmailError ? 'overdue' : ''}">
+                                <td><strong>#\${s.InstanceId}</strong></td>
+                                <td>\${s.FormCode.replace(/_/g, ' ')}</td>
+                                <td>\${s.StoreName || '-'}</td>
+                                <td>\${s.StepName}</td>
+                                <td style="font-size:12px;">\${sentTo}</td>
+                                <td>\${statusPill}</td>
+                                <td>\${sentAt}</td>
+                                <td>\${errMsg}</td>
+                            </tr>\`;
+                        });
+                        html += '</tbody></table>';
+                        document.getElementById('wfEmailStepsTable').innerHTML = html;
+                    }
+                    
+                    function filterWorkflowTable() {
+                        if (!wfData) return;
+                        const moduleFilter = document.getElementById('wfFilterModule').value;
+                        const statusFilter = document.getElementById('wfFilterStatus').value;
+                        let filtered = wfData.instances;
+                        if (moduleFilter) filtered = filtered.filter(i => i.FormCode === moduleFilter);
+                        if (statusFilter) {
+                            filtered = filtered.filter(i => {
+                                const sent = parseInt(i.EmailsSent || 0);
+                                const failed = parseInt(i.EmailsFailed || 0);
+                                if (statusFilter === 'sent') return sent > 0;
+                                if (statusFilter === 'failed') return failed > 0;
+                                if (statusFilter === 'nosend') return sent === 0 && failed === 0;
+                                return true;
+                            });
+                        }
+                        renderWorkflowTable(filtered);
+                    }
+                    
+                    async function resendWorkflowEmail(instanceId) {
+                        if (!confirm('Resend email for workflow instance #' + instanceId + '?')) return;
+                        try {
+                            const res = await fetch('/admin/api/job-monitor/resend-workflow-email/' + instanceId, { method: 'POST' });
+                            const data = await res.json();
+                            if (data.success) {
+                                showToast('✅ ' + data.emailsSent + ' email(s) sent!', 'success');
+                                setTimeout(() => loadWorkflowEmails(), 1500);
+                            } else {
+                                showToast(data.error || 'Failed to resend', 'error');
+                            }
+                        } catch (e) {
+                            showToast('Error: ' + e.message, 'error');
+                        }
+                    }
+                    
                     function showToast(msg, type) {
                         const t = document.createElement('div'); t.className = 'toast ' + type; t.textContent = msg;
                         document.body.appendChild(t); setTimeout(() => t.remove(), 3000);
@@ -7570,6 +7951,11 @@ router.get('/job-monitor', async (req, res) => {
                     // ==========================================
                     // DEPARTMENT ESCALATION FUNCTIONS
                     // ==========================================
+                    
+                    // Load workflow emails when tab is clicked
+                    document.querySelector('[data-tab="workflow-emails-tab"]').addEventListener('click', function() {
+                        if (!wfData) loadWorkflowEmails();
+                    });
                     
                     // Load OE department escalation data when tab is clicked
                     document.querySelector('[data-tab="oe-dept-esc-tab"]').addEventListener('click', function() {
