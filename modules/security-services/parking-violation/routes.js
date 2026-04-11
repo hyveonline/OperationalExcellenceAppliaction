@@ -10,6 +10,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const sharp = require('sharp');
+const workflowEngine = require('../../../services/workflow-engine');
 
 // Image compression settings
 const COMPRESSION_CONFIG = {
@@ -573,6 +574,17 @@ router.post('/save', uploadMultiple, async (req, res) => {
         }
         
         await pool.close();
+        
+        // Trigger workflow engine (non-blocking)
+        workflowEngine.start({
+            formCode: 'PARKING_VIOLATION',
+            recordId: violationId,
+            recordTable: 'Security_ParkingViolations',
+            submitter: { userId: user.id, email: user.email, name: user.displayName },
+            store: {},
+            metaData: { location, carPlateNumber },
+            accessToken: req.session?.accessToken
+        }).catch(err => console.error('[WORKFLOW] Parking violation error:', err));
         
         res.json({ success: true, violationId });
     } catch (err) {

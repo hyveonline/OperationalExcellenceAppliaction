@@ -9,6 +9,7 @@ const sql = require('mssql');
 const ExcelJS = require('exceljs');
 const multer = require('multer');
 const path = require('path');
+const workflowEngine = require('../../../services/workflow-engine');
 
 // Configure multer for file uploads
 const upload = multer({ 
@@ -691,7 +692,7 @@ router.post('/api/entry', async (req, res) => {
             return res.status(400).json({ error: 'Store not assigned to user' });
         }
         
-        await pool.request()
+        const result = await pool.request()
             .input('storeId', sql.Int, storeId)
             .input('createdBy', sql.Int, user.userId)
             .input('cycleNumber', sql.Int, cycleNumber || 1)
@@ -708,9 +709,23 @@ router.post('/api/entry', async (req, res) => {
             .query(`
                 INSERT INTO FiveDaysEntries 
                 (StoreId, CreatedBy, CycleNumber, DayNumber, ItemNo, ItemVariant, Barcode, Family, Description, Size, Qty, ExpiryDate, DateFound)
+                OUTPUT INSERTED.Id
                 VALUES 
                 (@storeId, @createdBy, @cycleNumber, @dayNumber, @itemNo, @itemVariant, @barcode, @family, @description, @size, @qty, @expiryDate, @dateFound)
             `);
+        
+        const entryId = result.recordset[0].Id;
+        
+        // Trigger workflow engine (non-blocking)
+        workflowEngine.start({
+            formCode: 'FIVE_DAYS',
+            recordId: entryId,
+            recordTable: 'FiveDaysEntries',
+            submitter: { userId: user.userId, email: user.email, name: user.displayName },
+            store: { storeId, storeName: null },
+            metaData: { cycleNumber, dayNumber },
+            accessToken: req.session?.accessToken
+        }).catch(err => console.error('[WORKFLOW] Five days error:', err));
         
         res.json({ success: true });
     } catch (err) {

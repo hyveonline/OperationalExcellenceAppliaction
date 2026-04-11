@@ -7,6 +7,7 @@ const express = require('express');
 const router = express.Router();
 const sql = require('mssql');
 const path = require('path');
+const workflowEngine = require('../../../services/workflow-engine');
 
 // Database config
 const dbConfig = {
@@ -429,6 +430,17 @@ router.post('/api/entry/team/:teamTypeId', async (req, res) => {
                         VALUES (@zoneId, @teamTypeId, @dateFrom, @dateTo, @createdById, @createdByName)
                     `);
                 entryId = insertResult.recordset[0].Id;
+                
+                // Trigger workflow engine for new entries (non-blocking)
+                workflowEngine.start({
+                    formCode: 'DAILY_TASKS',
+                    recordId: entryId,
+                    recordTable: 'DailyTask_Entries',
+                    submitter: { userId: user?.id, email: user?.email, name: user?.displayName },
+                    store: {},
+                    metaData: { zoneId, teamTypeId },
+                    accessToken: req.session?.accessToken
+                }).catch(err => console.error('[WORKFLOW] Daily tasks error:', err));
             }
             
             // Save details for this zone

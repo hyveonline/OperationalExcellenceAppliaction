@@ -6,6 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const sql = require('mssql');
+const workflowEngine = require('../../../services/workflow-engine');
 
 // Database config
 const dbConfig = {
@@ -683,6 +684,7 @@ router.post('/save', async (req, res) => {
                 `);
             
             let entryId;
+            let isNewEntry = false;
             
             if (existingResult.recordset.length > 0) {
                 // Update existing entry
@@ -718,6 +720,7 @@ router.post('/save', async (req, res) => {
                     `);
                 
                 entryId = insertResult.recordset[0].Id;
+                isNewEntry = true;
             }
             
             // Insert entry details
@@ -736,6 +739,19 @@ router.post('/save', async (req, res) => {
             
             await transaction.commit();
             await pool.close();
+            
+            // Trigger workflow engine for new checklists (non-blocking)
+            if (isNewEntry) {
+                workflowEngine.start({
+                    formCode: 'SECURITY_CHECKLIST',
+                    recordId: entryId,
+                    recordTable: 'Security_Checklist_Entries',
+                    submitter: { userId: user.id, email: user.email, name: user.displayName },
+                    store: {},
+                    metaData: { subCategoryId },
+                    accessToken: req.session?.accessToken
+                }).catch(err => console.error('[WORKFLOW] Security checklist error:', err));
+            }
             
             res.json({ success: true, entryId });
         } catch (err) {

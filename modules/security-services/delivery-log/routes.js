@@ -6,6 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const sql = require('mssql');
+const workflowEngine = require('../../../services/workflow-engine');
 
 // Database config
 const dbConfig = {
@@ -679,6 +680,18 @@ router.post('/save', async (req, res) => {
         }
         
         await pool.close();
+        
+        // Trigger workflow engine (non-blocking)
+        workflowEngine.start({
+            formCode: 'DELIVERY_LOG',
+            recordId: logId,
+            recordTable: 'Security_DeliveryLogs',
+            submitter: { userId: user.id, email: user.email, name: user.displayName },
+            store: {},
+            metaData: { premises },
+            accessToken: req.session?.accessToken
+        }).catch(err => console.error('[WORKFLOW] Delivery log error:', err));
+        
         res.json({ success: true, logId });
     } catch (err) {
         console.error('Error saving delivery log:', err);

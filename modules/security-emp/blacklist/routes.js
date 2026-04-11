@@ -10,6 +10,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const sharp = require('sharp');
+const workflowEngine = require('../../../services/workflow-engine');
 
 // Image compression settings
 const COMPRESSION_CONFIG = {
@@ -792,6 +793,17 @@ router.post('/api/save', async (req, res) => {
                     VALUES (@role, @storeId, @company, @employeeName, @phoneNumber, @incidentDate, @incidentDetails, @punchingMachineId, @reportedBy)
                 `);
             recordId = result.recordset[0].Id;
+            
+            // Trigger workflow engine for new records (non-blocking)
+            workflowEngine.start({
+                formCode: 'BLACKLIST',
+                recordId: recordId,
+                recordTable: 'ThirdPartyBlacklist',
+                submitter: { userId, email: req.currentUser?.email || req.currentUser?.mail, name: req.currentUser?.displayName },
+                store: { storeId: storeId ? parseInt(storeId) : null, storeName: null },
+                metaData: { employeeName, role },
+                accessToken: req.session?.accessToken
+            }).catch(err => console.error('[WORKFLOW] Blacklist error:', err));
         }
         
         await pool.close();

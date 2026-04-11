@@ -6,6 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const sql = require('mssql');
+const workflowEngine = require('../../../services/workflow-engine');
 
 // Database config
 const dbConfig = {
@@ -676,6 +677,18 @@ router.post('/save', async (req, res) => {
         }
         
         await pool.close();
+        
+        // Trigger workflow engine (non-blocking)
+        workflowEngine.start({
+            formCode: 'PATROL_SHEET',
+            recordId: sheetId,
+            recordTable: 'Security_PatrolSheets',
+            submitter: { userId: user.id, email: user.email, name: user.displayName },
+            store: {},
+            metaData: { location },
+            accessToken: req.session?.accessToken
+        }).catch(err => console.error('[WORKFLOW] Patrol sheet error:', err));
+        
         res.json({ success: true, sheetId });
     } catch (err) {
         console.error('Error saving patrol sheet:', err);

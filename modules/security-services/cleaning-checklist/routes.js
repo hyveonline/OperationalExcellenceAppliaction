@@ -6,6 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const sql = require('mssql');
+const workflowEngine = require('../../../services/workflow-engine');
 
 // Database config
 const dbConfig = {
@@ -409,6 +410,17 @@ router.get('/start', async (req, res) => {
                 `);
             
             checklistId = insertResult.recordset[0].Id;
+            
+            // Trigger workflow engine for new checklists (non-blocking)
+            workflowEngine.start({
+                formCode: 'CLEANING_CHECKLIST',
+                recordId: checklistId,
+                recordTable: 'Security_CleaningChecklists',
+                submitter: { userId: user.id, email: user.email, name: user.displayName },
+                store: {},
+                metaData: { locationId, categoryId },
+                accessToken: req.session?.accessToken
+            }).catch(err => console.error('[WORKFLOW] Cleaning checklist error:', err));
             
             // Get items for this category and create entries
             const itemsResult = await pool.request()

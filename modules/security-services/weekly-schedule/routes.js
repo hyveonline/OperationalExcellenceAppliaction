@@ -7,6 +7,7 @@ const express = require('express');
 const router = express.Router();
 const sql = require('mssql');
 const path = require('path');
+const workflowEngine = require('../../../services/workflow-engine');
 
 // Database config
 const dbConfig = {
@@ -216,6 +217,17 @@ router.post('/api/entry/:shiftId/:year/:month', async (req, res) => {
                     VALUES (@shiftId, @year, @month, @createdById, @createdByName)
                 `);
             entryId = insertResult.recordset[0].Id;
+            
+            // Trigger workflow engine for new entries (non-blocking)
+            workflowEngine.start({
+                formCode: 'WEEKLY_SCHEDULE',
+                recordId: entryId,
+                recordTable: 'WeeklySchedule_Entries',
+                submitter: { userId: user?.id, email: user?.email, name: user?.displayName },
+                store: {},
+                metaData: { shiftId, year, month },
+                accessToken: req.session?.accessToken
+            }).catch(err => console.error('[WORKFLOW] Weekly schedule error:', err));
         } else {
             entryId = entryResult.recordset[0].Id;
             // Update timestamp

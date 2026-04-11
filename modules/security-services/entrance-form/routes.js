@@ -6,6 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const sql = require('mssql');
+const workflowEngine = require('../../../services/workflow-engine');
 
 // Database config
 const dbConfig = {
@@ -677,6 +678,18 @@ router.post('/save', async (req, res) => {
         }
         
         await pool.close();
+        
+        // Trigger workflow engine (non-blocking)
+        workflowEngine.start({
+            formCode: 'ENTRANCE_FORM',
+            recordId: formId,
+            recordTable: 'Security_EntranceForms',
+            submitter: { userId: user.id, email: user.email, name: user.displayName },
+            store: {},
+            metaData: { location },
+            accessToken: req.session?.accessToken
+        }).catch(err => console.error('[WORKFLOW] Entrance form error:', err));
+        
         res.json({ success: true, formId });
     } catch (err) {
         console.error('Error saving entrance form:', err);

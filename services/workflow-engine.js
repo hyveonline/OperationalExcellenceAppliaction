@@ -1175,7 +1175,11 @@ class WorkflowEngine {
             'OHSIncidents', 'Complaints', 'PostEvacuationDrills', 'WeeklyThirdPartyFeedback',
             'FireEquipmentInspections', 'ORAAssessments', 'CameraRequests',
             'SecurityPostVisitReports', 'LegalCases', 'InternalInvestigations',
-            'LostAndFoundItems', 'SecurityDailyReporting'
+            'LostAndFoundItems', 'SecurityDailyReporting',
+            'ThirdPartyBlacklist', 'Security_AttendanceReports', 'Security_CleaningChecklists',
+            'DailyTask_Entries', 'Security_DeliveryLogs', 'Security_EntranceForms',
+            'Security_ParkingViolations', 'Security_PatrolSheets', 'Security_Checklist_Entries',
+            'Security_VisitorCars', 'WeeklySchedule_Entries', 'FiveDaysEntries'
         ];
 
         if (!allowedTables.includes(tableName)) {
