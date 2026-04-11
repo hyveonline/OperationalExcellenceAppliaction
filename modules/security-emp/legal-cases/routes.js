@@ -6,6 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const sql = require('mssql');
+const workflowEngine = require('../../../services/workflow-engine');
 
 // Database configuration
 const dbConfig = {
@@ -915,6 +916,17 @@ router.post('/api/save', async (req, res) => {
                     VALUES (@caseType, @description, @dateOfIssue, @amountStolen, @amountReturned, @verdict, @status, @createdBy)
                 `);
             caseId = result.recordset[0].Id;
+            
+            // Trigger workflow engine for new cases (non-blocking)
+            workflowEngine.start({
+                formCode: 'LEGAL_CASES',
+                recordId: caseId,
+                recordTable: 'LegalCases',
+                submitter: { userId, email: req.currentUser?.email || req.currentUser?.mail, name: req.currentUser?.displayName },
+                store: { storeId: storeIdList[0] ? parseInt(storeIdList[0]) : null, storeName: null },
+                metaData: { caseType },
+                accessToken: req.session?.accessToken
+            }).catch(err => console.error('[WORKFLOW] Legal cases error:', err));
         }
         
         // Update stores

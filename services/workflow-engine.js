@@ -1172,10 +1172,10 @@ class WorkflowEngine {
         // Safety: only allow known table names to prevent SQL injection
         const allowedTables = [
             'TheftIncidents', 'ExtraCleaningRequests', 'ProductionExtrasRequests',
-            'OHSIncidents', 'Complaints', 'EvacuationDrills', 'WeeklyFeedback',
+            'OHSIncidents', 'Complaints', 'PostEvacuationDrills', 'WeeklyThirdPartyFeedback',
             'FireEquipmentInspections', 'ORAAssessments', 'CameraRequests',
-            'PostVisitReports', 'LegalCases', 'InternalInvestigations',
-            'LostAndFound', 'SecurityDailyReports'
+            'SecurityPostVisitReports', 'LegalCases', 'InternalInvestigations',
+            'LostAndFoundItems', 'SecurityDailyReporting'
         ];
 
         if (!allowedTables.includes(tableName)) {

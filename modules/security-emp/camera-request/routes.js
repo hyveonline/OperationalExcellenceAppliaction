@@ -6,6 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const sql = require('mssql');
+const workflowEngine = require('../../../services/workflow-engine');
 
 // Database configuration
 const dbConfig = {
@@ -777,7 +778,7 @@ router.post('/api/requests', async (req, res) => {
         const user = req.currentUser;
         const pool = await getPool();
         
-        await pool.request()
+        const result = await pool.request()
             .input('storeName', sql.NVarChar, storeName)
             .input('requestType', sql.NVarChar, requestType)
             .input('numberOfCameras', sql.Int, numberOfCameras || null)
@@ -793,10 +794,24 @@ router.post('/api/requests', async (req, res) => {
                 INSERT INTO CameraRequests 
                 (StoreName, RequestType, NumberOfCameras, RequestReason, RequestAreaCoverage,
                  NVRNumbers, CameraNumbers, ReportAreaCoverage, Notes, CreatedBy, CreatedByEmail)
+                OUTPUT INSERTED.Id
                 VALUES 
                 (@storeName, @requestType, @numberOfCameras, @requestReason, @requestAreaCoverage,
                  @nvrNumbers, @cameraNumbers, @reportAreaCoverage, @notes, @createdBy, @createdByEmail)
             `);
+        
+        const requestId = result.recordset[0].Id;
+        
+        // Trigger workflow engine (non-blocking)
+        workflowEngine.start({
+            formCode: 'CAMERA_REQUEST',
+            recordId: requestId,
+            recordTable: 'CameraRequests',
+            submitter: { userId: user?.userId, email: user?.mail || user?.email, name: user?.displayName },
+            store: { storeId: null, storeName },
+            metaData: { requestType, numberOfCameras },
+            accessToken: req.session?.accessToken
+        }).catch(err => console.error('[WORKFLOW] Camera request error:', err));
         
         res.json({ success: true });
     } catch (error) {

@@ -6,6 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const sql = require('mssql');
+const workflowEngine = require('../../../services/workflow-engine');
 
 // Database configuration
 const dbConfig = {
@@ -736,6 +737,17 @@ router.post('/submit', async (req, res) => {
                     `);
             }
         }
+        
+        // Trigger workflow engine (non-blocking)
+        workflowEngine.start({
+            formCode: 'EVACUATION_DRILL',
+            recordId: drillId,
+            recordTable: 'PostEvacuationDrills',
+            submitter: { userId: null, email: user?.email, name: user?.displayName || 'System' },
+            store: { storeId: data.storeId, storeName: data.storeName },
+            metaData: { drillNumber },
+            accessToken: req.session?.accessToken
+        }).catch(err => console.error('[WORKFLOW] Evacuation drill error:', err));
         
         await pool.close();
         

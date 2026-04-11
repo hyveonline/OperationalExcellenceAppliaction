@@ -10,6 +10,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const sharp = require('sharp');
+const workflowEngine = require('../../../services/workflow-engine');
 
 // Image compression settings
 const COMPRESSION_CONFIG = {
@@ -440,7 +441,7 @@ router.post('/submit', upload.single('attachment'), async (req, res) => {
         // TransferTo defaults to the category name (department handles based on category)
         const transferName = categoryName;
         
-        await pool.request()
+        const result = await pool.request()
             .input('storeId', sql.Int, storeId)
             .input('createdBy', sql.Int, userId)
             .input('categoryId', sql.Int, categoryId)
@@ -458,9 +459,23 @@ router.post('/submit', upload.single('attachment'), async (req, res) => {
             .query(`
                 INSERT INTO Complaints (StoreId, CreatedBy, CategoryId, ComplaintTypeId, CaseId, Category, ComplaintType, CaseNumber, Description, 
                     AttachmentUrl, AttachmentName, TransferTo, Status, CreatedAt)
+                OUTPUT INSERTED.Id
                 VALUES (@storeId, @createdBy, @categoryId, @complaintTypeId, @caseId, @category, @complaintType, @caseNumber, @description,
                     @attachmentUrl, @attachmentName, @transferTo, @status, @createdAt)
             `);
+        
+        const complaintId = result.recordset[0].Id;
+        
+        // Trigger workflow engine (non-blocking)
+        workflowEngine.start({
+            formCode: 'COMPLAINT',
+            recordId: complaintId,
+            recordTable: 'Complaints',
+            submitter: { userId, email: req.currentUser?.email || req.currentUser?.mail, name: req.currentUser?.displayName },
+            store: { storeId, storeName: null },
+            metaData: { category: categoryName, complaintType: typeName },
+            accessToken: req.session?.accessToken
+        }).catch(err => console.error('[WORKFLOW] Complaint error:', err));
         
         await pool.close();
         

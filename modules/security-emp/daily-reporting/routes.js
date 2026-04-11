@@ -6,6 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const sql = require('mssql');
+const workflowEngine = require('../../../services/workflow-engine');
 
 // Database configuration
 const dbConfig = {
@@ -566,6 +567,17 @@ router.post('/api/save', async (req, res) => {
                     VALUES (@reportDate, @company, @storeId, @guardName, @dailyNotes, @submittedBy)
                 `);
             recordId = result.recordset[0].Id;
+            
+            // Trigger workflow engine for new reports (non-blocking)
+            workflowEngine.start({
+                formCode: 'DAILY_REPORTING',
+                recordId: recordId,
+                recordTable: 'SecurityDailyReporting',
+                submitter: { userId, email: req.currentUser?.email || req.currentUser?.mail, name: req.currentUser?.displayName },
+                store: { storeId: storeId ? parseInt(storeId) : null, storeName: null },
+                metaData: { guardName },
+                accessToken: req.session?.accessToken
+            }).catch(err => console.error('[WORKFLOW] Daily reporting error:', err));
         }
         
         await pool.close();

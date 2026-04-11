@@ -10,6 +10,7 @@ const path = require('path');
 const fs = require('fs');
 const sharp = require('sharp');
 const emailService = require('../../../services/email-service');
+const workflowEngine = require('../../../services/workflow-engine');
 
 // Theft Incident notification email recipient (can be updated later)
 const THEFT_INCIDENT_NOTIFICATION_EMAIL = 'shammas.sh@gmrl.com'; // TODO: Update with actual recipient
@@ -742,6 +743,17 @@ router.post('/submit', upload.array('photos', 5), async (req, res) => {
                     `);
             }
         }
+        
+        // Trigger workflow engine (non-blocking)
+        workflowEngine.start({
+            formCode: 'THEFT_INCIDENT',
+            recordId: incidentId,
+            recordTable: 'TheftIncidents',
+            submitter: { userId: req.currentUser.userId, email: req.currentUser.email || req.currentUser.mail, name: req.currentUser.displayName },
+            store: { storeId: null, storeName: req.body.store },
+            metaData: { stolenValue: req.body.stolenValue, thiefCaught: req.body.thiefCaught },
+            accessToken: req.session?.accessToken
+        }).catch(err => console.error('[WORKFLOW] Theft incident error:', err));
         
         // Send automatic email notification
         try {

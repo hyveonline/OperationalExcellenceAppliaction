@@ -10,6 +10,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const sharp = require('sharp');
+const workflowEngine = require('../../../services/workflow-engine');
 
 // Image compression settings
 const COMPRESSION_CONFIG = {
@@ -890,7 +891,7 @@ router.post('/submit', upload.array('attachments', 10), async (req, res) => {
         }
         
         // Insert into database
-        await pool.request()
+        const result = await pool.request()
             .input('incidentNumber', sql.NVarChar, incidentNumber)
             .input('storeId', sql.Int, req.body.storeId || null)
             .input('storeName', sql.NVarChar, req.body.storeName || '')
@@ -927,7 +928,9 @@ router.post('/submit', upload.array('attachments', 10), async (req, res) => {
                     WitnessNames, ImmediateActions, MedicalTreatmentRequired, MedicalTreatmentDetails,
                     HospitalVisit, ReportedByUserId, ReportedByName, ReportedByRole, ReportedByEmail,
                     Attachments, Status
-                ) VALUES (
+                )
+                OUTPUT INSERTED.Id
+                VALUES (
                     @incidentNumber, @storeId, @storeName, @eventTypeId, @categoryId, @subCategoryId,
                     @incidentDate, @incidentTime, @exactLocation, @incidentDescription,
                     @injuryOccurred, @injuryTypeId, @bodyPartId, @injuryDescription,
@@ -937,6 +940,19 @@ router.post('/submit', upload.array('attachments', 10), async (req, res) => {
                     @attachments, 'Submitted'
                 )
             `);
+        
+        const incidentId = result.recordset[0].Id;
+        
+        // Trigger workflow engine (non-blocking)
+        workflowEngine.start({
+            formCode: 'OHS_INCIDENT',
+            recordId: incidentId,
+            recordTable: 'OHSIncidents',
+            submitter: { userId: null, email: user?.email, name: user?.displayName },
+            store: { storeId: req.body.storeId, storeName: req.body.storeName },
+            metaData: { incidentNumber },
+            accessToken: req.session?.accessToken
+        }).catch(err => console.error('[WORKFLOW] OHS incident error:', err));
         
         await pool.close();
         

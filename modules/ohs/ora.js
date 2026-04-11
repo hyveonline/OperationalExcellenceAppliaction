@@ -6,6 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const sql = require('mssql');
+const workflowEngine = require('../../services/workflow-engine');
 
 // Database configuration
 const dbConfig = {
@@ -1540,6 +1541,17 @@ router.post('/api/assessment/:id/submit', async (req, res) => {
                 SET Status = 'Submitted', SubmittedAt = GETDATE(), SubmittedBy = @submittedBy, UpdatedAt = GETDATE()
                 WHERE Id = @id
             `);
+        
+        // Trigger workflow engine (non-blocking)
+        workflowEngine.start({
+            formCode: 'ORA_ASSESSMENT',
+            recordId: parseInt(req.params.id),
+            recordTable: 'ORAAssessments',
+            submitter: { userId: user?.userId, email: user?.email || user?.mail, name: user?.displayName },
+            store: {},
+            metaData: {},
+            accessToken: req.session?.accessToken
+        }).catch(err => console.error('[WORKFLOW] ORA assessment error:', err));
         
         res.json({ success: true });
     } catch (err) {

@@ -10,6 +10,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { markFeedbackNotificationsRead } = require('../../../services/notification-scheduler');
+const workflowEngine = require('../../../services/workflow-engine');
 
 // Configure multer for image uploads
 const uploadDir = path.join(__dirname, '../../../uploads/weekly-feedback');
@@ -769,6 +770,17 @@ router.post('/submit', upload.single('feedbackImage'), async (req, res) => {
                             @imagePath, @createdBy)`);
         
         const feedbackId = result.recordset[0].Id;
+        
+        // Trigger workflow engine (non-blocking)
+        workflowEngine.start({
+            formCode: 'WEEKLY_FEEDBACK',
+            recordId: feedbackId,
+            recordTable: 'WeeklyThirdPartyFeedback',
+            submitter: { userId: currentUser.id, email: currentUser.email, name: currentUser.displayName },
+            store: { storeId: data.storeId, storeName: data.storeName },
+            metaData: {},
+            accessToken: req.session?.accessToken
+        }).catch(err => console.error('[WORKFLOW] Weekly feedback error:', err));
         
         await pool.close();
         

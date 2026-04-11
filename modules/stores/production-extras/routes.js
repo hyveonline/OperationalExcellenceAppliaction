@@ -6,6 +6,7 @@ const express = require('express');
 const router = express.Router();
 const sql = require('mssql');
 const config = require('../../../config/default');
+const workflowEngine = require('../../../services/workflow-engine');
 
 // Database configuration
 const dbConfig = {
@@ -780,7 +781,7 @@ router.post('/api/submit', async (req, res) => {
         const pool = await poolPromise;
         if (!pool) return res.status(500).json({ success: false, error: 'Database not connected' });
         
-        await pool.request()
+        const result = await pool.request()
             .input('outletId', sql.Int, outletId)
             .input('schemeId', sql.Int, schemeId)
             .input('locationId', sql.Int, locationId)
@@ -800,10 +801,24 @@ router.post('/api/submit', async (req, res) => {
                     (OutletId, SchemeId, LocationId, CategoryId, ThirdPartyId, ShiftId,
                      NumberOfAgents, Description, StartDateTime, EndDateTime,
                      UnitCost, TotalCost, Approver1Email, Approver2Email, CreatedBy, Status)
+                    OUTPUT INSERTED.Id
                     VALUES 
                     (@outletId, @schemeId, @locationId, @categoryId, @thirdPartyId, @shiftId,
                      @numberOfAgents, @description, @startDateTime, @endDateTime,
                      @unitCost, @totalCost, @approver1Email, @approver2Email, @createdBy, 'Pending')`);
+        
+        const requestId = result.recordset[0].Id;
+        
+        // Trigger workflow engine (non-blocking)
+        workflowEngine.start({
+            formCode: 'PRODUCTION_EXTRAS',
+            recordId: requestId,
+            recordTable: 'ProductionExtrasRequests',
+            submitter: { userId: req.currentUser?.userId, email: req.currentUser?.email || req.currentUser?.mail, name: req.currentUser?.displayName || req.currentUser?.name },
+            store: { storeId: outletId, storeName: null },
+            metaData: { totalCost, numberOfAgents },
+            accessToken: req.session?.accessToken
+        }).catch(err => console.error('[WORKFLOW] Production extras error:', err));
         
         res.json({ success: true, message: 'Request submitted successfully' });
     } catch (err) {

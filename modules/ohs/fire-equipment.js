@@ -6,6 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const sql = require('mssql');
+const workflowEngine = require('../../services/workflow-engine');
 
 // Database configuration
 const dbConfig = {
@@ -1181,6 +1182,17 @@ router.post('/api/inspection/:id/submit', async (req, res) => {
                 SET Status = 'Submitted', SubmittedAt = GETDATE()
                 WHERE Id = @id
             `);
+        
+        // Trigger workflow engine (non-blocking)
+        workflowEngine.start({
+            formCode: 'FIRE_EQUIPMENT',
+            recordId: parseInt(inspectionId),
+            recordTable: 'FireEquipmentInspections',
+            submitter: { userId: req.currentUser?.userId, email: req.currentUser?.email || req.currentUser?.mail, name: req.currentUser?.displayName },
+            store: {},
+            metaData: {},
+            accessToken: req.session?.accessToken
+        }).catch(err => console.error('[WORKFLOW] Fire equipment error:', err));
         
         res.json({ success: true });
     } catch (err) {

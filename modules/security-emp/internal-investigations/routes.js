@@ -6,6 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const sql = require('mssql');
+const workflowEngine = require('../../../services/workflow-engine');
 
 // Database configuration
 const dbConfig = {
@@ -668,6 +669,17 @@ router.post('/api/save', async (req, res) => {
                     VALUES (@securityTeamReps, @hrReps, @storeId, @caseTopic, @employeeNames, @currency, @amountStolen, @amountCollected, @actionTaken, @status, @createdBy)
                 `);
             investigationId = result.recordset[0].Id;
+            
+            // Trigger workflow engine for new investigations (non-blocking)
+            workflowEngine.start({
+                formCode: 'INTERNAL_INVESTIGATIONS',
+                recordId: investigationId,
+                recordTable: 'InternalInvestigations',
+                submitter: { userId, email: req.currentUser?.email || req.currentUser?.mail, name: req.currentUser?.displayName },
+                store: { storeId: storeId ? parseInt(storeId) : null, storeName: null },
+                metaData: { caseTopic },
+                accessToken: req.session?.accessToken
+            }).catch(err => console.error('[WORKFLOW] Internal investigation error:', err));
         }
         
         await pool.close();

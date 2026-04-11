@@ -9,6 +9,7 @@ const sql = require('mssql');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const workflowEngine = require('../../../services/workflow-engine');
 
 // Configure multer for file uploads
 const uploadDir = path.join(__dirname, '../../../uploads/post-visit-report');
@@ -948,6 +949,18 @@ router.post('/submit', uploadFields, async (req, res) => {
                             @createdBy, @createdByName, @createdByEmail)`);
         
         const reportId = result.recordset[0].Id;
+        
+        // Trigger workflow engine (non-blocking)
+        workflowEngine.start({
+            formCode: 'POST_VISIT_REPORT',
+            recordId: reportId,
+            recordTable: 'SecurityPostVisitReports',
+            submitter: { userId: currentUser.id, email: currentUser.email, name: currentUser.displayName },
+            store: { storeId: data.storeId, storeName: data.storeName },
+            metaData: { overallRating: data.overallRating },
+            accessToken: req.session?.accessToken
+        }).catch(err => console.error('[WORKFLOW] Post visit report error:', err));
+        
         await pool.close();
         
         res.json({ success: true, id: reportId, message: 'Report submitted successfully' });

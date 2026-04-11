@@ -10,6 +10,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const sharp = require('sharp');
+const workflowEngine = require('../../../services/workflow-engine');
 
 // Image compression settings
 const COMPRESSION_CONFIG = {
@@ -718,7 +719,7 @@ router.post('/api/save', upload.single('itemPicture'), async (req, res) => {
         
         const pool = await getPool();
         
-        await pool.request()
+        const result = await pool.request()
             .input('itemDate', sql.Date, itemDate)
             .input('storeId', sql.Int, parseInt(storeId))
             .input('itemName', sql.NVarChar, itemName)
@@ -736,10 +737,24 @@ router.post('/api/save', upload.single('itemPicture'), async (req, res) => {
                 INSERT INTO LostAndFoundItems 
                 (ItemDate, StoreId, ItemName, ItemType, Currency, Amount, Quantity, Description, 
                  ItemPicture, ReturnedToOwner, ReturnDescription, CreatedBy, UserId, CreatedAt)
+                OUTPUT INSERTED.Id
                 VALUES 
                 (@itemDate, @storeId, @itemName, @itemType, @currency, @amount, @quantity, @description,
                  @itemPicture, @returnedToOwner, @returnDescription, @createdBy, @userId, GETDATE())
             `);
+        
+        const itemId = result.recordset[0].Id;
+        
+        // Trigger workflow engine (non-blocking)
+        workflowEngine.start({
+            formCode: 'LOST_AND_FOUND',
+            recordId: itemId,
+            recordTable: 'LostAndFoundItems',
+            submitter: { userId: user?.userId, email: user?.email, name: user?.displayName },
+            store: { storeId: parseInt(storeId), storeName: null },
+            metaData: { itemType, itemName },
+            accessToken: req.session?.accessToken
+        }).catch(err => console.error('[WORKFLOW] Lost and found error:', err));
         
         res.json({ success: true });
     } catch (err) {
