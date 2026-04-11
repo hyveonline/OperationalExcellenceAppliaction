@@ -757,6 +757,12 @@ router.post('/submit', upload.array('photos', 5), async (req, res) => {
         
         // Send automatic email notification
         try {
+            // Get recipients from workflow engine configuration
+            const recipients = await workflowEngine.getConfiguredRecipients('THEFT_INCIDENT');
+            const toEmails = recipients.to.length > 0 ? recipients.to : [THEFT_INCIDENT_NOTIFICATION_EMAIL];
+            const ccEmails = recipients.cc;
+            const allRecipientStr = toEmails.join(', ') + (ccEmails.length > 0 ? ' (CC: ' + ccEmails.join(', ') + ')' : '');
+
             // Get the email template
             const templateResult = await pool.request()
                 .input('templateKey', sql.NVarChar, 'THEFT_INCIDENT_REPORT')
@@ -816,34 +822,38 @@ router.post('/submit', upload.array('photos', 5), async (req, res) => {
                     body = body.replace(regex, value);
                 }
                 
-                // Send email
-                const emailResult = await emailService.sendEmail({
-                    to: THEFT_INCIDENT_NOTIFICATION_EMAIL,
-                    subject: subject,
-                    body: body,
-                    accessToken: req.currentUser?.accessToken
-                });
-                
-                // Log the email with actual result
-                const emailStatus = emailResult.success ? 'Sent' : 'Failed';
-                const emailError = emailResult.success ? null : (emailResult.error || 'Unknown error');
-                
-                await pool.request()
-                    .input('incidentId', sql.Int, incidentId)
-                    .input('toEmail', sql.NVarChar, THEFT_INCIDENT_NOTIFICATION_EMAIL)
-                    .input('subject', sql.NVarChar, subject)
-                    .input('status', sql.NVarChar, emailStatus)
-                    .input('errorMessage', sql.NVarChar, emailError)
-                    .input('sentBy', sql.Int, req.currentUser.userId)
-                    .query(`
-                        INSERT INTO TheftIncidentEmailLog (IncidentId, ToEmail, Subject, Status, ErrorMessage, SentBy, SentAt)
-                        VALUES (@incidentId, @toEmail, @subject, @status, @errorMessage, @sentBy, GETDATE())
-                    `);
-                
-                if (emailResult.success) {
-                    console.log(`Theft incident email sent for incident #${incidentId} to ${THEFT_INCIDENT_NOTIFICATION_EMAIL}`);
-                } else {
-                    console.error(`Theft incident email FAILED for incident #${incidentId}: ${emailError}`);
+                // Send email to each TO recipient
+                const ccList = ccEmails.join(';') || null;
+                for (const toEmail of toEmails) {
+                    const emailResult = await emailService.sendEmail({
+                        to: toEmail,
+                        subject: subject,
+                        body: body,
+                        cc: ccList,
+                        accessToken: req.currentUser?.accessToken
+                    });
+                    
+                    // Log each email with actual result
+                    const emailStatus = emailResult.success ? 'Sent' : 'Failed';
+                    const emailError = emailResult.success ? null : (emailResult.error || 'Unknown error');
+                    
+                    await pool.request()
+                        .input('incidentId', sql.Int, incidentId)
+                        .input('toEmail', sql.NVarChar, toEmail)
+                        .input('subject', sql.NVarChar, subject)
+                        .input('status', sql.NVarChar, emailStatus)
+                        .input('errorMessage', sql.NVarChar, emailError)
+                        .input('sentBy', sql.Int, req.currentUser.userId)
+                        .query(`
+                            INSERT INTO TheftIncidentEmailLog (IncidentId, ToEmail, Subject, Status, ErrorMessage, SentBy, SentAt)
+                            VALUES (@incidentId, @toEmail, @subject, @status, @errorMessage, @sentBy, GETDATE())
+                        `);
+                    
+                    if (emailResult.success) {
+                        console.log(`Theft incident email sent for incident #${incidentId} to ${toEmail}`);
+                    } else {
+                        console.error(`Theft incident email FAILED for incident #${incidentId} to ${toEmail}: ${emailError}`);
+                    }
                 }
             }
         } catch (emailErr) {

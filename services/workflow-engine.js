@@ -521,6 +521,68 @@ class WorkflowEngine {
     }
 
     // =============================================
+    // QUERY: Get configured recipients for a formCode
+    // Returns { to: [emails], cc: [emails] }
+    // =============================================
+
+    async getConfiguredRecipients(formCode) {
+        let pool;
+        try {
+            pool = await sql.connect(dbConfig);
+            const result = await pool.request()
+                .input('formCode', sql.NVarChar, formCode)
+                .query(`
+                    SELECT r.UserEmail, r.RoleName, r.RecipientType, r.EmailTarget
+                    FROM WorkflowStepRecipients r
+                    JOIN WorkflowSteps s ON r.StepId = s.Id
+                    JOIN WorkflowDefinitions wd ON s.WorkflowId = wd.Id
+                    WHERE wd.FormCode = @formCode AND r.IsActive = 1 AND s.IsActive = 1
+                    ORDER BY s.StepOrder, r.EmailTarget
+                `);
+
+            const to = [];
+            const cc = [];
+
+            for (const rec of result.recordset) {
+                let email = null;
+
+                if (rec.RecipientType === 'USER' && rec.UserEmail) {
+                    email = rec.UserEmail;
+                } else if (rec.RecipientType === 'ROLE' && rec.RoleName) {
+                    // Look up users with this role
+                    const roleUsers = await pool.request()
+                        .input('roleName', sql.NVarChar, rec.RoleName)
+                        .query(`
+                            SELECT u.Email FROM Users u
+                            JOIN UserRoleAssignments ura ON u.Id = ura.UserId
+                            JOIN UserRoles ur ON ura.RoleId = ur.Id
+                            WHERE ur.RoleName = @roleName AND u.IsActive = 1
+                        `);
+                    for (const ru of roleUsers.recordset) {
+                        if (ru.Email) {
+                            if (rec.EmailTarget === 'CC') cc.push(ru.Email);
+                            else to.push(ru.Email);
+                        }
+                    }
+                    continue;
+                }
+
+                if (email) {
+                    if (rec.EmailTarget === 'CC') cc.push(email);
+                    else to.push(email);
+                }
+            }
+
+            await pool.close();
+            return { to: [...new Set(to)], cc: [...new Set(cc)] };
+        } catch (error) {
+            if (pool) await pool.close().catch(() => {});
+            console.error('[WORKFLOW] Error getting configured recipients:', error);
+            return { to: [], cc: [] };
+        }
+    }
+
+    // =============================================
     // PRIVATE: Execute a workflow step
     // =============================================
 
