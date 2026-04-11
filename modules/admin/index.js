@@ -978,16 +978,17 @@ router.get('/api/job-monitor/workflow-emails', async (req, res) => {
             SELECT 
                 wi.FormCode,
                 COUNT(*) as TotalInstances,
-                SUM(CASE WHEN EXISTS (
-                    SELECT 1 FROM WorkflowInstanceSteps wis 
-                    WHERE wis.InstanceId = wi.Id AND wis.StepType = 'EMAIL' 
-                    AND wis.EmailSentTo IS NOT NULL AND wis.EmailSentTo != '[]'
-                ) THEN 1 ELSE 0 END) as WithEmailSent,
-                SUM(CASE WHEN EXISTS (
-                    SELECT 1 FROM WorkflowInstanceSteps wis 
-                    WHERE wis.InstanceId = wi.Id AND wis.EmailError IS NOT NULL
-                ) THEN 1 ELSE 0 END) as WithErrors
+                COUNT(DISTINCT sent.InstanceId) as WithEmailSent,
+                COUNT(DISTINCT err.InstanceId) as WithErrors
             FROM WorkflowInstances wi
+            LEFT JOIN (
+                SELECT DISTINCT InstanceId FROM WorkflowInstanceSteps 
+                WHERE StepType = 'EMAIL' AND EmailSentTo IS NOT NULL AND EmailSentTo != '[]'
+            ) sent ON sent.InstanceId = wi.Id
+            LEFT JOIN (
+                SELECT DISTINCT InstanceId FROM WorkflowInstanceSteps 
+                WHERE EmailError IS NOT NULL
+            ) err ON err.InstanceId = wi.Id
             GROUP BY wi.FormCode
         `);
 
