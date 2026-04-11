@@ -317,7 +317,7 @@ router.get('/', async (req, res) => {
                         document.getElementById('reportModal').classList.add('show');
                         document.getElementById('modalContent').innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading...</p></div>';
                         
-                        fetch('/stores/theft-incident/reports/' + id)
+                        fetch('/stores/theft-incident/reports/' + id + '/json')
                             .then(res => res.json())
                             .then(data => {
                                 document.getElementById('modalContent').innerHTML = formatReportDetail(data);
