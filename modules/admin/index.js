@@ -5832,6 +5832,8 @@ router.get('/email-templates', async (req, res) => {
         const oeTemplates = templates.filter(t => t.Module === 'OE');
         const ohsTemplates = templates.filter(t => t.Module === 'OHS');
         const storesTemplates = templates.filter(t => t.Module === 'Stores');
+        const facilityTemplates = templates.filter(t => t.Module === 'Facility Management');
+        const securityTemplates = templates.filter(t => t.Module === 'Security');
         
         // Helper to get description based on report type
         const getDescription = (reportType) => {
@@ -5904,6 +5906,8 @@ router.get('/email-templates', async (req, res) => {
                     .module-badge.oe { background: linear-gradient(135deg, #e8f5e9, #c8e6c9); color: #2e7d32; }
                     .module-badge.ohs { background: linear-gradient(135deg, #ffebee, #ffcdd2); color: #c62828; }
                     .module-badge.stores { background: linear-gradient(135deg, #fff3e0, #ffe0b2); color: #e65100; }
+                    .module-badge.facility { background: linear-gradient(135deg, #e0f7fa, #b2ebf2); color: #00838f; }
+                    .module-badge.security { background: linear-gradient(135deg, #ede7f6, #d1c4e9); color: #4527a0; }
                     .template-count { font-size: 13px; color: #888; margin-left: auto; }
                     
                     .templates-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
@@ -5993,6 +5997,30 @@ router.get('/email-templates', async (req, res) => {
                         </div>
                         <div class="templates-grid">
                             ${storesTemplates.map(renderCard).join('')}
+                        </div>
+                    </div>
+                    
+                    <!-- Facility Management Templates Section -->
+                    <div class="module-section">
+                        <div class="module-header">
+                            <span class="module-badge facility">Facility</span>
+                            <h2>Facility Management Templates</h2>
+                            <span class="template-count">${facilityTemplates.length} templates</span>
+                        </div>
+                        <div class="templates-grid">
+                            ${facilityTemplates.map(renderCard).join('')}
+                        </div>
+                    </div>
+                    
+                    <!-- Security Templates Section -->
+                    <div class="module-section">
+                        <div class="module-header">
+                            <span class="module-badge security">Security</span>
+                            <h2>Security Department Templates</h2>
+                            <span class="template-count">${securityTemplates.length} templates</span>
+                        </div>
+                        <div class="templates-grid">
+                            ${securityTemplates.map(renderCard).join('')}
                         </div>
                     </div>
                 </div>
