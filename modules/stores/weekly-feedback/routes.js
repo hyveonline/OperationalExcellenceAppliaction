@@ -778,7 +778,7 @@ router.post('/submit', upload.single('feedbackImage'), async (req, res) => {
             recordTable: 'WeeklyThirdPartyFeedback',
             submitter: { userId: currentUser.id, email: currentUser.email, name: currentUser.displayName },
             store: { storeId: data.storeId, storeName: data.storeName },
-            metaData: {},
+            metaData: { weekStart: data.weekStart, weekEnd: data.weekEnd, cleaningCompany: data.cleaningCompany, numberOfCleaners: data.numberOfCleaners, cleanlinessRating: data.cleanlinessRating, responseTimeRating: data.responseTimeRating, generalCleaningComments: data.generalCleaningComments },
             accessToken: req.currentUser?.accessToken
         }).catch(err => console.error('[WORKFLOW] Weekly feedback error:', err));
         

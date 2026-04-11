@@ -685,7 +685,7 @@ router.post('/save', async (req, res) => {
             recordTable: 'Security_PatrolSheets',
             submitter: { userId: user.id, email: user.email, name: user.displayName },
             store: {},
-            metaData: { location },
+            metaData: { patrolDate, location },
             accessToken: req.currentUser?.accessToken
         }).catch(err => console.error('[WORKFLOW] Patrol sheet error:', err));
         

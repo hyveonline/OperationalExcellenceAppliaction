@@ -737,6 +737,21 @@ router.post('/save', async (req, res) => {
                     `);
             }
             
+            // Lookup subcategory and location names for email template
+            let subCategoryName = '', locationName = '';
+            if (isNewEntry) {
+                const nameResult = await transaction.request()
+                    .input('scId', sql.Int, subCategoryId)
+                    .query(`SELECT sc.SubCategoryName, l.LocationName
+                            FROM Security_Checklist_SubCategories sc
+                            JOIN Security_Checklist_Locations l ON l.Id = sc.LocationId
+                            WHERE sc.Id = @scId`);
+                if (nameResult.recordset.length > 0) {
+                    subCategoryName = nameResult.recordset[0].SubCategoryName;
+                    locationName = nameResult.recordset[0].LocationName;
+                }
+            }
+
             await transaction.commit();
             await pool.close();
             
@@ -748,7 +763,7 @@ router.post('/save', async (req, res) => {
                     recordTable: 'Security_Checklist_Entries',
                     submitter: { userId: user.id, email: user.email, name: user.displayName },
                     store: {},
-                    metaData: { subCategoryId },
+                    metaData: { subCategoryId, weekStart, subCategoryName, locationName },
                     accessToken: req.currentUser?.accessToken
                 }).catch(err => console.error('[WORKFLOW] Security checklist error:', err));
             }

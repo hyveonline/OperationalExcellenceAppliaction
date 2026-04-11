@@ -957,7 +957,7 @@ router.post('/submit', uploadFields, async (req, res) => {
             recordTable: 'SecurityPostVisitReports',
             submitter: { userId: currentUser.id, email: currentUser.email, name: currentUser.displayName },
             store: { storeId: data.storeId, storeName: data.storeName },
-            metaData: { overallRating: data.overallRating },
+            metaData: { overallRating: data.overallRating, visitDate: data.visitDate },
             accessToken: req.currentUser?.accessToken
         }).catch(err => console.error('[WORKFLOW] Post visit report error:', err));
         

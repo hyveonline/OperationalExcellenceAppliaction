@@ -418,7 +418,7 @@ router.get('/start', async (req, res) => {
                 recordTable: 'Security_CleaningChecklists',
                 submitter: { userId: user.id, email: user.email, name: user.displayName },
                 store: {},
-                metaData: { locationId, categoryId },
+                metaData: { locationId, categoryId, weekStartDate: weekStartStr, locationName: info.LocationName, categoryName: info.CategoryName },
                 accessToken: req.currentUser?.accessToken
             }).catch(err => console.error('[WORKFLOW] Cleaning checklist error:', err));
             

@@ -745,7 +745,7 @@ router.post('/submit', async (req, res) => {
             recordTable: 'PostEvacuationDrills',
             submitter: { userId: null, email: user?.email, name: user?.displayName || 'System' },
             store: { storeId: data.storeId, storeName: data.storeName },
-            metaData: { drillNumber },
+            metaData: { drillNumber, drillDate: data.drillDate, drillTime: data.drillTime, shift: data.shift, conductedBy: data.conductedBy, totalEmployeesInAssembly: data.totalEmployeesInAssembly, actualEmployeesCount: data.actualEmployeesCount, remarks: data.remarks },
             accessToken: req.currentUser?.accessToken
         }).catch(err => console.error('[WORKFLOW] Evacuation drill error:', err));
         

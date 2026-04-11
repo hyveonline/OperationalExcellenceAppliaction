@@ -438,7 +438,7 @@ router.post('/api/entry/team/:teamTypeId', async (req, res) => {
                     recordTable: 'DailyTask_Entries',
                     submitter: { userId: user?.id, email: user?.email, name: user?.displayName },
                     store: {},
-                    metaData: { zoneId, teamTypeId },
+                    metaData: { zoneId, teamTypeId, dateFrom, dateTo },
                     accessToken: req.currentUser?.accessToken
                 }).catch(err => console.error('[WORKFLOW] Daily tasks error:', err));
             }

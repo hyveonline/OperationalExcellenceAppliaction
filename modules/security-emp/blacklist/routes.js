@@ -801,7 +801,7 @@ router.post('/api/save', async (req, res) => {
                 recordTable: 'ThirdPartyBlacklist',
                 submitter: { userId, email: req.currentUser?.email || req.currentUser?.mail, name: req.currentUser?.displayName },
                 store: { storeId: storeId ? parseInt(storeId) : null, storeName: null },
-                metaData: { employeeName, role },
+                metaData: { employeeName, role, company, incidentDate, incidentDetails },
                 accessToken: req.currentUser?.accessToken
             }).catch(err => console.error('[WORKFLOW] Blacklist error:', err));
         }

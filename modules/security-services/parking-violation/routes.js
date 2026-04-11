@@ -582,7 +582,7 @@ router.post('/save', uploadMultiple, async (req, res) => {
             recordTable: 'Security_ParkingViolations',
             submitter: { userId: user.id, email: user.email, name: user.displayName },
             store: {},
-            metaData: { location, carPlateNumber },
+            metaData: { violationDate, location, violatorName, carPlateNumber, parkingLotInfo },
             accessToken: req.currentUser?.accessToken
         }).catch(err => console.error('[WORKFLOW] Parking violation error:', err));
         

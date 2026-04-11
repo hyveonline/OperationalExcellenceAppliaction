@@ -686,7 +686,7 @@ router.post('/save', async (req, res) => {
             recordTable: 'Security_EntranceForms',
             submitter: { userId: user.id, email: user.email, name: user.displayName },
             store: {},
-            metaData: { location },
+            metaData: { formDate, location },
             accessToken: req.currentUser?.accessToken
         }).catch(err => console.error('[WORKFLOW] Entrance form error:', err));
         

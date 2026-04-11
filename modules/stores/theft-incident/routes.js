@@ -751,7 +751,7 @@ router.post('/submit', upload.array('photos', 5), async (req, res) => {
             recordTable: 'TheftIncidents',
             submitter: { userId: req.currentUser.userId, email: req.currentUser.email || req.currentUser.mail, name: req.currentUser.displayName },
             store: { storeId: null, storeName: req.body.store },
-            metaData: { stolenValue: req.body.stolenValue, thiefCaught: req.body.thiefCaught },
+            metaData: { stolenValue: req.body.stolenValue, thiefCaught: req.body.thiefCaught, incidentDate: req.body.incidentDate, storeManager: req.body.storeManager, staffName: req.body.staffName, stolenItems: req.body.stolenItems },
             accessToken: req.currentUser?.accessToken
         }).catch(err => console.error('[WORKFLOW] Theft incident error:', err));
         

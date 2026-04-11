@@ -442,7 +442,7 @@ router.post('/save', async (req, res) => {
             recordTable: 'Security_AttendanceReports',
             submitter: { userId: user.id, email: user.email, name: user.displayName },
             store: {},
-            metaData: { location },
+            metaData: { reportDate, location },
             accessToken: req.currentUser?.accessToken
         }).catch(err => console.error('[WORKFLOW] Attendance report error:', err));
         

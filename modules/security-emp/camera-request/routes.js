@@ -809,7 +809,7 @@ router.post('/api/requests', async (req, res) => {
             recordTable: 'CameraRequests',
             submitter: { userId: user?.userId, email: user?.mail || user?.email, name: user?.displayName },
             store: { storeId: null, storeName },
-            metaData: { requestType, numberOfCameras },
+            metaData: { requestType, numberOfCameras, storeName, requestReason, requestAreaCoverage },
             accessToken: req.currentUser?.accessToken
         }).catch(err => console.error('[WORKFLOW] Camera request error:', err));
         

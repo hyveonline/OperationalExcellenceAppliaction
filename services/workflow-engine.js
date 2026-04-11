@@ -103,7 +103,18 @@ class WorkflowEngine {
                 ? statusResult.recordset[0].StatusLabel
                 : 'Initiated';
 
-            // 5. Create workflow instance
+            // 5. Resolve storeName from DB if storeId is present but name is missing
+            let resolvedStoreName = store.storeName || null;
+            if (!resolvedStoreName && store.storeId) {
+                const storeResult = await pool.request()
+                    .input('sid', sql.Int, parseInt(store.storeId))
+                    .query('SELECT StoreName FROM Stores WHERE Id = @sid');
+                if (storeResult.recordset.length > 0) {
+                    resolvedStoreName = storeResult.recordset[0].StoreName;
+                }
+            }
+
+            // 6. Create workflow instance
             const instanceResult = await pool.request()
                 .input('workflowId', sql.Int, workflow.Id)
                 .input('formCode', sql.NVarChar, formCode)
@@ -115,7 +126,7 @@ class WorkflowEngine {
                 .input('submittedByEmail', sql.NVarChar, submitter.email)
                 .input('submittedByName', sql.NVarChar, submitter.name || null)
                 .input('storeId', sql.Int, store.storeId ? parseInt(store.storeId) || null : null)
-                .input('storeName', sql.NVarChar, store.storeName || null)
+                .input('storeName', sql.NVarChar, resolvedStoreName)
                 .input('metaData', sql.NVarChar, JSON.stringify(metaData))
                 .query(`
                     INSERT INTO WorkflowInstances
@@ -1268,16 +1279,67 @@ class WorkflowEngine {
 
     _buildTemplateData(instance, context) {
         const meta = context.metaData || {};
+        // Build a viewUrl from the module path if available
+        const formCode = instance.FormCode;
+        const recordId = instance.RecordId;
+        
+        // Map form codes to their module URL paths
+        const urlMap = {
+            'THEFT_INCIDENT': '/stores/theft-incident/reports/',
+            'EXTRA_CLEANING': '/stores/extra-cleaning/history',
+            'COMPLAINT': '/stores/complaint/history',
+            'EVACUATION_DRILL': '/stores/evacuation-drill/history',
+            'LOST_AND_FOUND': '/stores/lost-and-found/history',
+            'OHS_INCIDENT': '/stores/ohs-incident/history',
+            'PRODUCTION_EXTRAS': '/stores/production-extras/history',
+            'WEEKLY_FEEDBACK': '/stores/weekly-feedback/history',
+            'PARKING_VIOLATION': '/security-services/parking-violation/history',
+            'DELIVERY_LOG': '/security-services/delivery-log/history',
+            'PATROL_SHEET': '/security-services/patrol-sheet/history',
+            'ENTRANCE_FORM': '/security-services/entrance-form/history',
+            'ATTENDANCE_REPORT': '/security-services/attendance-report/history',
+            'VISITOR_CARS': '/security-services/visitor-cars/history',
+            'SECURITY_CHECKLIST': '/security-services/security-checklist/history',
+            'CLEANING_CHECKLIST': '/security-services/cleaning-checklist/history',
+            'DAILY_TASKS': '/security-services/daily-tasks/history',
+            'WEEKLY_SCHEDULE': '/security-services/weekly-schedule/history',
+            'INTERNAL_INVESTIGATIONS': '/security-emp/internal-investigations/history',
+            'LEGAL_CASES': '/security-emp/legal-cases/history',
+            'BLACKLIST': '/security-emp/blacklist/history',
+            'CAMERA_REQUEST': '/security-emp/camera-request/history',
+            'POST_VISIT_REPORT': '/security-emp/post-visit-report/history',
+            'SECURITY_DAILY_REPORT': '/security-emp/daily-reporting/history',
+            'DAILY_REPORTING': '/security-emp/daily-reporting/history',
+            'VISIT_SCHEDULE': '/security-emp/calendar',
+            'FIVE_DAYS': '/stores/five-days',
+            'THEFT_INCIDENT': '/stores/theft-incident',
+            'ORA_ASSESSMENT': '/ohs/ora',
+            'FIRE_EQUIPMENT': '/ohs/fire-equipment',
+            'SEC_DAILY_TASKS': '/security/daily-tasks/history'
+        };
+        const path = urlMap[formCode] || '';
+        const viewUrl = path ? `${this.appUrl}${path}` : this.appUrl;
+
         return {
-            formCode: instance.FormCode,
-            formName: instance.FormCode.replace(/_/g, ' '),
-            storeName: instance.StoreName || 'N/A',
+            formCode,
+            formName: formCode.replace(/_/g, ' '),
+            storeName: instance.StoreName || meta.storeName || 'N/A',
             storeId: instance.StoreId || '',
             submittedBy: instance.SubmittedByName || instance.SubmittedByEmail,
             submittedByEmail: instance.SubmittedByEmail,
             submittedDate: new Date().toLocaleDateString('en-GB'),
             recordId: instance.RecordId,
             appUrl: this.appUrl,
+            viewUrl,
+            year: new Date().getFullYear(),
+            recipientName: 'Team',
+            reportedBy: instance.SubmittedByName || instance.SubmittedByEmail || 'N/A',
+            loggedBy: instance.SubmittedByName || instance.SubmittedByEmail || 'N/A',
+            requestedBy: instance.SubmittedByName || instance.SubmittedByEmail || 'N/A',
+            inspector: instance.SubmittedByName || instance.SubmittedByEmail || 'N/A',
+            assignedBy: instance.SubmittedByName || instance.SubmittedByEmail || 'N/A',
+            publishedBy: instance.SubmittedByName || instance.SubmittedByEmail || 'N/A',
+            updatedBy: instance.SubmittedByName || instance.SubmittedByEmail || 'N/A',
             ...meta
         };
     }

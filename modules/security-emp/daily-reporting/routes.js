@@ -575,7 +575,7 @@ router.post('/api/save', async (req, res) => {
                 recordTable: 'SecurityDailyReporting',
                 submitter: { userId, email: req.currentUser?.email || req.currentUser?.mail, name: req.currentUser?.displayName },
                 store: { storeId: storeId ? parseInt(storeId) : null, storeName: null },
-                metaData: { guardName },
+                metaData: { guardName, reportDate, company, dailyNotes },
                 accessToken: req.currentUser?.accessToken
             }).catch(err => console.error('[WORKFLOW] Daily reporting error:', err));
         }

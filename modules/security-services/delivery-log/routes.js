@@ -688,7 +688,7 @@ router.post('/save', async (req, res) => {
             recordTable: 'Security_DeliveryLogs',
             submitter: { userId: user.id, email: user.email, name: user.displayName },
             store: {},
-            metaData: { premises },
+            metaData: { logDate, premises, filledBy },
             accessToken: req.currentUser?.accessToken
         }).catch(err => console.error('[WORKFLOW] Delivery log error:', err));
         

@@ -752,7 +752,7 @@ router.post('/api/save', upload.single('itemPicture'), async (req, res) => {
             recordTable: 'LostAndFoundItems',
             submitter: { userId: user?.userId, email: user?.email, name: user?.displayName },
             store: { storeId: parseInt(storeId), storeName: null },
-            metaData: { itemType, itemName },
+            metaData: { itemType, itemName, itemDate, currency, amount, quantity, description },
             accessToken: req.currentUser?.accessToken
         }).catch(err => console.error('[WORKFLOW] Lost and found error:', err));
         

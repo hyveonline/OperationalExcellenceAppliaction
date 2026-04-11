@@ -924,7 +924,7 @@ router.post('/api/save', async (req, res) => {
                 recordTable: 'LegalCases',
                 submitter: { userId, email: req.currentUser?.email || req.currentUser?.mail, name: req.currentUser?.displayName },
                 store: { storeId: storeIdList[0] ? parseInt(storeIdList[0]) : null, storeName: null },
-                metaData: { caseType },
+                metaData: { caseType, description, dateOfIssue, amountStolen, amountReturned, verdict, status },
                 accessToken: req.currentUser?.accessToken
             }).catch(err => console.error('[WORKFLOW] Legal cases error:', err));
         }

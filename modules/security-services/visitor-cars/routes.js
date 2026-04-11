@@ -424,7 +424,7 @@ router.post('/save', async (req, res) => {
             recordTable: 'Security_VisitorCars',
             submitter: { userId: user.id, email: user.email, name: user.displayName },
             store: {},
-            metaData: { location },
+            metaData: { recordDate, location },
             accessToken: req.currentUser?.accessToken
         }).catch(err => console.error('[WORKFLOW] Visitor cars error:', err));
         
