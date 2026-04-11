@@ -543,4 +543,272 @@ router.post('/extra-cleaning/:id/submit', async (req, res) => {
     }
 });
 
+// =============================================
+// WORKFLOW ENGINE: Public Approval Routes
+// =============================================
+const workflowEngine = require('../services/workflow-engine');
+
+// GET: Workflow approval page from email link
+router.get('/workflow/:instanceId', async (req, res) => {
+    try {
+        const instanceId = parseInt(req.params.instanceId);
+        const stepId = parseInt(req.query.stepId);
+        const email = req.query.email;
+        const token = req.query.token;
+        const action = req.query.action;
+
+        if (!instanceId || !stepId || !email || !token) {
+            return res.status(400).send(renderWorkflowPage('Invalid Link', 'This approval link is missing required parameters.', 'error'));
+        }
+
+        // Verify token
+        let tokenValid = false;
+        try {
+            tokenValid = workflowEngine.verifyApprovalToken(instanceId, stepId, email, token);
+        } catch (e) {
+            tokenValid = false;
+        }
+        if (!tokenValid) {
+            return res.status(403).send(renderWorkflowPage('Invalid Token', 'This approval link is invalid or has expired.', 'error'));
+        }
+
+        // Get instance details
+        const pool = await sql.connect(dbConfig);
+        const instanceResult = await pool.request()
+            .input('id', sql.Int, instanceId)
+            .query(`
+                SELECT wi.*, wd.FormName, wd.ModulePath
+                FROM WorkflowInstances wi
+                JOIN WorkflowDefinitions wd ON wi.WorkflowId = wd.Id
+                WHERE wi.Id = @id
+            `);
+
+        if (instanceResult.recordset.length === 0) {
+            await pool.close();
+            return res.status(404).send(renderWorkflowPage('Not Found', 'This workflow instance was not found.', 'error'));
+        }
+
+        const instance = instanceResult.recordset[0];
+
+        // Get current step
+        const stepResult = await pool.request()
+            .input('instanceId', sql.Int, instanceId)
+            .input('stepId', sql.Int, stepId)
+            .query(`
+                SELECT wis.*, ws.AllowedActions, ws.StepName as DefStepName
+                FROM WorkflowInstanceSteps wis
+                JOIN WorkflowSteps ws ON wis.StepId = ws.Id
+                WHERE wis.InstanceId = @instanceId AND wis.StepId = @stepId
+            `);
+
+        if (stepResult.recordset.length === 0) {
+            await pool.close();
+            return res.status(404).send(renderWorkflowPage('Step Not Found', 'This approval step was not found.', 'error'));
+        }
+
+        const step = stepResult.recordset[0];
+
+        // Check if already acted upon
+        if (step.Status === 'Completed' || step.Status === 'Rejected') {
+            await pool.close();
+            const icon = step.Action === 'Approved' ? '✅' : '❌';
+            return res.send(renderWorkflowPage(
+                'Already Processed',
+                `This step was already ${step.Action || 'processed'} by ${step.ActionByName || step.ActionBy || 'someone'} on ${step.CompletedAt ? new Date(step.CompletedAt).toLocaleDateString('en-GB') : 'N/A'}.`,
+                step.Action === 'Approved' ? 'success' : 'warning'
+            ));
+        }
+
+        await pool.close();
+
+        const allowedActions = step.AllowedActions ? JSON.parse(step.AllowedActions) : ['Approve', 'Reject'];
+        const meta = instance.MetaData ? JSON.parse(instance.MetaData) : {};
+
+        // Render approval page
+        res.send(`
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Approval Required - ${instance.FormName}</title>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 550px; margin: 0 auto; }
+        .card { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+        .card-header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 25px; text-align: center; }
+        .card-header h1 { margin: 0; font-size: 22px; }
+        .card-header p { margin: 8px 0 0; opacity: 0.9; font-size: 14px; }
+        .card-body { padding: 25px; }
+        .detail-row { display: flex; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+        .detail-label { width: 130px; color: #888; font-size: 14px; }
+        .detail-value { flex: 1; font-size: 14px; }
+        .actions { margin-top: 25px; text-align: center; }
+        .btn { display: inline-block; padding: 14px 30px; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; margin: 5px; text-decoration: none; }
+        .btn-approve { background: #28a745; color: white; }
+        .btn-approve:hover { background: #218838; }
+        .btn-reject { background: #dc3545; color: white; }
+        .btn-reject:hover { background: #c82333; }
+        .btn-info { background: #ffc107; color: #333; }
+        .btn-info:hover { background: #e0a800; }
+        .comments-section { margin-top: 20px; }
+        .comments-section textarea { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; font-size: 14px; min-height: 80px; resize: vertical; box-sizing: border-box; }
+        .result-msg { display: none; text-align: center; padding: 30px; }
+        .result-msg .icon { font-size: 50px; margin-bottom: 15px; }
+        .result-msg h2 { margin: 0 0 10px; }
+        .result-msg p { color: #666; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="card-header">
+                <h1>📋 ${instance.FormName}</h1>
+                <p>Step: ${step.DefStepName || step.StepName}</p>
+            </div>
+            <div class="card-body" id="approvalForm">
+                <div class="detail-row">
+                    <div class="detail-label">Submitted By</div>
+                    <div class="detail-value"><strong>${instance.SubmittedByName || instance.SubmittedByEmail}</strong></div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Store</div>
+                    <div class="detail-value">${instance.StoreName || 'N/A'}</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Date</div>
+                    <div class="detail-value">${new Date(instance.CreatedAt).toLocaleDateString('en-GB')}</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Status</div>
+                    <div class="detail-value">${instance.CurrentStatus}</div>
+                </div>
+
+                <div class="comments-section">
+                    <label style="font-weight:600;display:block;margin-bottom:8px">Comments (optional)</label>
+                    <textarea id="comments" placeholder="Add your comments..."></textarea>
+                </div>
+
+                <div class="actions">
+                    ${allowedActions.includes('Approve') ? '<button class="btn btn-approve" onclick="submitAction(\'Approved\')">✅ Approve</button>' : ''}
+                    ${allowedActions.includes('Reject') ? '<button class="btn btn-reject" onclick="submitAction(\'Rejected\')">❌ Reject</button>' : ''}
+                    ${allowedActions.includes('RequestInfo') ? '<button class="btn btn-info" onclick="submitAction(\'RequestedInfo\')">❓ Request Info</button>' : ''}
+                </div>
+            </div>
+            <div class="result-msg" id="resultMsg">
+                <div class="icon" id="resultIcon"></div>
+                <h2 id="resultTitle"></h2>
+                <p id="resultText"></p>
+            </div>
+        </div>
+    </div>
+    <script>
+        async function submitAction(action) {
+            if (!confirm('Are you sure you want to ' + action.replace('Requested', 'Request ').toLowerCase() + '?')) return;
+
+            const comments = document.getElementById('comments').value;
+            try {
+                const res = await fetch('/public/approve/workflow/${instanceId}/submit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        stepId: ${stepId},
+                        email: '${email}',
+                        token: '${token}',
+                        action: action,
+                        comments: comments
+                    })
+                });
+                const data = await res.json();
+                document.getElementById('approvalForm').style.display = 'none';
+                const resultMsg = document.getElementById('resultMsg');
+                resultMsg.style.display = 'block';
+
+                if (data.success) {
+                    document.getElementById('resultIcon').textContent = action === 'Approved' ? '✅' : action === 'Rejected' ? '❌' : '❓';
+                    document.getElementById('resultTitle').textContent = data.message || 'Done!';
+                    document.getElementById('resultTitle').style.color = action === 'Approved' ? '#28a745' : action === 'Rejected' ? '#dc3545' : '#ffc107';
+                    document.getElementById('resultText').textContent = 'You can close this page.';
+                } else {
+                    document.getElementById('resultIcon').textContent = '⚠️';
+                    document.getElementById('resultTitle').textContent = 'Error';
+                    document.getElementById('resultTitle').style.color = '#dc3545';
+                    document.getElementById('resultText').textContent = data.error || 'Something went wrong.';
+                }
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        }
+    </script>
+</body>
+</html>
+        `);
+    } catch (err) {
+        console.error('[WORKFLOW APPROVAL] Error:', err);
+        res.status(500).send(renderWorkflowPage('Error', err.message, 'error'));
+    }
+});
+
+// POST: Process workflow approval
+router.post('/workflow/:instanceId/submit', async (req, res) => {
+    try {
+        const instanceId = parseInt(req.params.instanceId);
+        const { stepId, email, token, action, comments } = req.body;
+
+        // Verify token
+        let tokenValid = false;
+        try {
+            tokenValid = workflowEngine.verifyApprovalToken(instanceId, parseInt(stepId), email, token);
+        } catch (e) {
+            tokenValid = false;
+        }
+        if (!tokenValid) {
+            return res.status(403).json({ success: false, error: 'Invalid or expired token' });
+        }
+
+        const result = await workflowEngine.handleApproval({
+            instanceId,
+            action,
+            actionBy: email,
+            actionByName: null,
+            comments,
+            accessToken: null,
+            ipAddress: req.ip
+        });
+
+        res.json(result);
+    } catch (err) {
+        console.error('[WORKFLOW APPROVAL] Submit error:', err);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// Helper to render simple workflow status pages
+function renderWorkflowPage(title, message, type) {
+    const colors = { success: '#28a745', error: '#dc3545', warning: '#ffc107' };
+    const icons = { success: '✅', error: '❌', warning: '⚠️' };
+    return `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${title}</title>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 50px 20px; background: #f5f5f5; text-align: center; }
+        .container { max-width: 500px; margin: 0 auto; background: white; border-radius: 12px; padding: 40px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+        .icon { font-size: 64px; margin-bottom: 20px; }
+        h2 { color: ${colors[type] || '#333'}; margin: 0 0 15px; }
+        p { color: #666; line-height: 1.6; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">${icons[type] || 'ℹ️'}</div>
+        <h2>${title}</h2>
+        <p>${message}</p>
+    </div>
+</body>
+</html>`;
+}
+
 module.exports = router;

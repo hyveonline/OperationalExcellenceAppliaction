@@ -48,7 +48,8 @@ const requireSysAdmin = async (req, res, next) => {
         '/admin/job-monitor': 'ADMIN_JOB_MONITOR',
         '/admin/org-tree': 'ADMIN_ORG_TREE',
         '/admin/dashboard-menu': 'ADMIN_DASHBOARD_MENU',
-        '/admin/permission-sync': 'ADMIN_PERMISSION_SYNC'
+        '/admin/permission-sync': 'ADMIN_PERMISSION_SYNC',
+        '/admin/workflow-engine': 'ADMIN_WORKFLOW_ENGINE'
     };
     
     // Find matching form code (currentPath already declared above)
@@ -1411,6 +1412,11 @@ router.get('/', (req, res) => {
                         <div class="card-icon">🔄</div>
                         <div class="card-title">Permission Sync</div>
                         <div class="card-desc">Compare & sync permissions from UAT to Live database</div>
+                    </a>
+                    <a href="/admin/workflow-engine" class="admin-card">
+                        <div class="card-icon">⚙️</div>
+                        <div class="card-title">Workflow Engine</div>
+                        <div class="card-desc">Configure approval flows, email notifications & status transitions</div>
                     </a>
                 </div>
             </div>
@@ -8922,5 +8928,9 @@ router.post('/dashboard-menu/save', requireSysAdmin, async (req, res) => {
 // Permission Sync Tool - moved to separate module
 const permissionSyncRouter = require('./permission-sync');
 router.use('/permission-sync', permissionSyncRouter);
+
+// Workflow Engine Admin
+const workflowEngineRouter = require('./workflow-engine');
+router.use('/workflow-engine', workflowEngineRouter);
 
 module.exports = router;
