@@ -678,7 +678,7 @@ router.post('/api/save', async (req, res) => {
                 submitter: { userId, email: req.currentUser?.email || req.currentUser?.mail, name: req.currentUser?.displayName },
                 store: { storeId: storeId ? parseInt(storeId) : null, storeName: null },
                 metaData: { caseTopic },
-                accessToken: req.session?.accessToken
+                accessToken: req.currentUser?.accessToken
             }).catch(err => console.error('[WORKFLOW] Internal investigation error:', err));
         }
         

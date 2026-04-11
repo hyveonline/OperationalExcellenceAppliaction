@@ -779,7 +779,7 @@ router.post('/submit', upload.single('feedbackImage'), async (req, res) => {
             submitter: { userId: currentUser.id, email: currentUser.email, name: currentUser.displayName },
             store: { storeId: data.storeId, storeName: data.storeName },
             metaData: {},
-            accessToken: req.session?.accessToken
+            accessToken: req.currentUser?.accessToken
         }).catch(err => console.error('[WORKFLOW] Weekly feedback error:', err));
         
         await pool.close();

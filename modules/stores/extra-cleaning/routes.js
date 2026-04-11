@@ -943,7 +943,7 @@ router.post('/submit', async (req, res) => {
                     hrEmail: req.body.hrEmail || '',
                     hrName: req.body.hrName || ''
                 },
-                accessToken: req.currentUser?.accessToken || req.session?.accessToken
+                accessToken: req.currentUser?.accessToken
             }).catch(err => console.error('[WORKFLOW] Extra cleaning error:', err));
             
             console.log('🔄 Workflow engine active for EXTRA_CLEANING - engine handles approval flow');
@@ -1501,7 +1501,7 @@ router.post('/api/approve/:id', async (req, res) => {
                     actionBy: approverEmail,
                     actionByName: approverName,
                     comments,
-                    accessToken: req.currentUser?.accessToken || req.session?.accessToken,
+                    accessToken: req.currentUser?.accessToken,
                     ipAddress: req.ip
                 });
                 await pool.close();

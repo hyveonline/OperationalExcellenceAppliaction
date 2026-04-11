@@ -226,7 +226,7 @@ router.post('/api/entry/:shiftId/:year/:month', async (req, res) => {
                 submitter: { userId: user?.id, email: user?.email, name: user?.displayName },
                 store: {},
                 metaData: { shiftId, year, month },
-                accessToken: req.session?.accessToken
+                accessToken: req.currentUser?.accessToken
             }).catch(err => console.error('[WORKFLOW] Weekly schedule error:', err));
         } else {
             entryId = entryResult.recordset[0].Id;

@@ -439,7 +439,7 @@ router.post('/api/entry/team/:teamTypeId', async (req, res) => {
                     submitter: { userId: user?.id, email: user?.email, name: user?.displayName },
                     store: {},
                     metaData: { zoneId, teamTypeId },
-                    accessToken: req.session?.accessToken
+                    accessToken: req.currentUser?.accessToken
                 }).catch(err => console.error('[WORKFLOW] Daily tasks error:', err));
             }
             

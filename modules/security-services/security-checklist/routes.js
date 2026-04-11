@@ -749,7 +749,7 @@ router.post('/save', async (req, res) => {
                     submitter: { userId: user.id, email: user.email, name: user.displayName },
                     store: {},
                     metaData: { subCategoryId },
-                    accessToken: req.session?.accessToken
+                    accessToken: req.currentUser?.accessToken
                 }).catch(err => console.error('[WORKFLOW] Security checklist error:', err));
             }
             

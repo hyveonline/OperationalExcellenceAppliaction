@@ -753,7 +753,7 @@ router.post('/api/save', upload.single('itemPicture'), async (req, res) => {
             submitter: { userId: user?.userId, email: user?.email, name: user?.displayName },
             store: { storeId: parseInt(storeId), storeName: null },
             metaData: { itemType, itemName },
-            accessToken: req.session?.accessToken
+            accessToken: req.currentUser?.accessToken
         }).catch(err => console.error('[WORKFLOW] Lost and found error:', err));
         
         res.json({ success: true });

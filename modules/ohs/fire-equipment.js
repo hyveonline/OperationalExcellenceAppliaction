@@ -1191,7 +1191,7 @@ router.post('/api/inspection/:id/submit', async (req, res) => {
             submitter: { userId: req.currentUser?.userId, email: req.currentUser?.email || req.currentUser?.mail, name: req.currentUser?.displayName },
             store: {},
             metaData: {},
-            accessToken: req.session?.accessToken
+            accessToken: req.currentUser?.accessToken
         }).catch(err => console.error('[WORKFLOW] Fire equipment error:', err));
         
         res.json({ success: true });

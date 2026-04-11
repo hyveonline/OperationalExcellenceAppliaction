@@ -925,7 +925,7 @@ router.post('/api/save', async (req, res) => {
                 submitter: { userId, email: req.currentUser?.email || req.currentUser?.mail, name: req.currentUser?.displayName },
                 store: { storeId: storeIdList[0] ? parseInt(storeIdList[0]) : null, storeName: null },
                 metaData: { caseType },
-                accessToken: req.session?.accessToken
+                accessToken: req.currentUser?.accessToken
             }).catch(err => console.error('[WORKFLOW] Legal cases error:', err));
         }
         

@@ -419,7 +419,7 @@ router.get('/start', async (req, res) => {
                 submitter: { userId: user.id, email: user.email, name: user.displayName },
                 store: {},
                 metaData: { locationId, categoryId },
-                accessToken: req.session?.accessToken
+                accessToken: req.currentUser?.accessToken
             }).catch(err => console.error('[WORKFLOW] Cleaning checklist error:', err));
             
             // Get items for this category and create entries

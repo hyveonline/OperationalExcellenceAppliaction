@@ -474,7 +474,7 @@ router.post('/submit', upload.single('attachment'), async (req, res) => {
             submitter: { userId, email: req.currentUser?.email || req.currentUser?.mail, name: req.currentUser?.displayName },
             store: { storeId, storeName: null },
             metaData: { category: categoryName, complaintType: typeName },
-            accessToken: req.session?.accessToken
+            accessToken: req.currentUser?.accessToken
         }).catch(err => console.error('[WORKFLOW] Complaint error:', err));
         
         await pool.close();

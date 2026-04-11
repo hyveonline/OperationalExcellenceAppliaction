@@ -951,7 +951,7 @@ router.post('/submit', upload.array('attachments', 10), async (req, res) => {
             submitter: { userId: null, email: user?.email, name: user?.displayName },
             store: { storeId: req.body.storeId, storeName: req.body.storeName },
             metaData: { incidentNumber },
-            accessToken: req.session?.accessToken
+            accessToken: req.currentUser?.accessToken
         }).catch(err => console.error('[WORKFLOW] OHS incident error:', err));
         
         await pool.close();

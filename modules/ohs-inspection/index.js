@@ -4342,7 +4342,7 @@ router.post('/api/action-plan/send-email', async (req, res) => {
         `;
 
         // Get access token from session if available
-        const accessToken = req.session?.accessToken;
+        const accessToken = req.currentUser?.accessToken;
         
         if (!accessToken) {
             // If no access token, try to save and show message

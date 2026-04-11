@@ -817,7 +817,7 @@ router.post('/api/submit', async (req, res) => {
             submitter: { userId: req.currentUser?.userId, email: req.currentUser?.email || req.currentUser?.mail, name: req.currentUser?.displayName || req.currentUser?.name },
             store: { storeId: outletId, storeName: null },
             metaData: { totalCost, numberOfAgents },
-            accessToken: req.session?.accessToken
+            accessToken: req.currentUser?.accessToken
         }).catch(err => console.error('[WORKFLOW] Production extras error:', err));
         
         res.json({ success: true, message: 'Request submitted successfully' });

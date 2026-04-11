@@ -689,7 +689,7 @@ router.post('/save', async (req, res) => {
             submitter: { userId: user.id, email: user.email, name: user.displayName },
             store: {},
             metaData: { premises },
-            accessToken: req.session?.accessToken
+            accessToken: req.currentUser?.accessToken
         }).catch(err => console.error('[WORKFLOW] Delivery log error:', err));
         
         res.json({ success: true, logId });

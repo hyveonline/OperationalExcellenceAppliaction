@@ -583,7 +583,7 @@ router.post('/save', uploadMultiple, async (req, res) => {
             submitter: { userId: user.id, email: user.email, name: user.displayName },
             store: {},
             metaData: { location, carPlateNumber },
-            accessToken: req.session?.accessToken
+            accessToken: req.currentUser?.accessToken
         }).catch(err => console.error('[WORKFLOW] Parking violation error:', err));
         
         res.json({ success: true, violationId });

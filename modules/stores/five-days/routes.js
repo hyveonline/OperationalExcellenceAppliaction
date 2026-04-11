@@ -724,7 +724,7 @@ router.post('/api/entry', async (req, res) => {
             submitter: { userId: user.userId, email: user.email, name: user.displayName },
             store: { storeId, storeName: null },
             metaData: { cycleNumber, dayNumber },
-            accessToken: req.session?.accessToken
+            accessToken: req.currentUser?.accessToken
         }).catch(err => console.error('[WORKFLOW] Five days error:', err));
         
         res.json({ success: true });

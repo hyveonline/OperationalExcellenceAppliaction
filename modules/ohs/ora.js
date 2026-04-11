@@ -1550,7 +1550,7 @@ router.post('/api/assessment/:id/submit', async (req, res) => {
             submitter: { userId: user?.userId, email: user?.email || user?.mail, name: user?.displayName },
             store: {},
             metaData: {},
-            accessToken: req.session?.accessToken
+            accessToken: req.currentUser?.accessToken
         }).catch(err => console.error('[WORKFLOW] ORA assessment error:', err));
         
         res.json({ success: true });

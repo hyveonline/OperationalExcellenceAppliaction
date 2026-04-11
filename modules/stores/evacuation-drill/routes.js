@@ -746,7 +746,7 @@ router.post('/submit', async (req, res) => {
             submitter: { userId: null, email: user?.email, name: user?.displayName || 'System' },
             store: { storeId: data.storeId, storeName: data.storeName },
             metaData: { drillNumber },
-            accessToken: req.session?.accessToken
+            accessToken: req.currentUser?.accessToken
         }).catch(err => console.error('[WORKFLOW] Evacuation drill error:', err));
         
         await pool.close();

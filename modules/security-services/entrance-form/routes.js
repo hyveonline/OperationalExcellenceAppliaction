@@ -687,7 +687,7 @@ router.post('/save', async (req, res) => {
             submitter: { userId: user.id, email: user.email, name: user.displayName },
             store: {},
             metaData: { location },
-            accessToken: req.session?.accessToken
+            accessToken: req.currentUser?.accessToken
         }).catch(err => console.error('[WORKFLOW] Entrance form error:', err));
         
         res.json({ success: true, formId });
