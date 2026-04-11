@@ -24,8 +24,7 @@ const dbConfig = {
 /**
  * Build dynamic approval chain based on category and rules
  * Default flow: Area Manager → Head of Operations → OE Dashboard
- * If category contains "Happy" → SKIP Area Manager
- * If category = "Helper" → ADD HR at the end
+ * If category = "Helpers" → ADD HR at the end
  */
 async function buildApprovalChain(pool, category) {
     // Get approval settings (emails)
@@ -588,21 +587,13 @@ router.get('/', async (req, res) => {
                         updateApproverVisibility();
                     });
                     
-                    // Update approver visibility when store changes
-                    document.getElementById('store').addEventListener('change', function() {
-                        updateApproverVisibility();
-                    });
-                    
                     /**
                      * Approver Visibility Rules:
-                     * Rule 1: Category = Helper AND Store contains "Happy" → HO + HR (no AM)
-                     * Rule 2: Category = Helper only → AM + HO + HR
-                     * Rule 3: Store contains "Happy" only → HO only (no AM, no HR)
-                     * Rule 4: Default → AM + HO (no HR)
+                     * Rule 1: Category = Helpers → AM + HO + HR
+                     * Rule 2: Default (all others) → AM + HO (no HR)
                      */
                     function updateApproverVisibility() {
                         const category = document.getElementById('category').value;
-                        const store = document.getElementById('store').value;
                         
                         const amGroup = document.getElementById('areaManagerGroup');
                         const hoGroup = document.getElementById('headOfOpsGroup');
@@ -612,23 +603,9 @@ router.get('/', async (req, res) => {
                         const flowText = document.getElementById('approvalFlowText');
                         
                         const isHelper = category && category.toLowerCase() === 'helpers';
-                        const isHappy = store && store.toLowerCase().includes('happy');
                         
-                        // Rule 1: Helper + Happy → HO + HR (skip AM)
-                        if (isHelper && isHappy) {
-                            amGroup.style.display = 'none';
-                            amSelect.removeAttribute('required');
-                            amSelect.value = '';
-                            
-                            hoGroup.style.display = 'block';
-                            
-                            hrGroup.style.display = 'block';
-                            hrSelect.setAttribute('required', 'required');
-                            
-                            flowText.textContent = 'Head of Operations → HR Responsible → OE Dashboard';
-                        }
-                        // Rule 2: Helper only → AM + HO + HR
-                        else if (isHelper && !isHappy) {
+                        // Rule 1: Helpers → AM + HO + HR
+                        if (isHelper) {
                             amGroup.style.display = 'block';
                             amSelect.setAttribute('required', 'required');
                             
@@ -639,21 +616,7 @@ router.get('/', async (req, res) => {
                             
                             flowText.textContent = 'Area Manager → Head of Operations → HR Responsible → OE Dashboard';
                         }
-                        // Rule 3: Happy only (not Helper) → HO only
-                        else if (!isHelper && isHappy) {
-                            amGroup.style.display = 'none';
-                            amSelect.removeAttribute('required');
-                            amSelect.value = '';
-                            
-                            hoGroup.style.display = 'block';
-                            
-                            hrGroup.style.display = 'none';
-                            hrSelect.removeAttribute('required');
-                            hrSelect.value = '';
-                            
-                            flowText.textContent = 'Head of Operations → OE Dashboard';
-                        }
-                        // Rule 4: Default → AM + HO (no HR)
+                        // Rule 2: Default → AM + HO (no HR)
                         else {
                             amGroup.style.display = 'block';
                             amSelect.setAttribute('required', 'required');
@@ -773,7 +736,6 @@ router.post('/submit', async (req, res) => {
         const category = req.body.category || '';
         const store = req.body.store || '';
         const isHelper = category.toLowerCase() === 'helpers';
-        const isHappy = store.toLowerCase().includes('happy');
         
         // Get selected approver details from form
         const selectedAM = req.body.areaManagerId ? {
@@ -825,29 +787,16 @@ router.post('/submit', async (req, res) => {
             }
         }
         
-        // Build approval chain based on visibility rules
+        // Build approval chain based on category rules
+        // Helpers → AM + HO + HR | Default → AM + HO
         let approvalChain = [];
         
-        // Rule 1: Helper + Happy → HO + HR (skip AM)
-        if (isHelper && isHappy) {
-            if (selectedHO) approvalChain.push({ role: 'HeadOfOperations', email: selectedHO.email, name: selectedHO.name, id: selectedHO.id });
-            if (selectedHR && selectedHR.id) approvalChain.push({ role: 'HR', email: selectedHR.email, name: selectedHR.name, id: selectedHR.id });
-        }
-        // Rule 2: Helper only → AM + HO + HR
-        else if (isHelper && !isHappy) {
-            if (selectedAM) approvalChain.push({ role: 'AreaManager', email: selectedAM.email, name: selectedAM.name, id: selectedAM.id });
-            if (selectedHO) approvalChain.push({ role: 'HeadOfOperations', email: selectedHO.email, name: selectedHO.name, id: selectedHO.id });
-            if (selectedHR && selectedHR.id) approvalChain.push({ role: 'HR', email: selectedHR.email, name: selectedHR.name, id: selectedHR.id });
-        }
-        // Rule 3: Happy only → HO only
-        else if (!isHelper && isHappy) {
-            if (selectedHO) approvalChain.push({ role: 'HeadOfOperations', email: selectedHO.email, name: selectedHO.name, id: selectedHO.id });
-        }
-        // Rule 4: Default → AM + HO
-        else {
-            if (selectedAM) approvalChain.push({ role: 'AreaManager', email: selectedAM.email, name: selectedAM.name, id: selectedAM.id });
-            if (selectedHO) approvalChain.push({ role: 'HeadOfOperations', email: selectedHO.email, name: selectedHO.name, id: selectedHO.id });
-        }
+        // AM is always required
+        if (selectedAM) approvalChain.push({ role: 'AreaManager', email: selectedAM.email, name: selectedAM.name, id: selectedAM.id });
+        // HO is always required
+        if (selectedHO) approvalChain.push({ role: 'HeadOfOperations', email: selectedHO.email, name: selectedHO.name, id: selectedHO.id });
+        // HR only for Helpers category
+        if (isHelper && selectedHR && selectedHR.id) approvalChain.push({ role: 'HR', email: selectedHR.email, name: selectedHR.name, id: selectedHR.id });
         
         console.log('📋 Approval Chain:', JSON.stringify(approvalChain));
         

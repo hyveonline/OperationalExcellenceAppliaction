@@ -1,10 +1,8 @@
 -- =============================================
 -- Pre-configure EXTRA_CLEANING Workflow Steps
--- Mirrors the existing hardcoded approval chain:
---   Rule 1: Helpers + Happy store → HO → HR
---   Rule 2: Helpers + non-Happy  → AM → HO → HR
---   Rule 3: Non-helpers + Happy  → HO only
---   Rule 4: Default              → AM → HO
+-- Approval chain rules:
+--   Rule 1: Helpers category → AM → HO → HR
+--   Rule 2: Default (all others) → AM → HO
 -- =============================================
 
 -- 1. Update workflow type (keep IsActive=0 until admin enables it)
@@ -79,22 +77,16 @@ END
 -- =============================================
 -- 4. Insert Workflow Conditions
 -- =============================================
--- Step 1 (AM): SKIP when store contains 'happy'
---   (Rules 1 & 3: Happy stores skip Area Manager)
 -- Step 3 (HR): SKIP when category is NOT 'helpers'
---   (Rules 3 & 4: non-helpers skip HR)
+--   (Only Helpers category requires HR approval)
 
 IF NOT EXISTS (SELECT 1 FROM WorkflowConditions WHERE StepId = @stepAM)
 BEGIN
-    -- Condition: Skip AM step when store contains 'happy'
-    INSERT INTO WorkflowConditions (StepId, FieldName, Operator, Value, ActionOnMatch, Priority, IsActive)
-    VALUES (@stepAM, 'store', 'contains', 'happy', 'SKIP', 1, 1);
-
     -- Condition: Skip HR step when category is NOT 'helpers'
     INSERT INTO WorkflowConditions (StepId, FieldName, Operator, Value, ActionOnMatch, Priority, IsActive)
     VALUES (@stepHR, 'category', 'not_equals', 'helpers', 'SKIP', 1, 1);
 
-    PRINT 'Inserted 2 workflow conditions for EXTRA_CLEANING';
+    PRINT 'Inserted 1 workflow condition for EXTRA_CLEANING';
 END
 ELSE
 BEGIN
