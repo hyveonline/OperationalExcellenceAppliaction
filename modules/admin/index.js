@@ -850,7 +850,12 @@ router.post('/api/job-monitor/resend-theft-email/:incidentId', async (req, res) 
         
         const template = templateResult.recordset[0];
         const baseUrl = process.env.APP_URL || 'https://oeapp-uat.gmrlapps.com';
-        const THEFT_INCIDENT_NOTIFICATION_EMAIL = 'shammas.sh@gmrl.com'; // TODO: Get from settings
+        
+        // Get recipients from workflow engine configuration
+        const workflowEngine = require('../../services/workflow-engine');
+        const recipients = await workflowEngine.getConfiguredRecipients('THEFT_INCIDENT');
+        const toEmails = recipients.to.length > 0 ? recipients.to : ['shammas.sh@gmrl.com'];
+        const ccEmails = recipients.cc;
         
         // Format values
         const stolenValue = parseFloat(incident.StolenValue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -897,29 +902,40 @@ router.post('/api/job-monitor/resend-theft-email/:incidentId', async (req, res) 
             body = body.replace(regex, value);
         }
         
-        // Send email
+        // Send email to each TO recipient
         const emailService = require('../../services/email-service');
-        await emailService.sendEmail({
-            to: THEFT_INCIDENT_NOTIFICATION_EMAIL,
-            subject: subject,
-            body: body
-        });
+        const ccList = ccEmails.join(';') || null;
+        let sentCount = 0;
         
-        // Log the email
-        await pool.request()
-            .input('incidentId', sql.Int, incidentId)
-            .input('toEmail', sql.NVarChar, THEFT_INCIDENT_NOTIFICATION_EMAIL)
-            .input('subject', sql.NVarChar, subject)
-            .input('status', sql.NVarChar, 'Sent')
-            .input('sentBy', sql.Int, req.currentUser?.userId)
-            .query(`
-                INSERT INTO TheftIncidentEmailLog (IncidentId, ToEmail, Subject, Status, SentBy, SentAt)
-                VALUES (@incidentId, @toEmail, @subject, @status, @sentBy, GETDATE())
-            `);
+        for (const toEmail of toEmails) {
+            const emailResult = await emailService.sendEmail({
+                to: toEmail,
+                subject: subject,
+                body: body,
+                cc: ccList,
+                accessToken: req.currentUser?.accessToken
+            });
+            
+            const emailStatus = emailResult.success ? 'Sent' : 'Failed';
+            const emailError = emailResult.success ? null : (emailResult.error || 'Unknown error');
+            
+            await pool.request()
+                .input('incidentId', sql.Int, incidentId)
+                .input('toEmail', sql.NVarChar, toEmail)
+                .input('subject', sql.NVarChar, subject)
+                .input('status', sql.NVarChar, emailStatus)
+                .input('errorMessage', sql.NVarChar, emailError)
+                .input('sentBy', sql.Int, req.currentUser?.userId)
+                .query(`
+                    INSERT INTO TheftIncidentEmailLog (IncidentId, ToEmail, Subject, Status, ErrorMessage, SentBy, SentAt)
+                    VALUES (@incidentId, @toEmail, @subject, @status, @errorMessage, @sentBy, GETDATE())
+                `);
+            
+            if (emailResult.success) sentCount++;
+            console.log(`[Job Monitor] Theft incident email resent for #${incidentId} to ${toEmail} by ${req.currentUser?.email || 'unknown'} - ${emailStatus}`);
+        }
         
-        console.log(`[Job Monitor] Theft incident email resent for #${incidentId} to ${THEFT_INCIDENT_NOTIFICATION_EMAIL} by ${req.currentUser?.email || 'unknown'}`);
-        
-        res.json({ success: true, message: 'Email sent successfully' });
+        res.json({ success: sentCount > 0, message: `Email sent to ${sentCount}/${toEmails.length} recipients` });
     } catch (err) {
         console.error('Error resending theft email:', err);
         res.status(500).json({ success: false, error: err.message });
