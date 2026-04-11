@@ -757,11 +757,13 @@ router.post('/submit', upload.array('photos', 5), async (req, res) => {
         
         // Send automatic email notification
         try {
-            // Get recipients from workflow engine configuration
+            // Get recipients from workflow engine configuration (uses its own connection)
             const recipients = await workflowEngine.getConfiguredRecipients('THEFT_INCIDENT');
             const toEmails = recipients.to.length > 0 ? recipients.to : [THEFT_INCIDENT_NOTIFICATION_EMAIL];
             const ccEmails = recipients.cc;
-            const allRecipientStr = toEmails.join(', ') + (ccEmails.length > 0 ? ' (CC: ' + ccEmails.join(', ') + ')' : '');
+
+            // Reconnect pool after workflow engine closed the shared connection
+            pool = await sql.connect(dbConfig);
 
             // Get the email template
             const templateResult = await pool.request()

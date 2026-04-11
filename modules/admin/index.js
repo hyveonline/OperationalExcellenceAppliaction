@@ -824,6 +824,12 @@ router.post('/api/job-monitor/resend-theft-email/:incidentId', async (req, res) 
             return res.status(400).json({ success: false, error: 'Invalid incident ID' });
         }
         
+        // Get recipients from workflow engine FIRST (uses its own connection)
+        const workflowEngine = require('../../services/workflow-engine');
+        const recipients = await workflowEngine.getConfiguredRecipients('THEFT_INCIDENT');
+        const toEmails = recipients.to.length > 0 ? recipients.to : ['shammas.sh@gmrl.com'];
+        const ccEmails = recipients.cc;
+        
         pool = await sql.connect(dbConfig);
         
         // Get the incident details
@@ -850,12 +856,6 @@ router.post('/api/job-monitor/resend-theft-email/:incidentId', async (req, res) 
         
         const template = templateResult.recordset[0];
         const baseUrl = process.env.APP_URL || 'https://oeapp-uat.gmrlapps.com';
-        
-        // Get recipients from workflow engine configuration
-        const workflowEngine = require('../../services/workflow-engine');
-        const recipients = await workflowEngine.getConfiguredRecipients('THEFT_INCIDENT');
-        const toEmails = recipients.to.length > 0 ? recipients.to : ['shammas.sh@gmrl.com'];
-        const ccEmails = recipients.cc;
         
         // Format values
         const stolenValue = parseFloat(incident.StolenValue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
