@@ -18,6 +18,13 @@ const dbConfig = {
 };
 
 class WorkflowEngine {
+    // Create an independent connection pool (not the shared global one)
+    // This prevents "Connection is closed" errors when routes close the global pool
+    async _getPool() {
+        const pool = new sql.ConnectionPool(dbConfig);
+        await pool.connect();
+        return pool;
+    }
     constructor() {
         this.appUrl = process.env.NODE_ENV === 'live' || process.env.NODE_ENV === 'production'
             ? 'https://oeapp.gmrlapps.com'
@@ -44,7 +51,7 @@ class WorkflowEngine {
     async start({ formCode, recordId, recordTable, submitter, store = {}, metaData = {}, accessToken = null, ipAddress = null }) {
         let pool;
         try {
-            pool = await sql.connect(dbConfig);
+            pool = await this._getPool();
 
             // 1. Get workflow definition
             const defResult = await pool.request()
@@ -203,7 +210,7 @@ class WorkflowEngine {
     async handleApproval({ instanceId, action, actionBy, actionByName, comments, delegateTo, accessToken = null, ipAddress = null }) {
         let pool;
         try {
-            pool = await sql.connect(dbConfig);
+            pool = await this._getPool();
 
             // 1. Get instance with current step
             const instance = await this._getInstance(pool, instanceId);
@@ -448,7 +455,7 @@ class WorkflowEngine {
     async getInstanceByRecord(formCode, recordId) {
         let pool;
         try {
-            pool = await sql.connect(dbConfig);
+            pool = await this._getPool();
             const result = await pool.request()
                 .input('formCode', sql.NVarChar, formCode)
                 .input('recordId', sql.Int, recordId)
@@ -471,7 +478,7 @@ class WorkflowEngine {
     async getInstanceSteps(instanceId) {
         let pool;
         try {
-            pool = await sql.connect(dbConfig);
+            pool = await this._getPool();
             const result = await pool.request()
                 .input('instanceId', sql.Int, instanceId)
                 .query(`
@@ -491,7 +498,7 @@ class WorkflowEngine {
     async getAuditLog(instanceId) {
         let pool;
         try {
-            pool = await sql.connect(dbConfig);
+            pool = await this._getPool();
             const result = await pool.request()
                 .input('instanceId', sql.Int, instanceId)
                 .query(`
@@ -515,7 +522,7 @@ class WorkflowEngine {
     async isWorkflowActive(formCode) {
         let pool;
         try {
-            pool = await sql.connect(dbConfig);
+            pool = await this._getPool();
             const result = await pool.request()
                 .input('formCode', sql.NVarChar, formCode)
                 .query(`
@@ -539,7 +546,7 @@ class WorkflowEngine {
     async getConfiguredRecipients(formCode) {
         let pool;
         try {
-            pool = await sql.connect(dbConfig);
+            pool = await this._getPool();
             const result = await pool.request()
                 .input('formCode', sql.NVarChar, formCode)
                 .query(`
