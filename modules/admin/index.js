@@ -6005,6 +6005,7 @@ router.get('/email-templates', async (req, res) => {
         const storesTemplates = templates.filter(t => t.Module === 'Stores');
         const facilityTemplates = templates.filter(t => t.Module === 'Facility Management');
         const securityTemplates = templates.filter(t => t.Module === 'Security');
+        const personnelTemplates = templates.filter(t => t.Module === 'Personnel');
         
         // Helper to get description based on report type
         const getDescription = (reportType) => {
@@ -6079,6 +6080,7 @@ router.get('/email-templates', async (req, res) => {
                     .module-badge.stores { background: linear-gradient(135deg, #fff3e0, #ffe0b2); color: #e65100; }
                     .module-badge.facility { background: linear-gradient(135deg, #e0f7fa, #b2ebf2); color: #00838f; }
                     .module-badge.security { background: linear-gradient(135deg, #ede7f6, #d1c4e9); color: #4527a0; }
+                    .module-badge.personnel { background: linear-gradient(135deg, #e3f2fd, #bbdefb); color: #0d47a1; }
                     .template-count { font-size: 13px; color: #888; margin-left: auto; }
                     
                     .templates-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
@@ -6192,6 +6194,18 @@ router.get('/email-templates', async (req, res) => {
                         </div>
                         <div class="templates-grid">
                             ${securityTemplates.map(renderCard).join('')}
+                        </div>
+                    </div>
+                    
+                    <!-- Personnel Templates Section -->
+                    <div class="module-section">
+                        <div class="module-header">
+                            <span class="module-badge personnel">Personnel</span>
+                            <h2>Personnel Module Templates</h2>
+                            <span class="template-count">${personnelTemplates.length} templates</span>
+                        </div>
+                        <div class="templates-grid">
+                            ${personnelTemplates.map(renderCard).join('')}
                         </div>
                     </div>
                 </div>
@@ -7257,7 +7271,7 @@ router.get('/job-monitor', async (req, res) => {
                                 <button class="btn btn-outline btn-sm" onclick="loadWorkflowEmails()">🔄 Refresh</button>
                             </div>
                             <p style="color: #666; margin-bottom: 15px; font-size: 13px;">
-                                Track all emails sent through the workflow engine across <strong>all modules</strong> (Stores, Facility Management, Security).
+                                Track all emails sent through the workflow engine across <strong>all modules</strong> (Stores, Facility Management, Security, Personnel).
                             </p>
                             
                             <!-- Stats cards - populated by JS -->

@@ -7,6 +7,7 @@ const express = require('express');
 const router = express.Router();
 const sql = require('mssql');
 const multer = require('multer');
+const workflowEngine = require('../../../services/workflow-engine');
 
 // Configure multer for CSV upload
 const upload = multer({ 
@@ -777,6 +778,17 @@ router.post('/submit', async (req, res) => {
         
         await pool.close();
         
+        // Trigger workflow engine (non-blocking)
+        workflowEngine.start({
+            formCode: 'THIRDPARTY_SCHEDULE',
+            recordId: scheduleId,
+            recordTable: 'ThirdpartySchedules',
+            submitter: { userId: req.currentUser.userId, email: req.currentUser.email || req.currentUser.mail, name: req.currentUser.displayName },
+            store: { storeId: storeId ? parseInt(storeId) : null, storeName: storeName || null },
+            metaData: { fromDate, toDate, storeName },
+            accessToken: req.currentUser?.accessToken
+        }).catch(err => console.error('[WORKFLOW] Thirdparty schedule error:', err));
+
         res.redirect('/personnel/thirdparty-schedule/view/' + scheduleId + '?success=1');
     } catch (err) {
         console.error('Error submitting schedule:', err);

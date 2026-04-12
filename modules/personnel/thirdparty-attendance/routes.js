@@ -8,6 +8,7 @@ const router = express.Router();
 const sql = require('mssql');
 const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
+const workflowEngine = require('../../../services/workflow-engine');
 
 // Configure multer for file upload
 const upload = multer({ 
@@ -349,6 +350,17 @@ router.post('/upload', upload.single('csvFile'), async (req, res) => {
         
         await pool.close();
         
+        // Trigger workflow engine (non-blocking)
+        workflowEngine.start({
+            formCode: 'THIRDPARTY_ATTENDANCE',
+            recordId: 0,
+            recordTable: 'ThirdpartyAttendance',
+            submitter: { userId: req.currentUser.userId, email: req.currentUser.email || req.currentUser.mail, name: req.currentUser.displayName },
+            store: {},
+            metaData: { fileName, recordCount, batchId },
+            accessToken: req.currentUser?.accessToken
+        }).catch(err => console.error('[WORKFLOW] Thirdparty attendance error:', err));
+
         res.redirect('/personnel/thirdparty-attendance?success=1&count=' + recordCount);
     } catch (err) {
         console.error('Error uploading file:', err);

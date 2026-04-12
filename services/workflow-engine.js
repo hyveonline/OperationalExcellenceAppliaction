@@ -1315,7 +1315,11 @@ class WorkflowEngine {
             'THEFT_INCIDENT': '/stores/theft-incident',
             'ORA_ASSESSMENT': '/ohs/ora',
             'FIRE_EQUIPMENT': '/ohs/fire-equipment',
-            'SEC_DAILY_TASKS': '/security/daily-tasks/history'
+            'SEC_DAILY_TASKS': '/security/daily-tasks/history',
+            'EMPLOYEE_SCHEDULE': '/personnel/schedule-attendance/history',
+            'SECURITY_SCHEDULE': '/personnel/security-schedule/history',
+            'THIRDPARTY_SCHEDULE': '/personnel/thirdparty-schedule/history',
+            'THIRDPARTY_ATTENDANCE': '/personnel/thirdparty-attendance'
         };
         const path = urlMap[formCode] || '';
         const viewUrl = path ? `${this.appUrl}${path}` : this.appUrl;

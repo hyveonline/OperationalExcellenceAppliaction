@@ -6,6 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const sql = require('mssql');
+const workflowEngine = require('../../../services/workflow-engine');
 
 // Database configuration
 const dbConfig = {
@@ -1242,6 +1243,18 @@ router.post('/api/schedules/submit', async (req, res) => {
                 WHERE WeekStartDate = @weekStart
             `);
         await pool.close();
+
+        // Trigger workflow engine (non-blocking)
+        workflowEngine.start({
+            formCode: 'EMPLOYEE_SCHEDULE',
+            recordId: 0,
+            recordTable: 'Personnel_EmployeeSchedule',
+            submitter: { userId: user.id, email: user.email, name: user.displayName },
+            store: {},
+            metaData: { weekStart },
+            accessToken: req.currentUser?.accessToken
+        }).catch(err => console.error('[WORKFLOW] Employee schedule error:', err));
+
         res.json({ success: true });
     } catch (err) {
         if (pool) await pool.close();
