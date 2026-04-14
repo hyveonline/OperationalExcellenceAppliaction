@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Inspection - Template Builder</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #f5f5f5; color: #333; }
+        
+        .header { background: linear-gradient(135deg, #dc2626, #b91c1c); color: white; padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { font-size: 22px; }
+        .header-nav { display: flex; gap: 10px; }
+        .header-nav a { color: white; text-decoration: none; padding: 8px 16px; border-radius: 6px; background: rgba(255,255,255,0.15); font-size: 13px; transition: background 0.2s; }
+        .header-nav a:hover { background: rgba(255,255,255,0.3); }
+        
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        
+        .layout { display: grid; grid-template-columns: 320px 1fr; gap: 20px; min-height: calc(100vh - 80px); }
+        
+        /* Sidebar */
+        .sidebar { background: white; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); padding: 20px; }
+        .sidebar h3 { font-size: 16px; margin-bottom: 15px; color: #b91c1c; }
+        
+        .template-list { list-style: none; }
+        .template-item { padding: 12px 15px; border-radius: 8px; cursor: pointer; border: 2px solid transparent; margin-bottom: 8px; transition: all 0.2s; background: #fafafa; }
+        .template-item:hover { background: #fef2f2; border-color: #fca5a5; }
+        .template-item.active { background: #fef2f2; border-color: #dc2626; }
+        .template-item .name { font-weight: 600; font-size: 14px; }
+        .template-item .desc { font-size: 12px; color: #888; margin-top: 3px; }
+        .template-item .meta { font-size: 11px; color: #aaa; margin-top: 5px; display: flex; gap: 10px; }
+        
+        .btn { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; }
+        .btn-primary { background: #dc2626; color: white; }
+        .btn-primary:hover { background: #b91c1c; }
+        .btn-outline { background: white; color: #dc2626; border: 1px solid #dc2626; }
+        .btn-outline:hover { background: #fef2f2; }
+        .btn-danger { background: #ef4444; color: white; }
+        .btn-danger:hover { background: #dc2626; }
+        .btn-sm { padding: 5px 10px; font-size: 12px; }
+        .btn-success { background: #16a34a; color: white; }
+        .btn-success:hover { background: #15803d; }
+        .btn-block { width: 100%; }
+        
+        /* Main content */
+        .main { min-width: 0; }
+        
+        .empty-state { text-align: center; padding: 60px 20px; color: #999; }
+        .empty-state .icon { font-size: 48px; margin-bottom: 15px; }
+        .empty-state p { font-size: 15px; }
+        
+        /* Department (Section) */
+        .department-card { background: white; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); margin-bottom: 15px; overflow: hidden; }
+        .department-header { padding: 15px 20px; background: linear-gradient(135deg, #fef2f2, #fee2e2); display: flex; align-items: center; gap: 12px; cursor: pointer; user-select: none; }
+        .department-header .icon { font-size: 24px; }
+        .department-header .info { flex: 1; }
+        .department-header .info h3 { font-size: 16px; color: #991b1b; }
+        .department-header .info .stats { font-size: 12px; color: #888; margin-top: 2px; }
+        .department-header .actions { display: flex; gap: 6px; }
+        .department-header .toggle { font-size: 18px; color: #999; transition: transform 0.2s; }
+        .department-body { padding: 15px 20px; }
+        
+        /* Category */
+        .category-card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 10px; margin-bottom: 12px; overflow: hidden; }
+        .category-header { padding: 12px 16px; display: flex; align-items: center; gap: 10px; cursor: pointer; background: #f3f4f6; }
+        .category-header h4 { flex: 1; font-size: 14px; color: #374151; }
+        .category-header .badge { background: #dc2626; color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px; }
+        .category-body { padding: 12px 16px; }
+        
+        /* Sub-category grouping */
+        .subcategory-group { margin-bottom: 15px; }
+        .subcategory-title { font-size: 13px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; padding: 6px 0; border-bottom: 2px solid #e5e7eb; margin-bottom: 8px; }
+        
+        /* Finding (Item) */
+        .finding-row { display: grid; grid-template-columns: 50px 1fr 80px; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 6px; margin-bottom: 4px; background: white; border: 1px solid #f0f0f0; }
+        .finding-row:hover { background: #fefce8; border-color: #fde68a; }
+        .finding-ref { font-weight: 700; color: #dc2626; font-size: 13px; text-align: center; }
+        .finding-text { font-size: 13px; }
+        .finding-actions { display: flex; gap: 4px; justify-content: flex-end; }
+        .finding-actions button { padding: 3px 8px; font-size: 11px; border: 1px solid #ddd; background: white; border-radius: 4px; cursor: pointer; }
+        .finding-actions button:hover { background: #f5f5f5; }
+        .finding-actions .del:hover { background: #fee2e2; color: #dc2626; border-color: #fca5a5; }
+        
+        /* Modals */
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-overlay.show { display: flex; }
+        .modal { background: white; border-radius: 12px; padding: 25px; width: 500px; max-width: 90vw; max-height: 85vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+        .modal h3 { font-size: 18px; margin-bottom: 20px; color: #991b1b; }
+        .modal label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px; color: #555; }
+        .modal input, .modal select, .modal textarea { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; margin-bottom: 15px; font-family: inherit; }
+        .modal textarea { height: 80px; resize: vertical; }
+        .modal input:focus, .modal select:focus, .modal textarea:focus { outline: none; border-color: #dc2626; box-shadow: 0 0 0 3px rgba(220,38,38,0.1); }
+        .modal-buttons { display: flex; gap: 10px; justify-content: flex-end; margin-top: 10px; }
+        
+        .toast { position: fixed; bottom: 20px; right: 20px; padding: 12px 20px; border-radius: 8px; color: white; font-size: 14px; z-index: 2000; animation: slideIn 0.3s ease; }
+        .toast.success { background: #16a34a; }
+        .toast.error { background: #dc2626; }
+        @keyframes slideIn { from { transform: translateX(100px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        
+        .add-row { display: flex; gap: 8px; margin-top: 8px; }
+        .add-row input, .add-row textarea { flex: 1; padding: 8px 10px; border: 1px dashed #ccc; border-radius: 6px; font-size: 13px; }
+        .add-row input:focus, .add-row textarea:focus { border-color: #dc2626; border-style: solid; outline: none; }
+        
+        .scoring-info { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 10px 15px; margin-bottom: 15px; font-size: 13px; color: #991b1b; }
+        .scoring-info strong { color: #dc2626; }
+        
+        @media (max-width: 900px) {
+            .layout { grid-template-columns: 1fr; }
+            .sidebar { order: -1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔍 Security Inspection - Template Builder</h1>
+        <div class="header-nav">
+            <a href="/security-inspection">🏠 Dashboard</a>
+            <a href="/security-inspection/list">📋 Inspections</a>
+            <a href="/security-inspection/settings">⚙️ Settings</a>
+            <a href="/dashboard">🔙 Main Menu</a>
+        </div>
+    </div>
+    
+    <div class="container">
+        <div class="layout">
+            <!-- Sidebar: Template List -->
+            <div class="sidebar">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h3>📋 Templates</h3>
+                    <button class="btn btn-primary btn-sm" onclick="showCreateTemplate()">+ New</button>
+                </div>
+                <ul class="template-list" id="templateList">
+                    <li style="padding: 20px; text-align: center; color: #999;">Loading...</li>
+                </ul>
+            </div>
+            
+            <!-- Main: Template Content -->
+            <div class="main" id="mainContent">
+                <div class="empty-state">
+                    <div class="icon">📋</div>
+                    <p>Select a template from the sidebar or create a new one</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Create/Edit Template Modal -->
+    <div class="modal-overlay" id="templateModal">
+        <div class="modal">
+            <h3 id="templateModalTitle">Create Template</h3>
+            <input type="hidden" id="templateId">
+            <label>Template Name *</label>
+            <input type="text" id="templateName" placeholder="e.g., Cleaning Inspection">
+            <label>Description</label>
+            <textarea id="templateDesc" placeholder="Optional description..."></textarea>
+            <div class="modal-buttons">
+                <button class="btn btn-outline" onclick="closeModal('templateModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="saveTemplate()">Save</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Create/Edit Department Modal -->
+    <div class="modal-overlay" id="departmentModal">
+        <div class="modal">
+            <h3 id="departmentModalTitle">Add Department</h3>
+            <input type="hidden" id="deptId">
+            <label>Department Name *</label>
+            <input type="text" id="deptName" placeholder="e.g., Cleaning">
+            <label>Icon (emoji)</label>
+            <input type="text" id="deptIcon" placeholder="e.g., 🧹" maxlength="4">
+            <div class="modal-buttons">
+                <button class="btn btn-outline" onclick="closeModal('departmentModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="saveDepartment()">Save</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Create/Edit Category Modal -->
+    <div class="modal-overlay" id="categoryModal">
+        <div class="modal">
+            <h3 id="categoryModalTitle">Add Category</h3>
+            <input type="hidden" id="catId">
+            <input type="hidden" id="catSectionId">
+            <label>Category Name *</label>
+            <input type="text" id="catName" placeholder="e.g., Operational Compliance">
+            <div class="modal-buttons">
+                <button class="btn btn-outline" onclick="closeModal('categoryModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="saveCategory()">Save</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Add Finding Modal -->
+    <div class="modal-overlay" id="findingModal">
+        <div class="modal">
+            <h3>Add Finding</h3>
+            <input type="hidden" id="findingCategoryId">
+            <input type="hidden" id="findingItemId">
+            <label>Reference (e.g., 1.1) *</label>
+            <input type="text" id="findingRef" placeholder="1.1">
+            <label>Sub-Category</label>
+            <input type="text" id="findingSubCat" placeholder="e.g., General Cleanliness">
+            <label>Finding / Question *</label>
+            <textarea id="findingQuestion" placeholder="What to check..." style="height: 60px;"></textarea>
+            <label>Criteria (optional)</label>
+            <textarea id="findingCriteria" placeholder="How to evaluate..." style="height: 50px;"></textarea>
+            <div class="scoring-info">
+                <strong>Scoring:</strong> Yes = 1 point, No = 0 points, N/A = not counted
+            </div>
+            <div class="modal-buttons">
+                <button class="btn btn-outline" onclick="closeModal('findingModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="saveFinding()">Save</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Bulk Import Modal -->
+    <div class="modal-overlay" id="bulkModal">
+        <div class="modal" style="width: 650px;">
+            <h3>📥 Bulk Import Findings</h3>
+            <input type="hidden" id="bulkCategoryId">
+            <p style="font-size: 13px; color: #666; margin-bottom: 15px;">
+                Paste findings, one per line. Format: <strong>Ref | Sub-Category | Question | Criteria</strong><br>
+                Sub-Category and Criteria are optional.
+            </p>
+            <label>Sub-Category (applies to all if not specified per line)</label>
+            <input type="text" id="bulkSubCat" placeholder="e.g., General Cleanliness">
+            <label>Findings (one per line)</label>
+            <textarea id="bulkText" style="height: 200px; font-family: monospace; font-size: 12px;" placeholder="1.1 | General Cleanliness | Floor is clean and free of debris
+1.2 | General Cleanliness | Walls are clean and free of stains
+1.3 | Equipment | Equipment is in good working condition"></textarea>
+            <div class="modal-buttons">
+                <button class="btn btn-outline" onclick="closeModal('bulkModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="bulkImport()">Import</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const API = '/security-inspection/api/templates';
+        let currentTemplateId = null;
+        let currentSchema = null;
+        
+        // Helper: all API calls return { success, data } wrapper
+        async function apiGet(url) {
+            const res = await fetch(url);
+            const json = await res.json();
+            if (!json.success) { console.error('API error:', url, json.error); return null; }
+            return json.data;
+        }
+        async function apiPost(url, body) {
+            const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+            return await res.json();
+        }
+        async function apiPut(url, body) {
+            const res = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+            return await res.json();
+        }
+        async function apiDelete(url) {
+            const res = await fetch(url, { method: 'DELETE' });
+            return await res.json();
+        }
+        
+        // ==========================================
+        // TEMPLATE LIST
+        // ==========================================
+        async function loadTemplates() {
+            try {
+                const templates = await apiGet(`${API}/schemas`);
+                const list = document.getElementById('templateList');
+                
+                if (!templates || !templates.length) {
+                    list.innerHTML = '<li style="padding:20px;text-align:center;color:#999;">No templates yet. Create one!</li>';
+                    return;
+                }
+                
+                list.innerHTML = templates.map(t => `
+                    <li class="template-item ${t.schemaId === currentTemplateId ? 'active' : ''}" onclick="selectTemplate(${t.schemaId})">
+                        <div class="name">${t.schemaName}</div>
+                        ${t.description ? `<div class="desc">${t.description}</div>` : ''}
+                        <div class="meta">
+                            <span>${t.sectionCount || 0} departments</span>
+                        </div>
+                    </li>
+                `).join('');
+            } catch (err) {
+                console.error('Error loading templates:', err);
+            }
+        }
+        
+        async function selectTemplate(id) {
+            currentTemplateId = id;
+            await loadFullSchema(id);
+            loadTemplates();
+        }
+        
+        // ==========================================
+        // FULL SCHEMA LOAD
+        // ==========================================
+        async function loadFullSchema(schemaId) {
+            try {
+                const main = document.getElementById('mainContent');
+                main.innerHTML = '<div class="empty-state"><div class="icon">⏳</div><p>Loading template...</p></div>';
+                currentSchema = await apiGet(`${API}/schemas/${schemaId}`);
+                if (!currentSchema) {
+                    main.innerHTML = '<div class="empty-state"><div class="icon">⚠️</div><p>Failed to load template data</p></div>';
+                    return;
+                }
+                renderSchema();
+            } catch (err) {
+                console.error('Error loading schema:', err);
+                document.getElementById('mainContent').innerHTML = '<div class="empty-state"><div class="icon">❌</div><p>Error: ' + err.message + '</p></div>';
+            }
+        }
+        
+        function renderSchema() {
+            const s = currentSchema;
+            if (!s) return;
+            const main = document.getElementById('mainContent');
+            
+            let html = `
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;">
+                    <div>
+                        <h2 style="font-size:22px;color:#991b1b;">${s.schemaName}</h2>
+                        ${s.description ? `<p style="font-size:13px;color:#888;margin-top:4px;">${s.description}</p>` : ''}
+                    </div>
+                    <div style="display:flex;gap:8px;">
+                        <button class="btn btn-outline btn-sm" onclick="editTemplate()">✏️ Edit</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteTemplate()">🗑️ Delete</button>
+                    </div>
+                </div>
+                
+                <div class="scoring-info">
+                    <strong>Scoring System:</strong> Yes = 1 point | No = 0 points | N/A = excluded from score calculation
+                </div>
+                
+                <div style="margin-bottom:15px;">
+                    <button class="btn btn-primary" onclick="showAddDepartment()">+ Add Department</button>
+                </div>
+            `;
+            
+            if (!s.sections || !s.sections.length) {
+                html += '<div class="empty-state"><div class="icon">📂</div><p>No departments yet. Add one to start building!</p></div>';
+            } else {
+                s.sections.forEach((dept, di) => {
+                    const totalItems = (dept.categories || []).reduce((sum, c) => sum + (c.items || []).length, 0) + (dept.items || []).length;
+                    html += `
+                        <div class="department-card">
+                            <div class="department-header" onclick="toggleDept(${di})">
+                                <span class="icon">${dept.sectionIcon || '📂'}</span>
+                                <div class="info">
+                                    <h3>${dept.sectionName}</h3>
+                                    <div class="stats">${(dept.categories || []).length} categories · ${totalItems} findings</div>
+                                </div>
+                                <div class="actions" onclick="event.stopPropagation()">
+                                    <button class="btn btn-outline btn-sm" onclick="showAddCategory(${dept.sectionId})">+ Category</button>
+                                    <button class="btn btn-outline btn-sm" onclick="editDepartment(${dept.sectionId}, '${escapeAttr(dept.sectionName)}', '${escapeAttr(dept.sectionIcon || '')}')">✏️</button>
+                                    <button class="btn btn-danger btn-sm" onclick="deleteDepartment(${dept.sectionId})">🗑️</button>
+                                </div>
+                                <span class="toggle" id="toggle-${di}">▶</span>
+                            </div>
+                            <div class="department-body" id="dept-${di}">
+                    `;
+                    
+                    // Categories
+                    if (dept.categories && dept.categories.length) {
+                        dept.categories.forEach((cat, ci) => {
+                            html += `
+                                <div class="category-card">
+                                    <div class="category-header" onclick="toggleCat(${di},${ci})">
+                                        <h4>📁 ${cat.categoryName}</h4>
+                                        <span class="badge">${(cat.items || []).length} findings</span>
+                                        <div style="display:flex;gap:4px;" onclick="event.stopPropagation()">
+                                            <button class="btn btn-sm btn-outline" onclick="showAddFinding(${cat.categoryId})">+ Finding</button>
+                                            <button class="btn btn-sm btn-outline" onclick="showBulkImport(${cat.categoryId})">📥</button>
+                                            <button class="btn btn-sm btn-outline" onclick="editCategory(${cat.categoryId}, '${escapeAttr(cat.categoryName)}', ${dept.sectionId})">✏️</button>
+                                            <button class="btn btn-sm" style="border:1px solid #ddd;background:white;cursor:pointer;" onclick="deleteCategory(${cat.categoryId})">🗑️</button>
+                                        </div>
+                                    </div>
+                                    <div class="category-body" id="cat-${di}-${ci}">
+                            `;
+                            
+                            // Group items by sub-category
+                            const items = cat.items || [];
+                            const grouped = {};
+                            items.forEach(item => {
+                                const sub = item.subCategory || '(No sub-category)';
+                                if (!grouped[sub]) grouped[sub] = [];
+                                grouped[sub].push(item);
+                            });
+                            
+                            Object.keys(grouped).forEach(subName => {
+                                if (subName !== '(No sub-category)') {
+                                    html += `<div class="subcategory-group"><div class="subcategory-title">${subName}</div>`;
+                                } else {
+                                    html += `<div class="subcategory-group">`;
+                                }
+                                grouped[subName].forEach(item => {
+                                    html += `
+                                        <div class="finding-row">
+                                            <div class="finding-ref">${item.referenceValue || '-'}</div>
+                                            <div class="finding-text">${item.title || ''}${item.cr ? `<br><small style="color:#888;">${item.cr}</small>` : ''}</div>
+                                            <div class="finding-actions">
+                                                <button onclick="editFinding(${item.itemId}, ${cat.categoryId})">✏️</button>
+                                                <button class="del" onclick="deleteFinding(${item.itemId})">🗑️</button>
+                                            </div>
+                                        </div>
+                                    `;
+                                });
+                                html += '</div>';
+                            });
+                            
+                            if (!items.length) {
+                                html += '<p style="text-align:center;color:#999;padding:15px;font-size:13px;">No findings yet. Click "+ Finding" or "📥 Bulk Import"</p>';
+                            }
+                            
+                            html += '</div></div>';
+                        });
+                    }
+                    
+                    html += '</div></div>';
+                });
+            }
+            
+            main.innerHTML = html;
+        }
+        
+        function escapeAttr(str) {
+            return (str || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        }
+        
+        function toggleDept(i) {
+            const body = document.getElementById(`dept-${i}`);
+            const toggle = document.getElementById(`toggle-${i}`);
+            const isHidden = body.style.display === 'none';
+            body.style.display = isHidden ? 'block' : 'none';
+            toggle.textContent = isHidden ? '▼' : '▶';
+        }
+        
+        function toggleCat(di, ci) {
+            const body = document.getElementById(`cat-${di}-${ci}`);
+            const isHidden = body.style.display === 'none';
+            body.style.display = isHidden ? 'block' : 'none';
+        }
+        
+        // ==========================================
+        // TEMPLATE CRUD
+        // ==========================================
+        function showCreateTemplate() {
+            document.getElementById('templateModalTitle').textContent = 'Create Template';
+            document.getElementById('templateId').value = '';
+            document.getElementById('templateName').value = '';
+            document.getElementById('templateDesc').value = '';
+            openModal('templateModal');
+        }
+        
+        function editTemplate() {
+            document.getElementById('templateModalTitle').textContent = 'Edit Template';
+            document.getElementById('templateId').value = currentSchema.schemaId;
+            document.getElementById('templateName').value = currentSchema.schemaName;
+            document.getElementById('templateDesc').value = currentSchema.description || '';
+            openModal('templateModal');
+        }
+        
+        async function saveTemplate() {
+            const id = document.getElementById('templateId').value;
+            const name = document.getElementById('templateName').value.trim();
+            const desc = document.getElementById('templateDesc').value.trim();
+            if (!name) return showToast('Name is required', 'error');
+            
+            let result;
+            if (id) {
+                result = await apiPut(`${API}/schemas/${id}`, { schemaName: name, description: desc });
+            } else {
+                result = await apiPost(`${API}/schemas`, { schemaName: name, description: desc });
+            }
+            
+            if (result.success) {
+                closeModal('templateModal');
+                showToast(id ? 'Template updated!' : 'Template created!');
+                if (!id && result.data) currentTemplateId = result.data.schemaId;
+                loadTemplates();
+                if (currentTemplateId) loadFullSchema(currentTemplateId);
+            } else {
+                showToast('Failed to save template', 'error');
+            }
+        }
+        
+        async function deleteTemplate() {
+            if (!confirm('Delete this template and all its departments, categories, and findings?')) return;
+            const result = await apiDelete(`${API}/schemas/${currentTemplateId}`);
+            if (result.success) {
+                showToast('Template deleted');
+                currentTemplateId = null;
+                currentSchema = null;
+                document.getElementById('mainContent').innerHTML = '<div class="empty-state"><div class="icon">📋</div><p>Select or create a template</p></div>';
+                loadTemplates();
+            }
+        }
+        
+        // ==========================================
+        // DEPARTMENT (Section) CRUD
+        // ==========================================
+        function showAddDepartment() {
+            document.getElementById('departmentModalTitle').textContent = 'Add Department';
+            document.getElementById('deptId').value = '';
+            document.getElementById('deptName').value = '';
+            document.getElementById('deptIcon').value = '';
+            openModal('departmentModal');
+        }
+        
+        function editDepartment(id, name, icon) {
+            document.getElementById('departmentModalTitle').textContent = 'Edit Department';
+            document.getElementById('deptId').value = id;
+            document.getElementById('deptName').value = name;
+            document.getElementById('deptIcon').value = icon;
+            openModal('departmentModal');
+        }
+        
+        async function saveDepartment() {
+            const id = document.getElementById('deptId').value;
+            const name = document.getElementById('deptName').value.trim();
+            const icon = document.getElementById('deptIcon').value.trim();
+            if (!name) return showToast('Name is required', 'error');
+            
+            let result;
+            if (id) {
+                result = await apiPut(`${API}/sections/${id}`, { sectionName: name, sectionIcon: icon, sectionNumber: 0 });
+            } else {
+                result = await apiPost(`${API}/schemas/${currentTemplateId}/sections`, { sectionName: name, sectionIcon: icon, sectionNumber: 0 });
+            }
+            
+            if (result.success) {
+                closeModal('departmentModal');
+                showToast(id ? 'Department updated' : 'Department added');
+                loadFullSchema(currentTemplateId);
+            } else {
+                showToast('Failed to save department', 'error');
+            }
+        }
+        
+        async function deleteDepartment(id) {
+            if (!confirm('Delete this department and ALL its categories and findings?')) return;
+            const result = await apiDelete(`${API}/sections/${id}`);
+            if (result.success) {
+                showToast('Department deleted');
+                loadFullSchema(currentTemplateId);
+            }
+        }
+        
+        // ==========================================
+        // CATEGORY CRUD
+        // ==========================================
+        function showAddCategory(sectionId) {
+            document.getElementById('categoryModalTitle').textContent = 'Add Category';
+            document.getElementById('catId').value = '';
+            document.getElementById('catSectionId').value = sectionId;
+            document.getElementById('catName').value = '';
+            openModal('categoryModal');
+        }
+        
+        function editCategory(catId, name, sectionId) {
+            document.getElementById('categoryModalTitle').textContent = 'Edit Category';
+            document.getElementById('catId').value = catId;
+            document.getElementById('catSectionId').value = sectionId;
+            document.getElementById('catName').value = name;
+            openModal('categoryModal');
+        }
+        
+        async function saveCategory() {
+            const id = document.getElementById('catId').value;
+            const sectionId = document.getElementById('catSectionId').value;
+            const name = document.getElementById('catName').value.trim();
+            if (!name) return showToast('Name is required', 'error');
+            
+            let result;
+            if (id) {
+                result = await apiPut(`${API}/categories/${id}`, { categoryName: name });
+            } else {
+                result = await apiPost(`${API}/sections/${sectionId}/categories`, { categoryName: name });
+            }
+            
+            if (result.success) {
+                closeModal('categoryModal');
+                showToast(id ? 'Category updated' : 'Category added');
+                loadFullSchema(currentTemplateId);
+            } else {
+                showToast('Failed to save category', 'error');
+            }
+        }
+        
+        async function deleteCategory(id) {
+            if (!confirm('Delete this category and all its findings?')) return;
+            const result = await apiDelete(`${API}/categories/${id}`);
+            if (result.success) {
+                showToast('Category deleted');
+                loadFullSchema(currentTemplateId);
+            }
+        }
+        
+        // ==========================================
+        // FINDING (Item) CRUD
+        // ==========================================
+        function showAddFinding(categoryId) {
+            document.getElementById('findingCategoryId').value = categoryId;
+            document.getElementById('findingItemId').value = '';
+            document.getElementById('findingRef').value = '';
+            document.getElementById('findingSubCat').value = '';
+            document.getElementById('findingQuestion').value = '';
+            document.getElementById('findingCriteria').value = '';
+            openModal('findingModal');
+        }
+        
+        async function editFinding(itemId, categoryId) {
+            try {
+                const items = await apiGet(`${API}/categories/${categoryId}/items`);
+                const item = (items || []).find(i => i.itemId === itemId);
+                if (!item) return showToast('Item not found', 'error');
+                
+                document.getElementById('findingCategoryId').value = categoryId;
+                document.getElementById('findingItemId').value = itemId;
+                document.getElementById('findingRef').value = item.referenceValue || '';
+                document.getElementById('findingSubCat').value = item.subCategory || '';
+                document.getElementById('findingQuestion').value = item.title || '';
+                document.getElementById('findingCriteria').value = item.cr || '';
+                openModal('findingModal');
+            } catch (err) {
+                showToast('Error loading item', 'error');
+            }
+        }
+        
+        async function saveFinding() {
+            const categoryId = document.getElementById('findingCategoryId').value;
+            const itemId = document.getElementById('findingItemId').value;
+            const ref = document.getElementById('findingRef').value.trim();
+            const subCat = document.getElementById('findingSubCat').value.trim();
+            const question = document.getElementById('findingQuestion').value.trim();
+            const criteria = document.getElementById('findingCriteria').value.trim();
+            
+            if (!question) return showToast('Question is required', 'error');
+            
+            const body = {
+                referenceValue: ref,
+                title: question,
+                cr: criteria,
+                subCategory: subCat,
+                coeff: 1,
+                answer: 'Yes,No,NA',
+                defaultSeverity: 'Medium'
+            };
+            
+            let result;
+            if (itemId) {
+                result = await apiPut(`${API}/items/${itemId}`, body);
+            } else {
+                result = await apiPost(`${API}/categories/${categoryId}/items`, body);
+            }
+            
+            if (result.success) {
+                closeModal('findingModal');
+                showToast(itemId ? 'Finding updated' : 'Finding added');
+                loadFullSchema(currentTemplateId);
+            } else {
+                showToast('Failed to save finding', 'error');
+            }
+        }
+        
+        async function deleteFinding(itemId) {
+            if (!confirm('Delete this finding?')) return;
+            const result = await apiDelete(`${API}/items/${itemId}`);
+            if (result.success) {
+                showToast('Finding deleted');
+                loadFullSchema(currentTemplateId);
+            }
+        }
+        
+        // ==========================================
+        // BULK IMPORT
+        // ==========================================
+        function showBulkImport(categoryId) {
+            document.getElementById('bulkCategoryId').value = categoryId;
+            document.getElementById('bulkSubCat').value = '';
+            document.getElementById('bulkText').value = '';
+            openModal('bulkModal');
+        }
+        
+        async function bulkImport() {
+            const categoryId = document.getElementById('bulkCategoryId').value;
+            const defaultSubCat = document.getElementById('bulkSubCat').value.trim();
+            const text = document.getElementById('bulkText').value.trim();
+            
+            if (!text) return showToast('Paste some findings first', 'error');
+            
+            const lines = text.split('\n').filter(l => l.trim());
+            const items = lines.map(line => {
+                const parts = line.split('|').map(p => p.trim());
+                return {
+                    referenceValue: parts[0] || '',
+                    subCategory: parts[1] || defaultSubCat || '',
+                    title: parts[2] || parts[0] || '',
+                    cr: parts[3] || '',
+                    coeff: 1,
+                    answer: 'Yes,No,NA'
+                };
+            });
+            
+            const result = await apiPost(`${API}/categories/${categoryId}/items/bulk`, { items });
+            
+            if (result.success) {
+                closeModal('bulkModal');
+                showToast(`Imported ${result.inserted || items.length} findings`);
+                loadFullSchema(currentTemplateId);
+            } else {
+                showToast('Bulk import failed', 'error');
+            }
+        }
+        
+        // ==========================================
+        // UTILS
+        // ==========================================
+        function openModal(id) {
+            document.getElementById(id).classList.add('show');
+        }
+        
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('show');
+        }
+        
+        function showToast(msg, type = 'success') {
+            const t = document.createElement('div');
+            t.className = 'toast ' + type;
+            t.textContent = msg;
+            document.body.appendChild(t);
+            setTimeout(() => t.remove(), 3000);
+        }
+        
+        // Close modals on backdrop click
+        document.querySelectorAll('.modal-overlay').forEach(overlay => {
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) overlay.classList.remove('show');
+            });
+        });
+        
+        // Init
+        loadTemplates();
+    </script>
+</body>
+</html>

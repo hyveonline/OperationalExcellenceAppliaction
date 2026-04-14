@@ -47,6 +47,7 @@ const ohsInspectionModule = require('./modules/ohs-inspection');
 const securityServicesModule = require('./modules/security-services');
 const securityModule = require('./modules/security');
 const securityEmpModule = require('./modules/security-emp');
+const securityInspectionModule = require('./modules/security-inspection');
 const escalationModule = require('./modules/escalation');
 
 // Import escalation service for scheduled tasks
@@ -179,6 +180,7 @@ app.use('/ohs-inspection', requireAuth, formAccessMiddleware, ohsInspectionModul
 app.use('/security-services', requireAuth, formAccessMiddleware, securityServicesModule);
 app.use('/security', requireAuth, formAccessMiddleware, securityModule);
 app.use('/security-emp', requireAuth, formAccessMiddleware, securityEmpModule);
+app.use('/security-inspection', requireAuth, formAccessMiddleware, securityInspectionModule);
 app.use('/escalation', requireAuth, formAccessMiddleware, escalationModule);
 
 // Redirect common mistaken routes

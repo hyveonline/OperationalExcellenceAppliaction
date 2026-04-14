@@ -102,6 +102,7 @@ async function runSetup(dbName) {
             ['SECURITY_PARKING', 'Parking Violations', 'Security', '/security/parking-violations', 'Parking violations'],
             ['SECURITY_CHECKLIST', 'Security Checklist Reference', 'Security', '/security/checklist-reference', 'Checklist mgmt'],
             ['SECURITY_CLEANING', 'Cleaning Reference', 'Security', '/security/cleaning-reference', 'Cleaning checklist'],
+            ['SECURITY_INSPECTION', 'Security Inspection', 'Security', '/security-inspection', 'Security inspections and audits'],
             
             // Security Services (Store-level)
             ['SEC_SERVICES', 'Security Services', 'Security Services', '/security-services', 'Store security'],
