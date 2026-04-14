@@ -2320,7 +2320,7 @@ router.post('/api/audits/:auditId/generate-report', async (req, res) => {
         const settingsResult = await pool.request().query(`SELECT SettingValue FROM OHS_InspectionSettings WHERE SettingKey = 'PASSING_SCORE'`);
         const threshold = parseInt(settingsResult.recordset[0]?.SettingValue) || 80;
         
-        // Get pictures for all items
+        // Get pictures for all items (direct uploads + gallery assigned)
         const picturesResult = await pool.request()
             .input('auditId', sql.Int, auditId)
             .query(`
@@ -2328,7 +2328,14 @@ router.post('/api/audits/:auditId/generate-report', async (req, res) => {
                 FROM OHS_InspectionPictures p
                 INNER JOIN OHS_InspectionItems i ON p.ItemId = i.Id
                 WHERE i.InspectionId = @auditId
-                ORDER BY p.ItemId, p.Id
+                UNION ALL
+                SELECT g.Id + 1000000 as Id, l.ResponseId as ItemId, g.FileName, 'image/jpeg' as ContentType, 
+                       l.PictureType, g.FilePath, g.OriginalName, g.FileSize
+                FROM OHS_InspectionGalleryLinks l
+                INNER JOIN OHS_InspectionGallery g ON g.Id = l.GalleryPictureId
+                INNER JOIN OHS_InspectionItems i ON i.Id = l.ResponseId
+                WHERE i.InspectionId = @auditId
+                ORDER BY ItemId, Id
             `);
         
         // Group pictures by ItemId
@@ -5423,6 +5430,334 @@ router.put('/api/department-assignments/:id/resolve', async (req, res) => {
         res.json({ success: true });
     } catch (error) {
         console.error('Error resolving OHS assignment:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ==========================================
+// GALLERY API ENDPOINTS
+// ==========================================
+
+// Configure multer for gallery uploads
+const galleryUploadDir = path.join(__dirname, '..', '..', 'uploads', 'ohs-inspection', 'gallery');
+if (!fs.existsSync(galleryUploadDir)) {
+    fs.mkdirSync(galleryUploadDir, { recursive: true });
+}
+
+const galleryStorage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, galleryUploadDir),
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, 'gallery-' + uniqueSuffix + path.extname(file.originalname));
+    }
+});
+
+const galleryUpload = multer({
+    storage: galleryStorage,
+    limits: { fileSize: 15 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = /jpeg|jpg|png|gif|webp/;
+        const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+        const mimetype = allowedTypes.test(file.mimetype);
+        if (extname && mimetype) return cb(null, true);
+        cb(new Error('Only image files are allowed'));
+    }
+});
+
+// Upload single picture to gallery
+router.post('/api/gallery/:auditId/upload', galleryUpload.single('picture'), async (req, res) => {
+    try {
+        const { auditId } = req.params;
+        const user = req.currentUser;
+        if (!req.file) return res.status(400).json({ success: false, error: 'No file uploaded' });
+        await compressImage(req.file.path);
+        const stats = fs.statSync(req.file.path);
+        const pool = await sql.connect(dbConfig);
+        const result = await pool.request()
+            .input('auditId', sql.Int, auditId)
+            .input('fileName', sql.NVarChar, req.file.filename)
+            .input('filePath', sql.NVarChar, '/uploads/ohs-inspection/gallery/' + req.file.filename)
+            .input('originalName', sql.NVarChar, req.file.originalname)
+            .input('fileSize', sql.Int, stats.size)
+            .input('uploadedBy', sql.NVarChar, user ? user.displayName : 'Unknown')
+            .query(`
+                INSERT INTO OHS_InspectionGallery (AuditId, FileName, FilePath, OriginalName, FileSize, UploadedBy)
+                OUTPUT INSERTED.Id, INSERTED.FileName, INSERTED.FilePath, INSERTED.OriginalName, INSERTED.FileSize, INSERTED.UploadedAt
+                VALUES (@auditId, @fileName, @filePath, @originalName, @fileSize, @uploadedBy)
+            `);
+        await pool.close();
+        res.json({ success: true, data: result.recordset[0] });
+    } catch (error) {
+        console.error('Error uploading to gallery:', error);
+        if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Upload multiple pictures to gallery
+router.post('/api/gallery/:auditId/upload-multiple', galleryUpload.array('pictures', 20), async (req, res) => {
+    try {
+        const { auditId } = req.params;
+        const user = req.currentUser;
+        if (!req.files || req.files.length === 0) return res.status(400).json({ success: false, error: 'No files uploaded' });
+        const pool = await sql.connect(dbConfig);
+        const uploadedPictures = [];
+        for (const file of req.files) {
+            await compressImage(file.path);
+            const stats = fs.statSync(file.path);
+            const result = await pool.request()
+                .input('auditId', sql.Int, auditId)
+                .input('fileName', sql.NVarChar, file.filename)
+                .input('filePath', sql.NVarChar, '/uploads/ohs-inspection/gallery/' + file.filename)
+                .input('originalName', sql.NVarChar, file.originalname)
+                .input('fileSize', sql.Int, stats.size)
+                .input('uploadedBy', sql.NVarChar, user ? user.displayName : 'Unknown')
+                .query(`
+                    INSERT INTO OHS_InspectionGallery (AuditId, FileName, FilePath, OriginalName, FileSize, UploadedBy)
+                    OUTPUT INSERTED.Id, INSERTED.FileName, INSERTED.FilePath, INSERTED.OriginalName, INSERTED.FileSize, INSERTED.UploadedAt
+                    VALUES (@auditId, @fileName, @filePath, @originalName, @fileSize, @uploadedBy)
+                `);
+            uploadedPictures.push(result.recordset[0]);
+        }
+        await pool.close();
+        res.json({ success: true, data: uploadedPictures, count: uploadedPictures.length });
+    } catch (error) {
+        console.error('Error uploading multiple to gallery:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Get all gallery pictures for an audit
+router.get('/api/gallery/:auditId', async (req, res) => {
+    try {
+        const { auditId } = req.params;
+        const pool = await sql.connect(dbConfig);
+        const result = await pool.request()
+            .input('auditId', sql.Int, auditId)
+            .query(`
+                SELECT 
+                    g.Id, g.FileName, g.FilePath, g.OriginalName, g.FileSize, 
+                    g.UploadedBy, g.UploadedAt,
+                    (SELECT COUNT(*) FROM OHS_InspectionGalleryLinks WHERE GalleryPictureId = g.Id) as AssignmentCount
+                FROM OHS_InspectionGallery g
+                WHERE g.AuditId = @auditId
+                ORDER BY g.UploadedAt DESC
+            `);
+        await pool.close();
+        res.json({ success: true, data: result.recordset });
+    } catch (error) {
+        console.error('Error fetching gallery:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Delete picture from gallery
+router.delete('/api/gallery/picture/:pictureId', async (req, res) => {
+    try {
+        const { pictureId } = req.params;
+        const pool = await sql.connect(dbConfig);
+        const fileResult = await pool.request()
+            .input('id', sql.Int, pictureId)
+            .query('SELECT FilePath FROM OHS_InspectionGallery WHERE Id = @id');
+        if (fileResult.recordset.length === 0) {
+            await pool.close();
+            return res.status(404).json({ success: false, error: 'Picture not found' });
+        }
+        await pool.request()
+            .input('id', sql.Int, pictureId)
+            .query('DELETE FROM OHS_InspectionGallery WHERE Id = @id');
+        await pool.close();
+        const filePath = path.join(__dirname, '..', '..', fileResult.recordset[0].FilePath);
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Error deleting gallery picture:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Assign gallery picture to item
+router.post('/api/gallery/assign', async (req, res) => {
+    try {
+        const { galleryPictureId, responseId, pictureType } = req.body;
+        if (!galleryPictureId || !responseId || !pictureType) {
+            return res.status(400).json({ success: false, error: 'Missing required fields' });
+        }
+        const pool = await sql.connect(dbConfig);
+        const existing = await pool.request()
+            .input('galleryPictureId', sql.Int, galleryPictureId)
+            .input('responseId', sql.Int, responseId)
+            .input('pictureType', sql.NVarChar, pictureType)
+            .query(`
+                SELECT Id FROM OHS_InspectionGalleryLinks 
+                WHERE GalleryPictureId = @galleryPictureId AND ResponseId = @responseId AND PictureType = @pictureType
+            `);
+        if (existing.recordset.length > 0) {
+            await pool.close();
+            return res.json({ success: true, message: 'Already assigned' });
+        }
+        const result = await pool.request()
+            .input('galleryPictureId', sql.Int, galleryPictureId)
+            .input('responseId', sql.Int, responseId)
+            .input('pictureType', sql.NVarChar, pictureType)
+            .query(`
+                INSERT INTO OHS_InspectionGalleryLinks (GalleryPictureId, ResponseId, PictureType)
+                OUTPUT INSERTED.Id
+                VALUES (@galleryPictureId, @responseId, @pictureType)
+            `);
+        await pool.request()
+            .input('responseId', sql.Int, responseId)
+            .query('UPDATE OHS_InspectionItems SET HasPicture = 1 WHERE Id = @responseId');
+        await pool.close();
+        res.json({ success: true, linkId: result.recordset[0].Id });
+    } catch (error) {
+        console.error('Error assigning gallery picture:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Unassign gallery picture from item
+router.delete('/api/gallery/unassign/:linkId', async (req, res) => {
+    try {
+        const { linkId } = req.params;
+        const pool = await sql.connect(dbConfig);
+        const linkResult = await pool.request()
+            .input('id', sql.Int, linkId)
+            .query('SELECT ResponseId FROM OHS_InspectionGalleryLinks WHERE Id = @id');
+        if (linkResult.recordset.length === 0) {
+            await pool.close();
+            return res.status(404).json({ success: false, error: 'Link not found' });
+        }
+        const responseId = linkResult.recordset[0].ResponseId;
+        await pool.request()
+            .input('id', sql.Int, linkId)
+            .query('DELETE FROM OHS_InspectionGalleryLinks WHERE Id = @id');
+        const pictureCheck = await pool.request()
+            .input('responseId', sql.Int, responseId)
+            .query(`
+                SELECT 
+                    (SELECT COUNT(*) FROM OHS_InspectionPictures WHERE ItemId = @responseId) +
+                    (SELECT COUNT(*) FROM OHS_InspectionGalleryLinks WHERE ResponseId = @responseId) as TotalPictures
+            `);
+        if (pictureCheck.recordset[0].TotalPictures === 0) {
+            await pool.request()
+                .input('responseId', sql.Int, responseId)
+                .query('UPDATE OHS_InspectionItems SET HasPicture = 0 WHERE Id = @responseId');
+        }
+        await pool.close();
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Error unassigning gallery picture:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Get assignments for a gallery picture
+router.get('/api/gallery/picture/:pictureId/assignments', async (req, res) => {
+    try {
+        const { pictureId } = req.params;
+        const pool = await sql.connect(dbConfig);
+        const result = await pool.request()
+            .input('pictureId', sql.Int, pictureId)
+            .query(`
+                SELECT 
+                    l.Id as LinkId, l.PictureType, l.AssignedAt,
+                    i.Id as ResponseId, i.ReferenceValue, i.Question, i.SectionName
+                FROM OHS_InspectionGalleryLinks l
+                INNER JOIN OHS_InspectionItems i ON i.Id = l.ResponseId
+                WHERE l.GalleryPictureId = @pictureId
+                ORDER BY l.AssignedAt DESC
+            `);
+        await pool.close();
+        res.json({ success: true, data: result.recordset });
+    } catch (error) {
+        console.error('Error fetching picture assignments:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Get gallery pictures assigned to a response/item
+router.get('/api/gallery/item/:responseId', async (req, res) => {
+    try {
+        const { responseId } = req.params;
+        const pool = await sql.connect(dbConfig);
+        const result = await pool.request()
+            .input('responseId', sql.Int, responseId)
+            .query(`
+                SELECT 
+                    l.Id as LinkId, l.PictureType, l.AssignedAt,
+                    g.Id as GalleryPictureId, g.FileName, g.FilePath, g.OriginalName
+                FROM OHS_InspectionGalleryLinks l
+                INNER JOIN OHS_InspectionGallery g ON g.Id = l.GalleryPictureId
+                WHERE l.ResponseId = @responseId
+                ORDER BY l.AssignedAt DESC
+            `);
+        await pool.close();
+        res.json({ success: true, data: result.recordset });
+    } catch (error) {
+        console.error('Error fetching item gallery pictures:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Get unassigned pictures for an audit
+router.get('/api/gallery/:auditId/unassigned', async (req, res) => {
+    try {
+        const { auditId } = req.params;
+        const pool = await sql.connect(dbConfig);
+        const result = await pool.request()
+            .input('auditId', sql.Int, auditId)
+            .query(`
+                SELECT g.Id, g.FileName, g.FilePath, g.OriginalName, g.UploadedAt
+                FROM OHS_InspectionGallery g
+                WHERE g.AuditId = @auditId
+                AND NOT EXISTS (
+                    SELECT 1 FROM OHS_InspectionGalleryLinks l WHERE l.GalleryPictureId = g.Id
+                )
+                ORDER BY g.UploadedAt DESC
+            `);
+        await pool.close();
+        res.json({ success: true, data: result.recordset, count: result.recordset.length });
+    } catch (error) {
+        console.error('Error fetching unassigned pictures:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Delete all unassigned pictures for an audit
+router.delete('/api/gallery/:auditId/unassigned', async (req, res) => {
+    try {
+        const { auditId } = req.params;
+        const pool = await sql.connect(dbConfig);
+        const files = await pool.request()
+            .input('auditId', sql.Int, auditId)
+            .query(`
+                SELECT g.Id, g.FilePath
+                FROM OHS_InspectionGallery g
+                WHERE g.AuditId = @auditId
+                AND NOT EXISTS (
+                    SELECT 1 FROM OHS_InspectionGalleryLinks l WHERE l.GalleryPictureId = g.Id
+                )
+            `);
+        await pool.request()
+            .input('auditId', sql.Int, auditId)
+            .query(`
+                DELETE FROM OHS_InspectionGallery 
+                WHERE AuditId = @auditId
+                AND NOT EXISTS (
+                    SELECT 1 FROM OHS_InspectionGalleryLinks l WHERE l.GalleryPictureId = OHS_InspectionGallery.Id
+                )
+            `);
+        await pool.close();
+        for (const file of files.recordset) {
+            const filePath = path.join(__dirname, '..', '..', file.FilePath);
+            if (fs.existsSync(filePath)) {
+                try { fs.unlinkSync(filePath); } catch (e) { console.error('Error deleting file:', e); }
+            }
+        }
+        res.json({ success: true, deletedCount: files.recordset.length });
+    } catch (error) {
+        console.error('Error deleting unassigned pictures:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });
