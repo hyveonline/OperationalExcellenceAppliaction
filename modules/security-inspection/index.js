@@ -649,8 +649,8 @@ router.get('/api/templates/schemas/:schemaId', async (req, res) => {
                         FROM SEC_InspectionTemplateItems
                         WHERE CategoryId = @categoryId AND IsActive = 1
                         ORDER BY SubCategory,
-                            CAST(PARSENAME(REPLACE(ReferenceValue, '-', '.'), 2) AS INT),
-                            CAST(PARSENAME(REPLACE(ReferenceValue, '-', '.'), 1) AS INT)
+                            TRY_CAST(PARSENAME(REPLACE(ReferenceValue, '-', '.'), 2) AS INT),
+                            TRY_CAST(PARSENAME(REPLACE(ReferenceValue, '-', '.'), 1) AS INT)
                     `);
                 category.items = itemsResult.recordset;
                 section.categories.push(category);
@@ -667,8 +667,8 @@ router.get('/api/templates/schemas/:schemaId', async (req, res) => {
                     FROM SEC_InspectionTemplateItems
                     WHERE SectionId = @sectionId AND CategoryId IS NULL AND IsActive = 1
                     ORDER BY 
-                        CAST(PARSENAME(REPLACE(ReferenceValue, '-', '.'), 2) AS INT),
-                        CAST(PARSENAME(REPLACE(ReferenceValue, '-', '.'), 1) AS INT)
+                        TRY_CAST(PARSENAME(REPLACE(ReferenceValue, '-', '.'), 2) AS INT),
+                        TRY_CAST(PARSENAME(REPLACE(ReferenceValue, '-', '.'), 1) AS INT)
                 `);
             section.items = legacyItemsResult.recordset;
             template.sections.push(section);
@@ -921,8 +921,8 @@ router.get('/api/templates/categories/:categoryId/items', async (req, res) => {
                 FROM SEC_InspectionTemplateItems
                 WHERE CategoryId = @categoryId AND IsActive = 1
                 ORDER BY SubCategory, 
-                    CAST(PARSENAME(REPLACE(ReferenceValue, '-', '.'), 2) AS INT),
-                    CAST(PARSENAME(REPLACE(ReferenceValue, '-', '.'), 1) AS INT)
+                    TRY_CAST(PARSENAME(REPLACE(ReferenceValue, '-', '.'), 2) AS INT),
+                    TRY_CAST(PARSENAME(REPLACE(ReferenceValue, '-', '.'), 1) AS INT)
             `);
         await pool.close();
         res.json({ success: true, data: result.recordset });
@@ -944,8 +944,8 @@ router.get('/api/templates/sections/:sectionId/items', async (req, res) => {
                 FROM SEC_InspectionTemplateItems
                 WHERE SectionId = @sectionId AND IsActive = 1
                 ORDER BY 
-                    CAST(PARSENAME(REPLACE(ReferenceValue, '-', '.'), 2) AS INT),
-                    CAST(PARSENAME(REPLACE(ReferenceValue, '-', '.'), 1) AS INT)
+                    TRY_CAST(PARSENAME(REPLACE(ReferenceValue, '-', '.'), 2) AS INT),
+                    TRY_CAST(PARSENAME(REPLACE(ReferenceValue, '-', '.'), 1) AS INT)
             `);
         await pool.close();
         res.json({ success: true, data: result.recordset });
@@ -1578,8 +1578,8 @@ router.post('/api/inspections', async (req, res) => {
                         FROM SEC_InspectionTemplateItems
                         WHERE SectionId = @sectionId AND IsActive = 1
                         ORDER BY ItemOrder,
-                            CAST(PARSENAME(REPLACE(ReferenceValue, '-', '.'), 2) AS INT),
-                            CAST(PARSENAME(REPLACE(ReferenceValue, '-', '.'), 1) AS INT)
+                            TRY_CAST(PARSENAME(REPLACE(ReferenceValue, '-', '.'), 2) AS INT),
+                            TRY_CAST(PARSENAME(REPLACE(ReferenceValue, '-', '.'), 1) AS INT)
                     `);
                 
                 for (const item of templateItems.recordset) {
@@ -1961,8 +1961,8 @@ router.get('/api/audits/:auditId', async (req, res) => {
                         FROM SEC_InspectionTemplateItems
                         WHERE SectionId = @sectionId AND IsActive = 1
                         ORDER BY ItemOrder,
-                            CAST(PARSENAME(REPLACE(ReferenceValue, '-', '.'), 2) AS INT),
-                            CAST(PARSENAME(REPLACE(ReferenceValue, '-', '.'), 1) AS INT)
+                            TRY_CAST(PARSENAME(REPLACE(ReferenceValue, '-', '.'), 2) AS INT),
+                            TRY_CAST(PARSENAME(REPLACE(ReferenceValue, '-', '.'), 1) AS INT)
                     `);
                 
                 for (const item of templateItems.recordset) {
@@ -2048,8 +2048,8 @@ router.get('/api/audits/:auditId', async (req, res) => {
                     FROM SEC_InspectionItems
                     WHERE InspectionId = @inspectionId AND SectionName = @sectionName
                     ORDER BY 
-                        CAST(PARSENAME(REPLACE(ReferenceValue, '-', '.'), 2) AS INT),
-                        CAST(PARSENAME(REPLACE(ReferenceValue, '-', '.'), 1) AS INT)
+                        TRY_CAST(PARSENAME(REPLACE(ReferenceValue, '-', '.'), 2) AS INT),
+                        TRY_CAST(PARSENAME(REPLACE(ReferenceValue, '-', '.'), 1) AS INT)
                 `);
             section.items = itemsResult.recordset;
             sections.push(section);
@@ -3600,8 +3600,8 @@ router.get('/api/action-plan/by-doc/:documentNumber', async (req, res) => {
                 LEFT JOIN Users u ON v.VerifiedBy = u.Id
                 WHERE i.DocumentNumber = @documentNumber
                 ORDER BY a.Priority DESC, 
-                    CAST(PARSENAME(REPLACE(a.ReferenceValue, '-', '.'), 2) AS INT),
-                    CAST(PARSENAME(REPLACE(a.ReferenceValue, '-', '.'), 1) AS INT)
+                    TRY_CAST(PARSENAME(REPLACE(a.ReferenceValue, '-', '.'), 2) AS INT),
+                    TRY_CAST(PARSENAME(REPLACE(a.ReferenceValue, '-', '.'), 1) AS INT)
             `);
         
         await pool.close();
