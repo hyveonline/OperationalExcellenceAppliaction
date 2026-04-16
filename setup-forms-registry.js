@@ -125,7 +125,11 @@ async function runSetup(dbName) {
             // Escalation Module
             ['ESCALATION_DASHBOARD', 'Escalation Dashboard', 'Escalation', '/escalation', 'View and manage escalated action items'],
             ['ESCALATION_MANAGEMENT', 'Escalation Management', 'Escalation', '/escalation/manage', 'Escalate and track action items'],
-            ['ESCALATION_ADMIN', 'Escalation Admin', 'Escalation', '/escalation/admin', 'Admin: sources, templates, contacts']
+            ['ESCALATION_ADMIN', 'Escalation Admin', 'Escalation', '/escalation/admin', 'Admin: sources, templates, contacts'],
+            
+            // Receiving Audit Module
+            ['RCV_AUDIT', 'Receiving Audit', 'Receiving Audit', '/receiving-audit', 'Receiving area audit inspections'],
+            ['RCV_AUDIT_TEMPLATES', 'Receiving Audit Templates', 'Receiving Audit', '/receiving-audit/templates', 'Manage receiving audit templates']
         ];
         
         // Insert or update each form

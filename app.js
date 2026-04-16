@@ -49,6 +49,7 @@ const securityModule = require('./modules/security');
 const securityEmpModule = require('./modules/security-emp');
 const securityInspectionModule = require('./modules/security-inspection');
 const escalationModule = require('./modules/escalation');
+const receivingAuditModule = require('./modules/receiving-audit');
 
 // Import escalation service for scheduled tasks
 const actionPlanEscalation = require('./services/action-plan-escalation');
@@ -182,6 +183,7 @@ app.use('/security', requireAuth, formAccessMiddleware, securityModule);
 app.use('/security-emp', requireAuth, formAccessMiddleware, securityEmpModule);
 app.use('/security-inspection', requireAuth, formAccessMiddleware, securityInspectionModule);
 app.use('/escalation', requireAuth, formAccessMiddleware, escalationModule);
+app.use('/receiving-audit', requireAuth, formAccessMiddleware, receivingAuditModule);
 
 // Redirect common mistaken routes
 app.get('/permission-sync', (req, res) => res.redirect('/admin/permission-sync'));
