@@ -227,10 +227,162 @@ router.get('/api/next-document-number', async (req, res) => {
 router.get('/api/stores', async (req, res) => {
     try {
         const pool = await sql.connect(dbConfig);
-        const result = await pool.request().query('SELECT Id, StoreName, StoreCode, Brand, Region FROM Stores WHERE IsActive = 1 ORDER BY StoreName');
+        const result = await pool.request().query(`
+            SELECT 
+                s.Id as storeId,
+                s.StoreCode as storeCode,
+                s.StoreName as storeName,
+                s.BrandId as brandId,
+                b.BrandName as brandName,
+                b.BrandCode as brandCode,
+                s.Location as location,
+                s.StoreSize as storeSize,
+                s.TemplateId as templateId,
+                t.TemplateName as templateName,
+                s.IsActive as isActive,
+                s.CreatedDate as createdDate
+            FROM Stores s
+            LEFT JOIN RCV_InspectionTemplates t ON s.TemplateId = t.Id
+            LEFT JOIN Brands b ON s.BrandId = b.Id
+            WHERE s.IsActive = 1
+            ORDER BY s.StoreName
+        `);
         await pool.close();
         res.json({ success: true, data: result.recordset });
     } catch (error) { res.json({ success: false, error: error.message }); }
+});
+
+router.post('/api/stores', async (req, res) => {
+    try {
+        const { storeCode, storeName, brandId, location, storeSize, templateId } = req.body;
+        const pool = await sql.connect(dbConfig);
+        const result = await pool.request()
+            .input('code', sql.NVarChar, storeCode)
+            .input('name', sql.NVarChar, storeName)
+            .input('brandId', sql.Int, brandId || null)
+            .input('location', sql.NVarChar, location || null)
+            .input('storeSize', sql.NVarChar, storeSize || null)
+            .input('templateId', sql.Int, templateId || null)
+            .input('createdBy', sql.NVarChar, req.currentUser?.email || 'System')
+            .query(`
+                INSERT INTO Stores (StoreCode, StoreName, BrandId, Location, StoreSize, TemplateId, IsActive, CreatedDate, CreatedBy)
+                OUTPUT INSERTED.Id as storeId
+                VALUES (@code, @name, @brandId, @location, @storeSize, @templateId, 1, GETDATE(), @createdBy)
+            `);
+        await pool.close();
+        res.json({ success: true, data: { storeId: result.recordset[0].storeId } });
+    } catch (error) { res.json({ success: false, error: error.message }); }
+});
+
+router.put('/api/stores/:storeId', async (req, res) => {
+    try {
+        const { storeCode, storeName, brandId, location, storeSize, templateId, isActive } = req.body;
+        const pool = await sql.connect(dbConfig);
+        await pool.request()
+            .input('id', sql.Int, req.params.storeId)
+            .input('code', sql.NVarChar, storeCode)
+            .input('name', sql.NVarChar, storeName)
+            .input('brandId', sql.Int, brandId || null)
+            .input('location', sql.NVarChar, location || null)
+            .input('storeSize', sql.NVarChar, storeSize || null)
+            .input('templateId', sql.Int, templateId || null)
+            .input('isActive', sql.Bit, isActive)
+            .query(`UPDATE Stores SET StoreCode = @code, StoreName = @name, BrandId = @brandId, Location = @location, StoreSize = @storeSize, TemplateId = @templateId, IsActive = @isActive WHERE Id = @id`);
+        await pool.close();
+        res.json({ success: true });
+    } catch (error) { res.json({ success: false, error: error.message }); }
+});
+
+router.delete('/api/stores/:storeId', async (req, res) => {
+    try {
+        const pool = await sql.connect(dbConfig);
+        await pool.request()
+            .input('id', sql.Int, req.params.storeId)
+            .query('UPDATE Stores SET IsActive = 0 WHERE Id = @id');
+        await pool.close();
+        res.json({ success: true });
+    } catch (error) { res.json({ success: false, error: error.message }); }
+});
+
+router.get('/api/stores/available-managers', async (req, res) => {
+    try {
+        const pool = await sql.connect(dbConfig);
+        const result = await pool.request().query(`
+            SELECT u.Id as userId, u.Email as email, u.DisplayName as displayName, r.RoleName as role
+            FROM Users u
+            JOIN UserRoleAssignments ura ON u.Id = ura.UserId
+            JOIN UserRoles r ON ura.RoleId = r.Id
+            WHERE u.IsActive = 1 AND u.IsApproved = 1
+            AND r.RoleName IN ('Store Manager', 'Duty Manager', 'Area Manager')
+            ORDER BY u.DisplayName
+        `);
+        await pool.close();
+        res.json({ success: true, data: result.recordset });
+    } catch (error) { res.json({ success: false, error: error.message }); }
+});
+
+router.get('/api/stores/manager-assignments', async (req, res) => {
+    try {
+        const pool = await sql.connect(dbConfig);
+        const result = await pool.request().query(`
+            SELECT sma.StoreId as storeId, sma.UserId as userId, sma.IsPrimary as isPrimary, u.Email as email, u.DisplayName as displayName
+            FROM StoreManagerAssignments sma
+            JOIN Users u ON sma.UserId = u.Id
+            ORDER BY sma.StoreId, sma.IsPrimary DESC
+        `);
+        await pool.close();
+        const assignments = {};
+        result.recordset.forEach(row => {
+            if (!assignments[row.storeId]) assignments[row.storeId] = [];
+            assignments[row.storeId].push({ userId: row.userId, email: row.email, displayName: row.displayName, isPrimary: row.isPrimary });
+        });
+        res.json({ success: true, data: assignments });
+    } catch (error) { res.json({ success: false, error: error.message }); }
+});
+
+router.post('/api/stores/:storeId/managers', async (req, res) => {
+    try {
+        const { userIds } = req.body;
+        const storeId = parseInt(req.params.storeId);
+        const pool = await sql.connect(dbConfig);
+        await pool.request().input('storeId', sql.Int, storeId).query('DELETE FROM StoreManagerAssignments WHERE StoreId = @storeId');
+        for (let i = 0; i < userIds.length; i++) {
+            await pool.request()
+                .input('storeId', sql.Int, storeId)
+                .input('userId', sql.Int, userIds[i])
+                .input('isPrimary', sql.Bit, i === 0)
+                .input('assignedBy', sql.Int, req.currentUser?.userId || null)
+                .query('INSERT INTO StoreManagerAssignments (StoreId, UserId, IsPrimary, AssignedAt, AssignedBy) VALUES (@storeId, @userId, @isPrimary, GETDATE(), @assignedBy)');
+        }
+        await pool.close();
+        res.json({ success: true });
+    } catch (error) { res.json({ success: false, error: error.message }); }
+});
+
+router.get('/api/brands', async (req, res) => {
+    try {
+        const pool = await sql.connect(dbConfig);
+        const result = await pool.request().query('SELECT b.*, (SELECT COUNT(*) FROM Stores s WHERE s.BrandId = b.Id) as StoreCount FROM Brands b ORDER BY b.BrandName');
+        await pool.close();
+        res.json(result.recordset);
+    } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+router.get('/api/store-responsibles', async (req, res) => {
+    try {
+        const pool = await sql.connect(dbConfig);
+        const result = await pool.request().query(`
+            SELECT sr.*, s.StoreName, s.StoreCode, u.DisplayName as AreaManagerName, h.DisplayName as HeadOfOpsName
+            FROM OE_StoreResponsibles sr
+            INNER JOIN Stores s ON sr.StoreId = s.Id
+            LEFT JOIN Users u ON sr.AreaManagerId = u.Id
+            LEFT JOIN Users h ON sr.HeadOfOpsId = h.Id
+            WHERE sr.IsActive = 1
+            ORDER BY s.StoreName
+        `);
+        await pool.close();
+        res.json(result.recordset);
+    } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
 router.get('/api/stores-list', async (req, res) => {

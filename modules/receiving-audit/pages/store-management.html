@@ -706,7 +706,7 @@
                 <!-- Read-only Responsibles Section -->
                 <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 15px; margin-bottom: 15px;">
                     <label style="display: block; font-weight: 600; color: #475569; margin-bottom: 10px; font-size: 14px;">📋 Store Responsibility (Read-Only)</label>
-                    <p style="font-size: 11px; color: #94a3b8; margin-bottom: 12px;">Manage these assignments in <a href="/operational-excellence/system-settings" style="color: #7c3aed;">System Settings → Store Responsibility</a></p>
+                    <p style="font-size: 11px; color: #94a3b8; margin-bottom: 12px;">Manage these assignments in <a href="/receiving-audit/settings" style="color: #7c3aed;">Settings → Store Responsibility</a></p>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                         <div class="form-group" style="margin: 0;">
                             <label style="font-size: 12px; color: #7c3aed;">👔 Head of Operations</label>
@@ -797,7 +797,7 @@
         // Load brands for dropdowns
         async function loadBrands() {
             try {
-                const response = await fetch('/operational-excellence/system-settings/api/brands');
+                const response = await fetch('/receiving-audit/api/brands');
                 brands = await response.json();
 
                 const select = document.getElementById('storeBrand');
@@ -841,7 +841,7 @@
         async function loadStoreResponsibles() {
             try {
                 console.log('[DEBUG] Fetching store responsibles...');
-                const response = await fetch('/operational-excellence/system-settings/api/store-responsibles');
+                const response = await fetch('/receiving-audit/api/store-responsibles');
                 console.log('[DEBUG] Response status:', response.status);
                 const data = await response.json();
                 console.log('[DEBUG] Store responsibles data:', data?.length || 0, 'records');
