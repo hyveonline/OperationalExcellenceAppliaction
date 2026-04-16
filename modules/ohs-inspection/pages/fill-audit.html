@@ -2707,8 +2707,8 @@
 
         async function saveGalleryToItem() {
             if (!gtiResponseId) return;
-            if (!gtiSelectedType) { showToast('Please select a picture type', 'error'); return; }
-            if (gtiSelectedPictures.size === 0) { showToast('Please select at least one photo', 'error'); return; }
+            if (!gtiSelectedType) { alert('Please select a picture type'); return; }
+            if (gtiSelectedPictures.size === 0) { alert('Please select at least one photo'); return; }
 
             let successCount = 0;
             for (const pictureId of gtiSelectedPictures) {
@@ -2729,7 +2729,7 @@
                 }
             }
 
-            showToast(`${successCount} photo(s) assigned!`, 'success');
+            alert(`${successCount} photo(s) assigned!`);
             closeGalleryToItemModal();
             await loadGalleryPictures();
             renderSection(currentSectionIndex);
