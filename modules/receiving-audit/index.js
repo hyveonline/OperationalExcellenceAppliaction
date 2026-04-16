@@ -77,7 +77,7 @@ const dbConfig = {
 let _pool = null;
 async function getPool() {
     if (!_pool) {
-        _pool = await getPool();
+        _pool = await sql.connect(dbConfig);
         _pool.on('error', err => { console.error('SQL pool error:', err); _pool = null; });
     }
     return _pool;
