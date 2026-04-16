@@ -838,6 +838,16 @@ router.post('/api/inspections', async (req, res) => {
     } catch (error) { console.error('Error creating inspection:', error); res.json({ success: false, error: error.message }); }
 });
 
+// List audits (must be before :auditId route)
+router.get('/api/audits/list', async (req, res) => {
+    try {
+        const pool = await sql.connect(dbConfig);
+        const result = await pool.request().query(`SELECT Id, DocumentNumber, StoreName, InspectionDate, Inspectors, Status, Score, Cycle, Year, CreatedAt FROM RCV_Inspections ORDER BY CreatedAt DESC`);
+        await pool.close();
+        res.json({ success: true, data: result.recordset });
+    } catch (error) { res.json({ success: false, error: error.message }); }
+});
+
 // Get audit details
 router.get('/api/audits/:auditId', async (req, res) => {
     try {
@@ -862,16 +872,6 @@ router.get('/api/audits/:auditId', async (req, res) => {
         await pool.close();
         res.json({ success: true, data: { auditId: audit.Id, documentNumber: audit.DocumentNumber, storeId: audit.StoreId, storeCode: audit.StoreCode || '', storeName: audit.StoreName, auditDate: audit.InspectionDate, auditors: audit.Inspectors, accompaniedBy: audit.AccompaniedBy, cycle: audit.Cycle, year: audit.Year, status: audit.Status, score: audit.Score, templateId: audit.TemplateId, sections } });
     } catch (error) { console.error('Error fetching audit:', error); res.status(500).json({ success: false, error: error.message }); }
-});
-
-// List audits
-router.get('/api/audits/list', async (req, res) => {
-    try {
-        const pool = await sql.connect(dbConfig);
-        const result = await pool.request().query(`SELECT Id, DocumentNumber, StoreName, InspectionDate, Inspectors, Status, Score, Cycle, Year, CreatedAt FROM RCV_Inspections ORDER BY CreatedAt DESC`);
-        await pool.close();
-        res.json({ success: true, data: result.recordset });
-    } catch (error) { res.json({ success: false, error: error.message }); }
 });
 
 // Update response
