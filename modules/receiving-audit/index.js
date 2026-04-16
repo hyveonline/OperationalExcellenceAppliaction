@@ -142,12 +142,12 @@ router.get('/', async (req, res) => {
             </style>
         </head><body>
             <div class="header">
-                <h1>ðŸ“¦ Receiving Audit</h1>
+                <h1>≡ƒôª Receiving Audit</h1>
                 <div class="header-nav">
-                    <a href="/dashboard">ðŸ  Dashboard</a>
-                    <a href="/receiving-audit/list">ðŸ“‹ Audits</a>
-                    <a href="/receiving-audit/template-builder">ðŸ”§ Templates</a>
-                    <a href="/receiving-audit/settings">âš™ï¸ Settings</a>
+                    <a href="/dashboard">≡ƒÅá Dashboard</a>
+                    <a href="/receiving-audit/list">≡ƒôï Audits</a>
+                    <a href="/receiving-audit/template-builder">≡ƒöº Templates</a>
+                    <a href="/receiving-audit/settings">ΓÜÖ∩╕Å Settings</a>
                 </div>
             </div>
             <div class="container">
@@ -158,11 +158,11 @@ router.get('/', async (req, res) => {
                     <div class="stat-card"><div class="stat-number">${s.today}</div><div class="stat-label">Today</div></div>
                 </div>
                 <div class="actions">
-                    <a href="/receiving-audit/start" class="action-card"><div class="action-icon">ðŸš€</div><div class="action-title">Start New Audit</div><div class="action-desc">Begin a new receiving area inspection</div></a>
-                    <a href="/receiving-audit/list" class="action-card"><div class="action-icon">ðŸ“‹</div><div class="action-title">View Audits</div><div class="action-desc">Browse all receiving audits</div></a>
-                    <a href="/receiving-audit/template-builder" class="action-card"><div class="action-icon">ðŸ”§</div><div class="action-title">Template Builder</div><div class="action-desc">Create and manage audit templates</div></a>
-                    <a href="/receiving-audit/store-management" class="action-card"><div class="action-icon">ðŸª</div><div class="action-title">Store Management</div><div class="action-desc">Manage stores and assignments</div></a>
-                    <a href="/receiving-audit/settings" class="action-card"><div class="action-icon">âš™ï¸</div><div class="action-title">Settings</div><div class="action-desc">Configure audit settings</div></a>
+                    <a href="/receiving-audit/start" class="action-card"><div class="action-icon">≡ƒÜÇ</div><div class="action-title">Start New Audit</div><div class="action-desc">Begin a new receiving area inspection</div></a>
+                    <a href="/receiving-audit/list" class="action-card"><div class="action-icon">≡ƒôï</div><div class="action-title">View Audits</div><div class="action-desc">Browse all receiving audits</div></a>
+                    <a href="/receiving-audit/template-builder" class="action-card"><div class="action-icon">≡ƒöº</div><div class="action-title">Template Builder</div><div class="action-desc">Create and manage audit templates</div></a>
+                    <a href="/receiving-audit/store-management" class="action-card"><div class="action-icon">≡ƒÅ¬</div><div class="action-title">Store Management</div><div class="action-desc">Manage stores and assignments</div></a>
+                    <a href="/receiving-audit/settings" class="action-card"><div class="action-icon">ΓÜÖ∩╕Å</div><div class="action-title">Settings</div><div class="action-desc">Configure audit settings</div></a>
                 </div>
             </div>
         </body></html>`);
@@ -635,7 +635,7 @@ router.post('/api/templates/schemas/:schemaId/sections', async (req, res) => {
         const result = await pool.request()
             .input('templateId', sql.Int, req.params.schemaId)
             .input('name', sql.NVarChar, sectionName)
-            .input('icon', sql.NVarChar, sectionIcon || 'ðŸ“‹')
+            .input('icon', sql.NVarChar, sectionIcon || '≡ƒôï')
             .input('order', sql.Int, maxOrder.recordset[0].nextOrder)
             .query('INSERT INTO RCV_InspectionTemplateSections (TemplateId, SectionName, SectionIcon, SectionOrder) OUTPUT INSERTED.Id VALUES (@templateId, @name, @icon, @order)');
         res.json({ success: true, data: { sectionId: result.recordset[0].Id } });
@@ -978,4 +978,3 @@ router.get('/api/action-plan/:inspectionId', async (req, res) => {
 });
 
 module.exports = router;
-
