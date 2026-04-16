@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -384,7 +384,7 @@
 
         .status-pending { background-color: #fef3c7; }
         .status-in-progress { background-color: #dbeafe; }
-        .status-completed { background-color: #dbeafe; }
+        .status-completed { background-color: #d1fae5; }
         .status-deferred { background-color: #f3f4f6; }
 
         /* Verification Status */
@@ -403,8 +403,8 @@
         }
 
         .verification-complete {
-            background: #dbeafe;
-            color: #2563eb;
+            background: #d1fae5;
+            color: #059669;
         }
 
         .verification-not-complete {
@@ -560,7 +560,7 @@
         }
 
         .toast.success {
-            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            background: linear-gradient(135deg, #10b981, #059669);
         }
 
         .toast.error {
@@ -578,11 +578,11 @@
 
         /* Save Button */
         .save-btn {
-            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
         }
 
         .save-btn:hover {
-            background: linear-gradient(135deg, #2563eb 0%, #047857 100%) !important;
+            background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
         }
 
         /* Empty State */
@@ -782,7 +782,7 @@
 
         .create-wr-btn {
             width: 100%;
-            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            background: linear-gradient(135deg, #10b981, #059669);
             font-size: 16px;
             margin-top: 15px;
         }
@@ -896,7 +896,7 @@
         <!-- Header -->
         <div class="report-header">
             <div class="header-content">
-                <h1>ðŸŽ¯ ACTION PLAN</h1>
+                <h1>🎯 ACTION PLAN</h1>
                 <div class="report-info" id="reportInfo">
                     <div class="info-group">
                         <label>Document Number:</label>
@@ -918,26 +918,26 @@
             </div>
             <div class="header-actions">
                 <button class="back-btn" onclick="goBack()">
-                    â† Back
+                    ← Back
                 </button>
                 <button class="save-btn" onclick="saveActionPlan()">
-                    ðŸ’¾ Save
+                    💾 Save
                 </button>
                 <button onclick="openEmailModal('action-plan')" title="Send Action Plan to Store Manager">
-                    ðŸ“§ Send Report
+                    📧 Send Report
                 </button>
                 <button onclick="window.print()">
-                    ðŸ–¨ï¸ Print
+                    🖨️ Print
                 </button>
                 <button onclick="exportToCSV()">
-                    ðŸ“Š Export CSV
+                    📊 Export CSV
                 </button>
             </div>
         </div>
 
         <!-- Summary Section -->
         <div class="summary-section">
-            <h2>ðŸ“‹ Action Items Summary</h2>
+            <h2>📋 Action Items Summary</h2>
             <div class="summary-stats" id="summaryStats">
                 <div class="stat-item">
                     <span class="stat-number" id="totalItems">0</span>
@@ -968,7 +968,7 @@
 
         <!-- Instructions -->
         <div class="instructions-section">
-            <h3>ðŸ“ Instructions for Store Manager</h3>
+            <h3>📝 Instructions for Store Manager</h3>
             <ol>
                         <li><strong>Review each finding</strong> and understand the corrective action needed</li>
                         <li><strong>Fill in the Action to be Taken</strong> column with specific actions you will implement</li>
@@ -1233,7 +1233,7 @@
             if (filteredItems.length === 0) {
                 container.innerHTML = `
                     <div class="empty-state">
-                        <div class="icon">âœ…</div>
+                        <div class="icon">✅</div>
                         <h3>No Action Items Found</h3>
                         <p>There are no items matching the current filter criteria.</p>
                     </div>
@@ -1278,7 +1278,7 @@
                     <td class="ref-col">${item.referenceValue}</td>
                     <td class="section-col">
                         <span class="section-badge">${item.sectionName}</span>
-                        ${item.escalate ? `<div class="escalate-badge">ï¿½ ${item.department || 'Assigned'}</div>` : ''}
+                        ${item.escalate ? `<div class="escalate-badge">� ${item.department || 'Assigned'}</div>` : ''}
                     </td>
                     <td class="finding-col">
                         <div class="finding-text">${escapeHtml(item.finding || item.title)}</div>
@@ -1325,7 +1325,7 @@
                     <td class="input-col">
                         <div class="picture-section">
                             <label class="picture-upload-btn">
-                                ðŸ“· Add
+                                📷 Add
                                 <input type="file" class="picture-input" 
                                     accept="image/*" 
                                     multiple
@@ -1336,7 +1336,7 @@
                                 ${(item.pictures || []).map((pic, picIndex) => `
                                     <div class="picture-thumb-wrapper">
                                         <img src="${pic}" class="picture-thumb" onclick="openLightbox('${pic}')">
-                                        <button class="remove-picture" onclick="removePicture(${index}, ${picIndex})">Ã—</button>
+                                        <button class="remove-picture" onclick="removePicture(${index}, ${picIndex})">×</button>
                                     </div>
                                 `).join('')}
                             </div>
@@ -1375,14 +1375,14 @@
             // Check if this item has verification data
             if (!item.verificationStatus) {
                 if (item.status === 'Completed') {
-                    return `<span class="verification-badge verification-pending">ðŸ• Pending</span>`;
+                    return `<span class="verification-badge verification-pending">🕐 Pending</span>`;
                 }
                 return `<span style="color: #888; font-size: 10px;">-</span>`;
             }
             
             const isComplete = item.verificationStatus === 'Verified Complete';
             const badgeClass = isComplete ? 'verification-complete' : 'verification-not-complete';
-            const icon = isComplete ? 'âœ…' : 'âŒ';
+            const icon = isComplete ? '✅' : '❌';
             const text = isComplete ? 'Complete' : 'Not Complete';
             
             let html = `
@@ -1451,7 +1451,7 @@
                 previewContainer.innerHTML = (item.pictures || []).map((pic, picIndex) => `
                     <div class="picture-thumb-wrapper">
                         <img src="${pic}" class="picture-thumb" onclick="openLightbox('${pic}')">
-                        <button class="remove-picture" onclick="removePicture(${index}, ${picIndex})">Ã—</button>
+                        <button class="remove-picture" onclick="removePicture(${index}, ${picIndex})">×</button>
                     </div>
                 `).join('');
             }
@@ -1555,7 +1555,7 @@
         function showError(message) {
             document.getElementById('tableContainer').innerHTML = `
                 <div class="empty-state">
-                    <div class="icon">âš ï¸</div>
+                    <div class="icon">⚠️</div>
                     <h3>Error</h3>
                     <p>${message}</p>
                     <button onclick="goBack()" style="margin-top: 16px; padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer;">Go Back</button>
@@ -1624,7 +1624,7 @@
                 // Show loading state
                 const sendBtn = document.querySelector('button[onclick*="openEmailModal"]');
                 const originalText = sendBtn.innerHTML;
-                sendBtn.innerHTML = 'â³ Loading...';
+                sendBtn.innerHTML = '⏳ Loading...';
                 sendBtn.disabled = true;
                 
                 // Fetch email recipients (pass reportType to get correct To recipient)
@@ -1668,7 +1668,7 @@
                 // Restore button
                 const sendBtn = document.querySelector('button[onclick*="openEmailModal"]');
                 if (sendBtn) {
-                    sendBtn.innerHTML = 'ðŸ“§ Send Report';
+                    sendBtn.innerHTML = '📧 Send Report';
                     sendBtn.disabled = false;
                 }
             }
@@ -1691,13 +1691,13 @@
             if (item.maintenanceWRNumber) {
                 return `<a href="https://fsm-uat.gmrlapps.com/work-requests/${item.maintenanceWRNumber}" 
                           target="_blank" class="maint-badge" title="View Work Request">
-                          ðŸ”§ ${item.maintenanceWRNumber}
+                          🔧 ${item.maintenanceWRNumber}
                         </a>`;
             }
             
             // Show send button
             return `<button class="send-maint-btn" onclick="openMaintenanceModal(${index})" title="Send to Maintenance">
-                      ðŸ”§ Send
+                      🔧 Send
                     </button>`;
         }
 
@@ -1764,9 +1764,9 @@
                         <div class="wr-item" onclick="linkToExistingWR('${wr.WRNumber}')">
                             <div>
                                 <div class="wr-number">${wr.WRNumber}</div>
-                                <div class="wr-details">${wr.Title || 'No title'} â€¢ ${wr.Status || 'Unknown'} â€¢ ${formatDate(wr.CreatedAt)}</div>
+                                <div class="wr-details">${wr.Title || 'No title'} • ${wr.Status || 'Unknown'} • ${formatDate(wr.CreatedAt)}</div>
                             </div>
-                            <span>â†’</span>
+                            <span>→</span>
                         </div>
                     `).join('');
                 } else {
@@ -1896,8 +1896,8 @@
     <div class="modal-overlay" id="maintenanceModal">
         <div class="modal-content maintenance-modal">
             <div class="modal-header">
-                <h3>ðŸ”§ Create Maintenance Work Request</h3>
-                <button class="modal-close" onclick="closeMaintenanceModal()">Ã—</button>
+                <h3>🔧 Create Maintenance Work Request</h3>
+                <button class="modal-close" onclick="closeMaintenanceModal()">×</button>
             </div>
             <div class="modal-body">
                 <div class="finding-preview">
@@ -1936,7 +1936,7 @@
                             <p><strong>Title:</strong> <span id="wr-title"></span></p>
                             <p><strong>Description:</strong> <span id="wr-description"></span></p>
                         </div>
-                        <button class="create-wr-btn" onclick="createNewWR()">ðŸ”§ Create Work Request</button>
+                        <button class="create-wr-btn" onclick="createNewWR()">🔧 Create Work Request</button>
                     </div>
                 </div>
             </div>
@@ -1944,4 +1944,3 @@
     </div>
 </body>
 </html>
-

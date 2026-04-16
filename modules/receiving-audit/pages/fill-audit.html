@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fill Audit - Receiving Audit System</title>
+    <title>Fill Inspection - Receiving Audit System</title>
     <style>
         * {
             margin: 0;
@@ -105,7 +105,7 @@
         }
 
         .status-completed {
-            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
             color: white;
         }
 
@@ -180,7 +180,7 @@
             font-weight: 600;
         }
 
-        .score-pass { color: #3b82f6; }
+        .score-pass { color: #10b981; }
         .score-fail { color: #ef4444; }
         .score-na { color: #94a3b8; }
 
@@ -256,7 +256,7 @@
         }
 
         .question-card.answered {
-            border-left: 4px solid #3b82f6;
+            border-left: 4px solid #10b981;
         }
 
         .question-card.answered-partial {
@@ -404,8 +404,8 @@
         }
 
         .answer-btn.selected-yes {
-            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-            border-color: #3b82f6;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            border-color: #10b981;
             color: white;
         }
 
@@ -649,7 +649,7 @@
         .good-observation-btn {
             background: rgba(16, 185, 129, 0.1);
             border: 1px solid rgba(16, 185, 129, 0.3);
-            color: #3b82f6;
+            color: #10b981;
         }
 
         .good-observation-btn:hover {
@@ -659,7 +659,7 @@
         .good-observation-btn.has-picture {
             background: rgba(16, 185, 129, 0.25);
             border-color: rgba(16, 185, 129, 0.6);
-            color: #2563eb;
+            color: #059669;
             font-weight: 600;
         }
 
@@ -707,7 +707,7 @@
         }
 
         .complete-btn {
-            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
             color: white;
             padding: 0.75rem 2rem;
             border: none;
@@ -741,7 +741,7 @@
 
         .progress-fill {
             height: 100%;
-            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
             transition: width 0.3s ease;
         }
 
@@ -800,7 +800,7 @@
         }
 
         .toast.success {
-            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
         }
 
         .toast.error {
@@ -913,7 +913,7 @@
         }
 
         .image-upload-zone.dragover {
-            border-color: #3b82f6;
+            border-color: #10b981;
             background: rgba(16, 185, 129, 0.1);
         }
 
@@ -977,8 +977,8 @@
             border-color: rgba(16, 185, 129, 0.5);
         }
         .image-type-btn.type-good.selected {
-            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-            border-color: #3b82f6;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            border-color: #10b981;
         }
 
         .image-type-btn.type-corrective {
@@ -1038,7 +1038,7 @@
         }
 
         .existing-image-type.type-finding { color: #ef4444; }
-        .existing-image-type.type-good { color: #3b82f6; }
+        .existing-image-type.type-good { color: #10b981; }
         .existing-image-type.type-corrective { color: #3b82f6; }
 
         .existing-image-name {
@@ -1081,7 +1081,7 @@
         }
 
         .modal-btn.upload {
-            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
             color: white;
         }
 
@@ -1127,7 +1127,7 @@
         }
 
         .temp-monitor-toggle.enabled label {
-            color: #3b82f6;
+            color: #10b981;
         }
 
         /* Fridge Temperature Buttons */
@@ -1157,12 +1157,12 @@
         .fridge-temp-btn.good-btn {
             background: rgba(16, 185, 129, 0.1);
             border-color: rgba(16, 185, 129, 0.5);
-            color: #3b82f6;
+            color: #10b981;
         }
 
         .fridge-temp-btn.good-btn:hover {
             background: rgba(16, 185, 129, 0.2);
-            border-color: #3b82f6;
+            border-color: #10b981;
         }
 
         .fridge-temp-btn.bad-btn {
@@ -1225,7 +1225,7 @@
         }
 
         .fridge-modal-title.good {
-            color: #3b82f6;
+            color: #10b981;
         }
 
         .fridge-modal-title.bad {
@@ -1340,7 +1340,7 @@
         }
 
         .fridge-modal-btn.save-good {
-            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
             color: white;
         }
 
@@ -1372,7 +1372,7 @@
         }
 
         .fridge-entry-item.good {
-            border-left-color: #3b82f6;
+            border-left-color: #10b981;
         }
 
         .fridge-entry-item.bad {
@@ -1563,7 +1563,7 @@
         }
 
         .gallery-item-badge.assigned {
-            background: #3b82f6;
+            background: #10b981;
             color: white;
         }
 
@@ -1701,7 +1701,7 @@
         }
 
         .gallery-type-btn.type-good.selected {
-            border-color: #3b82f6;
+            border-color: #10b981;
             background: rgba(16, 185, 129, 0.1);
         }
 
@@ -1815,7 +1815,7 @@
 
         .gallery-current-assignments h5 {
             margin-bottom: 0.5rem;
-            color: #3b82f6;
+            color: #10b981;
             font-size: 0.85rem;
         }
 
@@ -1884,7 +1884,7 @@
     <div class="header">
         <div class="header-left">
             <button class="back-btn" onclick="goBack()">
-                â† Back
+                ← Back
             </button>
             <span class="header-title" id="auditTitle">Loading Audit...</span>
         </div>
@@ -1908,8 +1908,8 @@
         <!-- Sections Sidebar -->
         <div class="sections-sidebar">
             <div class="sidebar-tabs">
-                <button class="sidebar-tab active" onclick="switchSidebarTab('sections')">ðŸ“‹ Sections</button>
-                <button class="sidebar-tab" onclick="switchSidebarTab('gallery')">ðŸ“· Gallery</button>
+                <button class="sidebar-tab active" onclick="switchSidebarTab('sections')">📋 Sections</button>
+                <button class="sidebar-tab" onclick="switchSidebarTab('gallery')">📷 Gallery</button>
             </div>
             
             <!-- Sections Tab -->
@@ -1920,7 +1920,7 @@
             <!-- Gallery Tab -->
             <div id="galleryTab" class="gallery-container">
                 <div class="gallery-upload-btn" onclick="openGalleryUpload()">
-                    <div class="gallery-upload-icon">ðŸ“¸</div>
+                    <div class="gallery-upload-icon">📸</div>
                     <div class="gallery-upload-text">Upload / Take Photos</div>
                 </div>
                 <div class="gallery-count" id="galleryCount">0 photos in gallery</div>
@@ -1943,10 +1943,10 @@
     <div class="footer-actions">
         <div class="nav-buttons">
             <button class="nav-btn prev" onclick="prevSection()" id="prevBtn">
-                â† Previous Section
+                ← Previous Section
             </button>
             <button class="nav-btn next" onclick="nextSection()" id="nextBtn">
-                Next Section â†’
+                Next Section →
             </button>
         </div>
         <div class="overall-progress">
@@ -1956,7 +1956,7 @@
             <span class="progress-text" id="progressText">0% Complete</span>
         </div>
         <button class="complete-btn" onclick="completeAudit()" id="completeBtn">
-            âœ“ Complete Audit
+            ✓ Complete Audit
         </button>
     </div>
 
@@ -1967,19 +1967,19 @@
     <div class="image-modal" id="imageModal">
         <div class="image-modal-content">
             <div class="image-modal-header">
-                <span class="image-modal-title">ðŸ“· Manage Pictures</span>
-                <button class="image-modal-close" onclick="closeImageModal()">Ã—</button>
+                <span class="image-modal-title">📷 Manage Pictures</span>
+                <button class="image-modal-close" onclick="closeImageModal()">×</button>
             </div>
 
             <!-- Existing Images -->
             <div class="existing-images" id="existingImages" style="display: none;">
-                <div class="existing-images-title">ðŸ“Ž Attached Images</div>
+                <div class="existing-images-title">📎 Attached Images</div>
                 <div id="existingImagesList"></div>
             </div>
 
             <!-- Upload Zone -->
             <div class="image-upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
-                <div class="upload-icon">ðŸ“¤</div>
+                <div class="upload-icon">📤</div>
                 <div class="upload-text">Click or drag & drop to upload image</div>
                 <input type="file" id="fileInput" accept="image/*" style="display: none;" onchange="handleFileSelect(event)">
             </div>
@@ -1994,13 +1994,13 @@
                 <div class="image-type-label">Select image type:</div>
                 <div class="image-type-options">
                     <button class="image-type-btn type-finding" onclick="selectImageType('Finding')">
-                        âŒ Finding
+                        ❌ Finding
                     </button>
                     <button class="image-type-btn type-good" onclick="selectImageType('Good')">
-                        âœ… Good Observation
+                        ✅ Good Observation
                     </button>
                     <button class="image-type-btn type-corrective" onclick="selectImageType('Corrective')">
-                        ðŸ”§ Corrective Action
+                        🔧 Corrective Action
                     </button>
                 </div>
             </div>
@@ -2017,12 +2017,12 @@
     <div class="fridge-modal" id="fridgeGoodModal">
         <div class="fridge-modal-content">
             <div class="fridge-modal-header">
-                <span class="fridge-modal-title good">âœ… Add Good Fridge Reading</span>
-                <button class="fridge-modal-close" onclick="closeFridgeModal('good')">Ã—</button>
+                <span class="fridge-modal-title good">✅ Add Good Fridge Reading</span>
+                <button class="fridge-modal-close" onclick="closeFridgeModal('good')">×</button>
             </div>
             
             <div class="fridge-form-group">
-                <label class="fridge-form-label">ðŸª Section</label>
+                <label class="fridge-form-label">🏪 Section</label>
                 <select class="fridge-form-select" id="fridgeGoodSection">
                     <option value="">-- Select Section --</option>
                     <option value="Butchery">Butchery</option>
@@ -2039,24 +2039,24 @@
             </div>
             
             <div class="fridge-form-group">
-                <label class="fridge-form-label">ðŸ§Š Unit / Fridge Name</label>
+                <label class="fridge-form-label">🧊 Unit / Fridge Name</label>
                 <input type="text" class="fridge-form-input" id="fridgeGoodUnit" placeholder="e.g., Display Fridge 1">
             </div>
             
             <div class="fridge-form-group">
-                <label class="fridge-form-label">ðŸŒ¡ï¸ Display Temperature (Â°C)</label>
+                <label class="fridge-form-label">🌡️ Display Temperature (°C)</label>
                 <input type="text" class="fridge-form-input" id="fridgeGoodDisplayTemp" placeholder="e.g., 4.5 or NA">
             </div>
             
             <div class="fridge-form-group">
-                <label class="fridge-form-label">ðŸ”¬ Probe Temperature (Â°C)</label>
+                <label class="fridge-form-label">🔬 Probe Temperature (°C)</label>
                 <input type="text" class="fridge-form-input" id="fridgeGoodProbeTemp" placeholder="e.g., 4.2 or NA">
             </div>
             
             <div class="fridge-form-group">
-                <label class="fridge-form-label">ðŸ“· Picture</label>
+                <label class="fridge-form-label">📷 Picture</label>
                 <div class="fridge-picture-zone" onclick="document.getElementById('fridgeGoodPicture').click()">
-                    <div class="fridge-picture-icon">ðŸ“¤</div>
+                    <div class="fridge-picture-icon">📤</div>
                     <div class="fridge-picture-text">Click to upload picture</div>
                     <input type="file" id="fridgeGoodPicture" accept="image/*" style="display: none;" onchange="previewFridgePicture('good', this)">
                 </div>
@@ -2065,7 +2065,7 @@
             
             <div class="fridge-modal-actions">
                 <button class="fridge-modal-btn cancel" onclick="closeFridgeModal('good')">Cancel</button>
-                <button class="fridge-modal-btn save-good" onclick="saveFridgeReading('good')">âœ“ Save Reading</button>
+                <button class="fridge-modal-btn save-good" onclick="saveFridgeReading('good')">✓ Save Reading</button>
             </div>
         </div>
     </div>
@@ -2074,12 +2074,12 @@
     <div class="fridge-modal" id="fridgeBadModal">
         <div class="fridge-modal-content">
             <div class="fridge-modal-header">
-                <span class="fridge-modal-title bad">âŒ Add Bad Fridge Reading</span>
-                <button class="fridge-modal-close" onclick="closeFridgeModal('bad')">Ã—</button>
+                <span class="fridge-modal-title bad">❌ Add Bad Fridge Reading</span>
+                <button class="fridge-modal-close" onclick="closeFridgeModal('bad')">×</button>
             </div>
             
             <div class="fridge-form-group">
-                <label class="fridge-form-label">ðŸª Section</label>
+                <label class="fridge-form-label">🏪 Section</label>
                 <select class="fridge-form-select" id="fridgeBadSection">
                     <option value="">-- Select Section --</option>
                     <option value="Butchery">Butchery</option>
@@ -2096,22 +2096,22 @@
             </div>
             
             <div class="fridge-form-group">
-                <label class="fridge-form-label">ðŸ§Š Unit / Fridge Name</label>
+                <label class="fridge-form-label">🧊 Unit / Fridge Name</label>
                 <input type="text" class="fridge-form-input" id="fridgeBadUnit" placeholder="e.g., Display Fridge 1">
             </div>
             
             <div class="fridge-form-group">
-                <label class="fridge-form-label">ðŸŒ¡ï¸ Display Temperature (Â°C)</label>
+                <label class="fridge-form-label">🌡️ Display Temperature (°C)</label>
                 <input type="text" class="fridge-form-input" id="fridgeBadDisplayTemp" placeholder="e.g., 8.5 or NA">
             </div>
             
             <div class="fridge-form-group">
-                <label class="fridge-form-label">ðŸ”¬ Probe Temperature (Â°C)</label>
+                <label class="fridge-form-label">🔬 Probe Temperature (°C)</label>
                 <input type="text" class="fridge-form-input" id="fridgeBadProbeTemp" placeholder="e.g., 9.2 or NA">
             </div>
             
             <div class="fridge-form-group">
-                <label class="fridge-form-label">âš ï¸ Issue</label>
+                <label class="fridge-form-label">⚠️ Issue</label>
                 <select class="fridge-form-select" id="fridgeBadIssue">
                     <option value="">-- Select Issue --</option>
                     <option value="Inaccurate Temperatures">Inaccurate Temperatures</option>
@@ -2125,9 +2125,9 @@
             </div>
             
             <div class="fridge-form-group">
-                <label class="fridge-form-label">ðŸ“· Picture</label>
+                <label class="fridge-form-label">📷 Picture</label>
                 <div class="fridge-picture-zone" onclick="document.getElementById('fridgeBadPicture').click()">
-                    <div class="fridge-picture-icon">ðŸ“¤</div>
+                    <div class="fridge-picture-icon">📤</div>
                     <div class="fridge-picture-text">Click to upload picture</div>
                     <input type="file" id="fridgeBadPicture" accept="image/*" style="display: none;" onchange="previewFridgePicture('bad', this)">
                 </div>
@@ -2136,7 +2136,7 @@
             
             <div class="fridge-modal-actions">
                 <button class="fridge-modal-btn cancel" onclick="closeFridgeModal('bad')">Cancel</button>
-                <button class="fridge-modal-btn save-bad" onclick="saveFridgeReading('bad')">âœ“ Save Reading</button>
+                <button class="fridge-modal-btn save-bad" onclick="saveFridgeReading('bad')">✓ Save Reading</button>
             </div>
         </div>
     </div>
@@ -2145,12 +2145,12 @@
     <div class="image-modal" id="galleryUploadModal">
         <div class="image-modal-content">
             <div class="image-modal-header">
-                <span class="image-modal-title">ðŸ“¸ Upload Photos to Gallery</span>
-                <button class="image-modal-close" onclick="closeGalleryUploadModal()">Ã—</button>
+                <span class="image-modal-title">📸 Upload Photos to Gallery</span>
+                <button class="image-modal-close" onclick="closeGalleryUploadModal()">×</button>
             </div>
             
             <div class="image-upload-zone" id="galleryUploadZone" onclick="document.getElementById('galleryFileInput').click()">
-                <div class="upload-icon">ðŸ“¤</div>
+                <div class="upload-icon">📤</div>
                 <div class="upload-text">Click or drag & drop to upload images<br><small>You can select multiple photos</small></div>
                 <input type="file" id="galleryFileInput" accept="image/*" multiple style="display: none;" onchange="handleGalleryUpload(event)">
             </div>
@@ -2158,8 +2158,8 @@
             <div style="text-align: center; margin: 1rem 0; color: #64748b;">OR</div>
             
             <div class="image-upload-zone" onclick="document.getElementById('galleryCameraInput').click()" style="border-color: rgba(16, 185, 129, 0.5); background: rgba(16, 185, 129, 0.05);">
-                <div class="upload-icon">ðŸ“·</div>
-                <div class="upload-text" style="color: #3b82f6;">Take Photo with Camera</div>
+                <div class="upload-icon">📷</div>
+                <div class="upload-text" style="color: #10b981;">Take Photo with Camera</div>
                 <input type="file" id="galleryCameraInput" accept="image/*" capture="environment" style="display: none;" onchange="handleGalleryUpload(event)">
             </div>
             
@@ -2170,7 +2170,7 @@
             
             <div class="image-modal-actions" style="margin-top: 1rem;">
                 <button class="modal-btn cancel" onclick="closeGalleryUploadModal()">Cancel</button>
-                <button class="modal-btn upload" id="galleryUploadBtn" onclick="submitGalleryUpload()" disabled>ðŸ“¤ Upload to Gallery</button>
+                <button class="modal-btn upload" id="galleryUploadBtn" onclick="submitGalleryUpload()" disabled>📤 Upload to Gallery</button>
             </div>
         </div>
     </div>
@@ -2179,8 +2179,8 @@
     <div class="gallery-assign-modal" id="galleryAssignModal">
         <div class="gallery-assign-content">
             <div class="gallery-assign-header">
-                <span class="gallery-assign-title">ðŸ”— Assign Picture to Items</span>
-                <button class="gallery-assign-close" onclick="closeGalleryAssignModal()">Ã—</button>
+                <span class="gallery-assign-title">🔗 Assign Picture to Items</span>
+                <button class="gallery-assign-close" onclick="closeGalleryAssignModal()">×</button>
             </div>
             
             <div class="gallery-assign-preview">
@@ -2193,16 +2193,16 @@
             </div>
             
             <div class="gallery-current-assignments" id="currentAssignments" style="display: none;">
-                <h5>âœ… Currently Assigned To:</h5>
+                <h5>✅ Currently Assigned To:</h5>
                 <div id="assignmentChips"></div>
             </div>
             
             <div class="gallery-assign-type">
                 <label>Select Picture Type:</label>
                 <div class="gallery-type-options">
-                    <button class="gallery-type-btn type-finding" onclick="selectGalleryType('Finding')">âŒ Finding</button>
-                    <button class="gallery-type-btn type-good" onclick="selectGalleryType('Good')">âœ… Good</button>
-                    <button class="gallery-type-btn type-corrective" onclick="selectGalleryType('Corrective')">ðŸ”§ Corrective</button>
+                    <button class="gallery-type-btn type-finding" onclick="selectGalleryType('Finding')">❌ Finding</button>
+                    <button class="gallery-type-btn type-good" onclick="selectGalleryType('Good')">✅ Good</button>
+                    <button class="gallery-type-btn type-corrective" onclick="selectGalleryType('Corrective')">🔧 Corrective</button>
                 </div>
             </div>
             
@@ -2219,7 +2219,7 @@
             
             <div class="gallery-assign-actions">
                 <button class="gallery-assign-btn cancel" onclick="closeGalleryAssignModal()">Cancel</button>
-                <button class="gallery-assign-btn save" onclick="saveGalleryAssignments()">âœ“ Save Assignments</button>
+                <button class="gallery-assign-btn save" onclick="saveGalleryAssignments()">✓ Save Assignments</button>
             </div>
         </div>
     </div>
@@ -2294,7 +2294,7 @@
             // Add readonly indicator to header
             const header = document.querySelector('.header h1');
             if (header) {
-                header.innerHTML = 'ðŸ“‹ View Audit <span style="font-size: 14px; color: #6b7280; font-weight: normal;">(Read Only)</span>';
+                header.innerHTML = '📋 View Audit <span style="font-size: 14px; color: #6b7280; font-weight: normal;">(Read Only)</span>';
             }
             
             // Hide Complete Audit button
@@ -2350,7 +2350,7 @@
                 showToast(error.message, 'error');
                 document.getElementById('loadingContainer').innerHTML = `
                     <div class="empty-state">
-                        <div class="empty-icon">âš ï¸</div>
+                        <div class="empty-icon">⚠️</div>
                         <p>Failed to load audit: ${error.message}</p>
                         <button class="back-btn" onclick="goBack()" style="margin-top: 1rem;">Go Back</button>
                     </div>
@@ -2409,8 +2409,8 @@
         // Get section icon - uses database icon if available, falls back to defaults
         function getSectionIcon(sectionIcon, sectionNumber) {
             if (sectionIcon) return sectionIcon;
-            const icons = ['ðŸ¥«', 'â„ï¸', 'ðŸ½ï¸', 'ðŸ‘¨â€ðŸ³', 'ðŸ§¹', 'ðŸ§¼', 'ðŸš»', 'ðŸ—‘ï¸', 'ðŸ› ï¸', 'ðŸ§ª', 'ðŸ“‹', 'ðŸ›ï¸', 'ðŸ“œ'];
-            return icons[(sectionNumber || 1) - 1] || 'ðŸ“';
+            const icons = ['🥫', '❄️', '🍽️', '👨‍🍳', '🧹', '🧼', '🚻', '🗑️', '🛠️', '🧪', '📋', '🏛️', '📜'];
+            return icons[(sectionNumber || 1) - 1] || '📝';
         }
 
         // Calculate section score
@@ -2466,7 +2466,7 @@
                 
                 <div class="temp-monitor-toggle ${isTempMonitoringEnabled ? 'enabled' : ''}" onclick="toggleTempMonitoring(${sectionId})">
                     <input type="checkbox" id="tempMonitor-${sectionId}" ${isTempMonitoringEnabled ? 'checked' : ''} onclick="event.stopPropagation(); toggleTempMonitoring(${sectionId})">
-                    <label for="tempMonitor-${sectionId}">ðŸŒ¡ï¸ Enable Temperature Readings</label>
+                    <label for="tempMonitor-${sectionId}">🌡️ Enable Temperature Readings</label>
                 </div>
                 
                 <div id="questionsList">
@@ -2503,13 +2503,13 @@
                                 onchange="updateActualQuantity(${item.responseId}, this.value)"
                                 placeholder="-">
                         </span>` : ''}
-                        ${item.isQuantitative ? `<span style="background: #f0f9ff; color: #0369a1; padding: 2px 8px; border-radius: 10px; font-size: 0.7rem; margin-left: 8px;" title="Auto-grades: âœ…${item.range1From}-${item.range1To} âš ï¸${item.range2From}-${item.range2To} âŒ${item.range3From}+">ðŸ“Š Auto</span>` : ''}
+                        ${item.isQuantitative ? `<span style="background: #f0f9ff; color: #0369a1; padding: 2px 8px; border-radius: 10px; font-size: 0.7rem; margin-left: 8px;" title="Auto-grades: ✅${item.range1From}-${item.range1To} ⚠️${item.range2From}-${item.range2To} ❌${item.range3From}+">📊 Auto</span>` : ''}
                     </div>
                     <div class="question-title">${item.title}</div>
                     ${item.isQuantitative ? `<div style="font-size: 0.7rem; color: #64748b; margin: 5px 0; padding: 4px 8px; background: #f8fafc; border-radius: 4px;">
-                        Ranges: <span style="color: #16a34a;">âœ… Yes: ${item.range1From}-${item.range1To}</span> | 
-                        <span style="color: #ca8a04;">âš ï¸ Partially: ${item.range2From}-${item.range2To}</span> | 
-                        <span style="color: #dc2626;">âŒ No: ${item.range3From}+</span>
+                        Ranges: <span style="color: #16a34a;">✅ Yes: ${item.range1From}-${item.range1To}</span> | 
+                        <span style="color: #ca8a04;">⚠️ Partially: ${item.range2From}-${item.range2To}</span> | 
+                        <span style="color: #dc2626;">❌ No: ${item.range3From}+</span>
                     </div>` : ''}
                     
                     <div class="answer-options">
@@ -2521,14 +2521,14 @@
                     <!-- Finding section for No/Partially -->
                     <div class="finding-section ${showFinding ? 'visible' : ''}" id="finding-${item.responseId}">
                         <div class="finding-group">
-                            <div class="finding-label">ðŸ“ Finding</div>
+                            <div class="finding-label">📝 Finding</div>
                             <textarea class="finding-input" rows="2" 
                                 placeholder="Describe the finding or issue..."
                                 onchange="updateFinding(${item.responseId}, 'finding', this.value)"
                             >${item.finding || ''}</textarea>
                         </div>
                         <div class="finding-group">
-                            <div class="finding-label">âš ï¸ Severity</div>
+                            <div class="finding-label">⚠️ Severity</div>
                             <div class="priority-options">
                                 ${(() => {
                                     const autoSeverity = item.coeff >= 8 ? 'Very High' : item.coeff >= 6 ? 'High' : item.coeff >= 4 ? 'Medium' : 'Low';
@@ -2539,14 +2539,14 @@
                                     </span>`;
                                 })()}
                                 <button class="priority-btn ${item.priority === 'Critical' ? 'selected-critical' : ''}" 
-                                    onclick="setPriority(${item.responseId}, 'Critical')" title="Override to Critical">ðŸš¨ Critical</button>
+                                    onclick="setPriority(${item.responseId}, 'Critical')" title="Override to Critical">🚨 Critical</button>
                             </div>
                         </div>
                         ${renderCRField(item)}
                         <div class="finding-group">
                             <button class="picture-btn ${item.hasPicture ? 'has-picture' : ''}" 
                                 onclick="takePicture(${item.responseId})">
-                                ðŸ“· ${item.hasPicture ? 'Picture Added' : 'Add Picture'}
+                                📷 ${item.hasPicture ? 'Picture Added' : 'Add Picture'}
                             </button>
                         </div>
                         
@@ -2560,7 +2560,7 @@
                                 <span class="escalate-label">Assign to Department</span>
                             </label>
                             <div class="department-dropdown-wrapper ${item.escalate ? 'visible' : ''}" id="dept-wrapper-${item.responseId}">
-                                <div class="department-label">ðŸ“‹ Assign to Department</div>
+                                <div class="department-label">📋 Assign to Department</div>
                                 <select class="department-select" id="dept-${item.responseId}" 
                                     onchange="setDepartment(${item.responseId}, this.value)">
                                     <option value="">-- Select Department --</option>
@@ -2579,7 +2579,7 @@
                     <!-- Comment section for Yes/NA -->
                     <div class="comment-section ${showComment ? 'visible' : ''}" id="comment-${item.responseId}">
                         <div class="finding-group">
-                            <div class="finding-label">ðŸ’¬ Comment (optional)</div>
+                            <div class="finding-label">💬 Comment (optional)</div>
                             <textarea class="finding-input comment-input" rows="2" 
                                 placeholder="Add any additional comments..."
                                 onchange="updateFinding(${item.responseId}, 'comment', this.value)"
@@ -2588,7 +2588,7 @@
                         <div class="finding-group">
                             <button class="picture-btn good-observation-btn ${item.hasGoodPicture ? 'has-picture' : ''}" 
                                 onclick="takePicture(${item.responseId}, 'Good')">
-                                ðŸ“· ${item.hasGoodPicture ? 'Picture Added' : 'Add Picture'}
+                                📷 ${item.hasGoodPicture ? 'Picture Added' : 'Add Picture'}
                             </button>
                         </div>
                     </div>
@@ -2624,9 +2624,9 @@
             return `
                 <div class="cr-container">
                     <div class="cr-header">
-                        <span class="cr-label">ðŸ“‹ Corrective Action</span>
+                        <span class="cr-label">📋 Corrective Action</span>
                         <button class="cr-toggle-btn" onclick="toggleCREdit(${item.responseId})">
-                            âœï¸ Edit/Add Note
+                            ✏️ Edit/Add Note
                         </button>
                     </div>
                     <textarea class="cr-textarea" 
@@ -2635,7 +2635,7 @@
                         placeholder="Corrective action details..."
                         onchange="updateCR(${item.responseId}, this.value)"
                     >${escapeHtml(crValue)}</textarea>
-                    <div class="cr-note">ðŸ’¡ You can edit this field to add notes or clarifications</div>
+                    <div class="cr-note">💡 You can edit this field to add notes or clarifications</div>
                 </div>
             `;
         }
@@ -3066,7 +3066,7 @@
                                 <div class="existing-image-type type-${pic.pictureType.toLowerCase()}">${getTypeLabel(pic.pictureType)}</div>
                                 <div class="existing-image-name">${pic.originalName || pic.fileName}</div>
                             </div>
-                            <button class="delete-image-btn" onclick="deleteImage(${pic.pictureId})">ðŸ—‘ï¸</button>
+                            <button class="delete-image-btn" onclick="deleteImage(${pic.pictureId})">🗑️</button>
                         </div>
                     `).join('');
                 }
@@ -3080,7 +3080,7 @@
                                 <div class="existing-image-type type-${pic.PictureType.toLowerCase()}">${getTypeLabel(pic.PictureType)} <span style="font-size: 0.7rem; color: #6366f1;">(Gallery)</span></div>
                                 <div class="existing-image-name">${pic.OriginalName}</div>
                             </div>
-                            <button class="delete-image-btn" onclick="removeGalleryAssignmentFromModal(${pic.LinkId})" title="Unlink from this item">ðŸ”—âœ•</button>
+                            <button class="delete-image-btn" onclick="removeGalleryAssignmentFromModal(${pic.LinkId})" title="Unlink from this item">🔗✕</button>
                         </div>
                     `).join('');
                 }
@@ -3121,9 +3121,9 @@
         // Get type label with icon
         function getTypeLabel(type) {
             switch (type) {
-                case 'Finding': return 'âŒ Finding';
-                case 'Good': return 'âœ… Good Observation';
-                case 'Corrective': return 'ðŸ”§ Corrective Action';
+                case 'Finding': return '❌ Finding';
+                case 'Good': return '✅ Good Observation';
+                case 'Corrective': return '🔧 Corrective Action';
                 default: return type;
             }
         }
@@ -3203,7 +3203,7 @@
         // Navigate sections
         function prevSection() {
             if (currentSectionIndex > 0) {
-                showToast('âœ“ Progress saved', 'success');
+                showToast('✓ Progress saved', 'success');
                 selectSection(currentSectionIndex - 1);
                 // Scroll to top of content area
                 document.getElementById('contentArea').scrollTop = 0;
@@ -3212,7 +3212,7 @@
 
         function nextSection() {
             if (currentSectionIndex < auditData.sections.length - 1) {
-                showToast('âœ“ Progress saved', 'success');
+                showToast('✓ Progress saved', 'success');
                 selectSection(currentSectionIndex + 1);
                 // Scroll to top of content area
                 document.getElementById('contentArea').scrollTop = 0;
@@ -3313,7 +3313,7 @@
                 await saveFridgeReadingsToServer();
                 showToast(
                     tempMonitoringSections[sectionId] 
-                        ? 'ðŸŒ¡ï¸ Temperature readings enabled for this section' 
+                        ? '🌡️ Temperature readings enabled for this section' 
                         : 'Temperature readings disabled for this section',
                     tempMonitoringSections[sectionId] ? 'success' : 'info'
                 );
@@ -3335,10 +3335,10 @@
             return `
                 <div class="fridge-temp-buttons">
                     <button class="fridge-temp-btn good-btn" onclick="openFridgeModal('good', ${responseId})">
-                        âœ… Good ${goodCount > 0 ? '(' + goodCount + ')' : ''}
+                        ✅ Good ${goodCount > 0 ? '(' + goodCount + ')' : ''}
                     </button>
                     <button class="fridge-temp-btn bad-btn" onclick="openFridgeModal('bad', ${responseId})">
-                        âŒ Bad ${badCount > 0 ? '(' + badCount + ')' : ''}
+                        ❌ Bad ${badCount > 0 ? '(' + badCount + ')' : ''}
                     </button>
                 </div>
                 ${renderFridgeEntriesList(responseId)}
@@ -3360,12 +3360,12 @@
                 html += `
                     <div class="fridge-entry-item good">
                         <div class="fridge-entry-info">
-                            <div class="fridge-entry-section">âœ… ${entry.section} - ${entry.unit}</div>
-                            <div class="fridge-entry-temps">Display: ${entry.displayTemp}Â°C | Probe: ${entry.probeTemp}Â°C</div>
+                            <div class="fridge-entry-section">✅ ${entry.section} - ${entry.unit}</div>
+                            <div class="fridge-entry-temps">Display: ${entry.displayTemp}°C | Probe: ${entry.probeTemp}°C</div>
                         </div>
                         <div class="fridge-entry-actions">
-                            <button class="fridge-entry-edit" onclick="editFridgeEntry('good', ${responseId}, ${idx})">âœï¸</button>
-                            <button class="fridge-entry-delete" onclick="deleteFridgeEntry('good', ${responseId}, ${idx})">ðŸ—‘ï¸</button>
+                            <button class="fridge-entry-edit" onclick="editFridgeEntry('good', ${responseId}, ${idx})">✏️</button>
+                            <button class="fridge-entry-delete" onclick="deleteFridgeEntry('good', ${responseId}, ${idx})">🗑️</button>
                         </div>
                     </div>
                 `;
@@ -3375,13 +3375,13 @@
                 html += `
                     <div class="fridge-entry-item bad">
                         <div class="fridge-entry-info">
-                            <div class="fridge-entry-section">âŒ ${entry.section} - ${entry.unit}</div>
-                            <div class="fridge-entry-temps">Display: ${entry.displayTemp}Â°C | Probe: ${entry.probeTemp}Â°C</div>
-                            <div class="fridge-entry-issue">âš ï¸ ${entry.issue}</div>
+                            <div class="fridge-entry-section">❌ ${entry.section} - ${entry.unit}</div>
+                            <div class="fridge-entry-temps">Display: ${entry.displayTemp}°C | Probe: ${entry.probeTemp}°C</div>
+                            <div class="fridge-entry-issue">⚠️ ${entry.issue}</div>
                         </div>
                         <div class="fridge-entry-actions">
-                            <button class="fridge-entry-edit" onclick="editFridgeEntry('bad', ${responseId}, ${idx})">âœï¸</button>
-                            <button class="fridge-entry-delete" onclick="deleteFridgeEntry('bad', ${responseId}, ${idx})">ðŸ—‘ï¸</button>
+                            <button class="fridge-entry-edit" onclick="editFridgeEntry('bad', ${responseId}, ${idx})">✏️</button>
+                            <button class="fridge-entry-delete" onclick="deleteFridgeEntry('bad', ${responseId}, ${idx})">🗑️</button>
                         </div>
                     </div>
                 `;
@@ -3404,7 +3404,7 @@
             // Update modal title for add mode
             const titleEl = modal.querySelector('.fridge-modal-title');
             if (titleEl) {
-                titleEl.innerHTML = type === 'good' ? 'âœ… Add Good Fridge Reading' : 'âŒ Add Bad Fridge Reading';
+                titleEl.innerHTML = type === 'good' ? '✅ Add Good Fridge Reading' : '❌ Add Bad Fridge Reading';
             }
         }
         
@@ -3431,7 +3431,7 @@
             // Update modal title for edit mode
             const titleEl = modal.querySelector('.fridge-modal-title');
             if (titleEl) {
-                titleEl.innerHTML = type === 'good' ? 'âœï¸ Edit Good Fridge Reading' : 'âœï¸ Edit Bad Fridge Reading';
+                titleEl.innerHTML = type === 'good' ? '✏️ Edit Good Fridge Reading' : '✏️ Edit Bad Fridge Reading';
             }
             
             // Populate form with existing values
@@ -3719,7 +3719,7 @@
             const assigned = galleryPictures.filter(p => p.AssignmentCount > 0).length;
             const unassigned = galleryPictures.length - assigned;
             
-            count.innerHTML = `${galleryPictures.length} photos â€¢ <span style="color: #3b82f6;">${assigned} assigned</span> â€¢ <span style="color: #f59e0b;">${unassigned} unassigned</span>`;
+            count.innerHTML = `${galleryPictures.length} photos • <span style="color: #10b981;">${assigned} assigned</span> • <span style="color: #f59e0b;">${unassigned} unassigned</span>`;
             
             if (galleryPictures.length === 0) {
                 grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 2rem; color: #64748b;">No photos yet.<br>Click above to upload.</div>';
@@ -3733,7 +3733,7 @@
                         <span class="gallery-item-badge ${pic.AssignmentCount > 0 ? 'assigned' : 'unassigned'}">
                             ${pic.AssignmentCount > 0 ? pic.AssignmentCount + ' items' : 'Unassigned'}
                         </span>
-                        <button class="gallery-item-delete" onclick="event.stopPropagation(); deleteGalleryPicture(${pic.Id})">ðŸ—‘ï¸</button>
+                        <button class="gallery-item-delete" onclick="event.stopPropagation(); deleteGalleryPicture(${pic.Id})">🗑️</button>
                     </div>
                 </div>
             `).join('');
@@ -3765,7 +3765,7 @@
             const listEl = document.getElementById('galleryUploadList');
             listEl.innerHTML = files.map((f, i) => `
                 <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: rgba(99, 102, 241, 0.05); border-radius: 6px; margin-bottom: 0.5rem;">
-                    <span>ðŸ“·</span>
+                    <span>📷</span>
                     <span style="flex: 1; font-size: 0.85rem;">${f.name}</span>
                     <span style="font-size: 0.75rem; color: #64748b;">${(f.size / 1024).toFixed(1)} KB</span>
                 </div>
@@ -3781,7 +3781,7 @@
             
             const btn = document.getElementById('galleryUploadBtn');
             btn.disabled = true;
-            btn.textContent = 'â³ Uploading...';
+            btn.textContent = '⏳ Uploading...';
             
             try {
                 const formData = new FormData();
@@ -3809,7 +3809,7 @@
             }
             
             btn.disabled = false;
-            btn.textContent = 'ðŸ“¤ Upload to Gallery';
+            btn.textContent = '📤 Upload to Gallery';
         }
         
         // Delete gallery picture
@@ -3888,7 +3888,7 @@
                     chipsEl.innerHTML = result.data.map(a => `
                         <span class="gallery-assignment-chip">
                             <strong>${a.ReferenceValue}</strong> (${a.PictureType})
-                            <span class="remove" onclick="removeGalleryAssignment(${a.LinkId})">Ã—</span>
+                            <span class="remove" onclick="removeGalleryAssignment(${a.LinkId})">×</span>
                         </span>
                     `).join('');
                     container.style.display = 'block';
@@ -3928,7 +3928,7 @@
                 <label class="gallery-item-option">
                     <input type="checkbox" value="${item.responseId}" data-ref="${item.referenceValue}">
                     <div class="gallery-item-option-info">
-                        <div class="gallery-item-option-ref">${item.referenceValue} â€¢ ${item.sectionName}</div>
+                        <div class="gallery-item-option-ref">${item.referenceValue} • ${item.sectionName}</div>
                         <div class="gallery-item-option-title">${item.title}</div>
                     </div>
                 </label>
@@ -4017,4 +4017,3 @@
     </script>
 </body>
 </html>
-

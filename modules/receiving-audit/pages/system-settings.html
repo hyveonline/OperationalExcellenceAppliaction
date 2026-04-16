@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -13,7 +13,7 @@
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
             min-height: 100vh;
         }
 
@@ -73,7 +73,7 @@
         }
 
         .btn-success {
-            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
             color: white;
         }
 
@@ -354,7 +354,7 @@
             position: fixed;
             bottom: 100px;
             right: 30px;
-            background: #3b82f6;
+            background: #10b981;
             color: white;
             padding: 16px 24px;
             border-radius: 12px;
@@ -774,17 +774,17 @@
 </head>
 <body>
     <div class="header">
-        <h1>âš™ï¸ System Settings</h1>
+        <h1>⚙️ System Settings</h1>
         <div class="header-actions">
             <button class="btn btn-secondary" onclick="window.location.href='/dashboard'">
-                <span>ðŸ </span> Dashboard
+                <span>🏠</span> Dashboard
             </button>
         </div>
     </div>
 
     <div class="container">
         <div class="info-banner">
-            <div class="icon">âš™ï¸</div>
+            <div class="icon">⚙️</div>
             <div class="text">
                 <h3>Schema Configuration</h3>
                 <p>Configure passing grades and color schemes for each audit schema. These settings control pass/fail thresholds and report appearance.</p>
@@ -801,17 +801,17 @@
 
     <div class="save-bar" id="saveBar">
         <div class="changes-text">
-            <span>âš ï¸</span>
+            <span>⚠️</span>
             <span id="changesCount">0 unsaved changes</span>
         </div>
         <button class="btn btn-secondary" onclick="discardChanges()">Discard</button>
         <button class="btn btn-success" onclick="saveChanges()">
-            <span>ðŸ’¾</span> Save Changes
+            <span>💾</span> Save Changes
         </button>
     </div>
 
     <div class="toast" id="toast">
-        <span id="toastIcon">âœ“</span>
+        <span id="toastIcon">✓</span>
         <span id="toastMessage">Settings saved</span>
     </div>
 
@@ -824,198 +824,198 @@
             </div>
             
             <div class="icon-picker-section">
-                <h4>ðŸ½ï¸ Food & Kitchen</h4>
+                <h4>🍽️ Food & Kitchen</h4>
                 <div class="icon-options">
-                    <div class="icon-option" onclick="selectIcon('ðŸ½ï¸')">ðŸ½ï¸</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ¥«')">ðŸ¥«</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ³')">ðŸ³</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ”ª')">ðŸ”ª</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ‘¨â€ðŸ³')">ðŸ‘¨â€ðŸ³</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ¥©')">ðŸ¥©</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ¥—')">ðŸ¥—</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸž')">ðŸž</div>
+                    <div class="icon-option" onclick="selectIcon('🍽️')">🍽️</div>
+                    <div class="icon-option" onclick="selectIcon('🥫')">🥫</div>
+                    <div class="icon-option" onclick="selectIcon('🍳')">🍳</div>
+                    <div class="icon-option" onclick="selectIcon('🔪')">🔪</div>
+                    <div class="icon-option" onclick="selectIcon('👨‍🍳')">👨‍🍳</div>
+                    <div class="icon-option" onclick="selectIcon('🥩')">🥩</div>
+                    <div class="icon-option" onclick="selectIcon('🥗')">🥗</div>
+                    <div class="icon-option" onclick="selectIcon('🍞')">🍞</div>
                 </div>
             </div>
             
             <div class="icon-picker-section">
-                <h4>â„ï¸ Temperature & Storage</h4>
+                <h4>❄️ Temperature & Storage</h4>
                 <div class="icon-options">
-                    <div class="icon-option" onclick="selectIcon('â„ï¸')">â„ï¸</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ§Š')">ðŸ§Š</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸŒ¡ï¸')">ðŸŒ¡ï¸</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ“¦')">ðŸ“¦</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ—„ï¸')">ðŸ—„ï¸</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ”¥')">ðŸ”¥</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ’§')">ðŸ’§</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸª')">ðŸª</div>
+                    <div class="icon-option" onclick="selectIcon('❄️')">❄️</div>
+                    <div class="icon-option" onclick="selectIcon('🧊')">🧊</div>
+                    <div class="icon-option" onclick="selectIcon('🌡️')">🌡️</div>
+                    <div class="icon-option" onclick="selectIcon('📦')">📦</div>
+                    <div class="icon-option" onclick="selectIcon('🗄️')">🗄️</div>
+                    <div class="icon-option" onclick="selectIcon('🔥')">🔥</div>
+                    <div class="icon-option" onclick="selectIcon('💧')">💧</div>
+                    <div class="icon-option" onclick="selectIcon('🏪')">🏪</div>
                 </div>
             </div>
             
             <div class="icon-picker-section">
-                <h4>ðŸ§¹ Cleaning & Hygiene</h4>
+                <h4>🧹 Cleaning & Hygiene</h4>
                 <div class="icon-options">
-                    <div class="icon-option" onclick="selectIcon('ðŸ§¹')">ðŸ§¹</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ§¼')">ðŸ§¼</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ§¤')">ðŸ§¤</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸš¿')">ðŸš¿</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸš»')">ðŸš»</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ—‘ï¸')">ðŸ—‘ï¸</div>
-                    <div class="icon-option" onclick="selectIcon('â™»ï¸')">â™»ï¸</div>
-                    <div class="icon-option" onclick="selectIcon('âœ¨')">âœ¨</div>
+                    <div class="icon-option" onclick="selectIcon('🧹')">🧹</div>
+                    <div class="icon-option" onclick="selectIcon('🧼')">🧼</div>
+                    <div class="icon-option" onclick="selectIcon('🧤')">🧤</div>
+                    <div class="icon-option" onclick="selectIcon('🚿')">🚿</div>
+                    <div class="icon-option" onclick="selectIcon('🚻')">🚻</div>
+                    <div class="icon-option" onclick="selectIcon('🗑️')">🗑️</div>
+                    <div class="icon-option" onclick="selectIcon('♻️')">♻️</div>
+                    <div class="icon-option" onclick="selectIcon('✨')">✨</div>
                 </div>
             </div>
             
             <div class="icon-picker-section">
-                <h4>ðŸ› ï¸ Maintenance & Equipment</h4>
+                <h4>🛠️ Maintenance & Equipment</h4>
                 <div class="icon-options">
-                    <div class="icon-option" onclick="selectIcon('ðŸ› ï¸')">ðŸ› ï¸</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ”§')">ðŸ”§</div>
-                    <div class="icon-option" onclick="selectIcon('âš™ï¸')">âš™ï¸</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ”Œ')">ðŸ”Œ</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ’¡')">ðŸ’¡</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸª›')">ðŸª›</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ”©')">ðŸ”©</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ—ï¸')">ðŸ—ï¸</div>
+                    <div class="icon-option" onclick="selectIcon('🛠️')">🛠️</div>
+                    <div class="icon-option" onclick="selectIcon('🔧')">🔧</div>
+                    <div class="icon-option" onclick="selectIcon('⚙️')">⚙️</div>
+                    <div class="icon-option" onclick="selectIcon('🔌')">🔌</div>
+                    <div class="icon-option" onclick="selectIcon('💡')">💡</div>
+                    <div class="icon-option" onclick="selectIcon('🪛')">🪛</div>
+                    <div class="icon-option" onclick="selectIcon('🔩')">🔩</div>
+                    <div class="icon-option" onclick="selectIcon('🏗️')">🏗️</div>
                 </div>
             </div>
             
             <div class="icon-picker-section">
-                <h4>ðŸ§ª Safety & Chemicals</h4>
+                <h4>🧪 Safety & Chemicals</h4>
                 <div class="icon-options">
-                    <div class="icon-option" onclick="selectIcon('ðŸ§ª')">ðŸ§ª</div>
-                    <div class="icon-option" onclick="selectIcon('âš ï¸')">âš ï¸</div>
-                    <div class="icon-option" onclick="selectIcon('â˜£ï¸')">â˜£ï¸</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ”’')">ðŸ”’</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ›¡ï¸')">ðŸ›¡ï¸</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ€')">ðŸ€</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸª³')">ðŸª³</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ¦Ÿ')">ðŸ¦Ÿ</div>
+                    <div class="icon-option" onclick="selectIcon('🧪')">🧪</div>
+                    <div class="icon-option" onclick="selectIcon('⚠️')">⚠️</div>
+                    <div class="icon-option" onclick="selectIcon('☣️')">☣️</div>
+                    <div class="icon-option" onclick="selectIcon('🔒')">🔒</div>
+                    <div class="icon-option" onclick="selectIcon('🛡️')">🛡️</div>
+                    <div class="icon-option" onclick="selectIcon('🐀')">🐀</div>
+                    <div class="icon-option" onclick="selectIcon('🪳')">🪳</div>
+                    <div class="icon-option" onclick="selectIcon('🦟')">🦟</div>
                 </div>
             </div>
             
             <div class="icon-picker-section">
-                <h4>ðŸ“‹ Documents & Process</h4>
+                <h4>📋 Documents & Process</h4>
                 <div class="icon-options">
-                    <div class="icon-option" onclick="selectIcon('ðŸ“‹')">ðŸ“‹</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ“')">ðŸ“</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ“Š')">ðŸ“Š</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ“œ')">ðŸ“œ</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ“‘')">ðŸ“‘</div>
-                    <div class="icon-option" onclick="selectIcon('âœ…')">âœ…</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ“·')">ðŸ“·</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸŽ¯')">ðŸŽ¯</div>
+                    <div class="icon-option" onclick="selectIcon('📋')">📋</div>
+                    <div class="icon-option" onclick="selectIcon('📝')">📝</div>
+                    <div class="icon-option" onclick="selectIcon('📊')">📊</div>
+                    <div class="icon-option" onclick="selectIcon('📜')">📜</div>
+                    <div class="icon-option" onclick="selectIcon('📑')">📑</div>
+                    <div class="icon-option" onclick="selectIcon('✅')">✅</div>
+                    <div class="icon-option" onclick="selectIcon('📷')">📷</div>
+                    <div class="icon-option" onclick="selectIcon('🎯')">🎯</div>
                 </div>
             </div>
             
             <div class="icon-picker-section">
-                <h4>ðŸ›ï¸ Culture & Training</h4>
+                <h4>🏛️ Culture & Training</h4>
                 <div class="icon-options">
-                    <div class="icon-option" onclick="selectIcon('ðŸ›ï¸')">ðŸ›ï¸</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ‘¥')">ðŸ‘¥</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸŽ“')">ðŸŽ“</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ“š')">ðŸ“š</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ†')">ðŸ†</div>
-                    <div class="icon-option" onclick="selectIcon('â­')">â­</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ’ª')">ðŸ’ª</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ¤')">ðŸ¤</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ‘')">ðŸ‘</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ’¼')">ðŸ’¼</div>
+                    <div class="icon-option" onclick="selectIcon('🏛️')">🏛️</div>
+                    <div class="icon-option" onclick="selectIcon('👥')">👥</div>
+                    <div class="icon-option" onclick="selectIcon('🎓')">🎓</div>
+                    <div class="icon-option" onclick="selectIcon('📚')">📚</div>
+                    <div class="icon-option" onclick="selectIcon('🏆')">🏆</div>
+                    <div class="icon-option" onclick="selectIcon('⭐')">⭐</div>
+                    <div class="icon-option" onclick="selectIcon('💪')">💪</div>
+                    <div class="icon-option" onclick="selectIcon('🤝')">🤝</div>
+                    <div class="icon-option" onclick="selectIcon('👍')">👍</div>
+                    <div class="icon-option" onclick="selectIcon('💼')">💼</div>
                 </div>
             </div>
             
             <div class="icon-picker-section">
-                <h4>ðŸ¢ Building & Facilities</h4>
+                <h4>🏢 Building & Facilities</h4>
                 <div class="icon-options">
-                    <div class="icon-option" onclick="selectIcon('ðŸ¢')">ðŸ¢</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸšª')">ðŸšª</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸªŸ')">ðŸªŸ</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ ')">ðŸ </div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ§±')">ðŸ§±</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸªœ')">ðŸªœ</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸŽ›ï¸')">ðŸŽ›ï¸</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸš°')">ðŸš°</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ’¨')">ðŸ’¨</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ›—')">ðŸ›—</div>
+                    <div class="icon-option" onclick="selectIcon('🏢')">🏢</div>
+                    <div class="icon-option" onclick="selectIcon('🚪')">🚪</div>
+                    <div class="icon-option" onclick="selectIcon('🪟')">🪟</div>
+                    <div class="icon-option" onclick="selectIcon('🏠')">🏠</div>
+                    <div class="icon-option" onclick="selectIcon('🧱')">🧱</div>
+                    <div class="icon-option" onclick="selectIcon('🪜')">🪜</div>
+                    <div class="icon-option" onclick="selectIcon('🎛️')">🎛️</div>
+                    <div class="icon-option" onclick="selectIcon('🚰')">🚰</div>
+                    <div class="icon-option" onclick="selectIcon('💨')">💨</div>
+                    <div class="icon-option" onclick="selectIcon('🛗')">🛗</div>
                 </div>
             </div>
             
             <div class="icon-picker-section">
-                <h4>ðŸ´ Utensils & Serving</h4>
+                <h4>🍴 Utensils & Serving</h4>
                 <div class="icon-options">
-                    <div class="icon-option" onclick="selectIcon('ðŸ´')">ðŸ´</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ¥„')">ðŸ¥„</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ«™')">ðŸ«™</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ¥£')">ðŸ¥£</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ¥¡')">ðŸ¥¡</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ¶')">ðŸ¶</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ«–')">ðŸ«–</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ¥¢')">ðŸ¥¢</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸµ')">ðŸµ</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ§ƒ')">ðŸ§ƒ</div>
+                    <div class="icon-option" onclick="selectIcon('🍴')">🍴</div>
+                    <div class="icon-option" onclick="selectIcon('🥄')">🥄</div>
+                    <div class="icon-option" onclick="selectIcon('🫙')">🫙</div>
+                    <div class="icon-option" onclick="selectIcon('🥣')">🥣</div>
+                    <div class="icon-option" onclick="selectIcon('🥡')">🥡</div>
+                    <div class="icon-option" onclick="selectIcon('🍶')">🍶</div>
+                    <div class="icon-option" onclick="selectIcon('🫖')">🫖</div>
+                    <div class="icon-option" onclick="selectIcon('🥢')">🥢</div>
+                    <div class="icon-option" onclick="selectIcon('🍵')">🍵</div>
+                    <div class="icon-option" onclick="selectIcon('🧃')">🧃</div>
                 </div>
             </div>
             
             <div class="icon-picker-section">
-                <h4>ðŸ¾ Pest Control</h4>
+                <h4>🐾 Pest Control</h4>
                 <div class="icon-options">
-                    <div class="icon-option" onclick="selectIcon('ðŸ¾')">ðŸ¾</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ')">ðŸ</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸª°')">ðŸª°</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ•·ï¸')">ðŸ•·ï¸</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸœ')">ðŸœ</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸª¤')">ðŸª¤</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ§¯')">ðŸ§¯</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸš«')">ðŸš«</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ›')">ðŸ›</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸª²')">ðŸª²</div>
+                    <div class="icon-option" onclick="selectIcon('🐾')">🐾</div>
+                    <div class="icon-option" onclick="selectIcon('🐁')">🐁</div>
+                    <div class="icon-option" onclick="selectIcon('🪰')">🪰</div>
+                    <div class="icon-option" onclick="selectIcon('🕷️')">🕷️</div>
+                    <div class="icon-option" onclick="selectIcon('🐜')">🐜</div>
+                    <div class="icon-option" onclick="selectIcon('🪤')">🪤</div>
+                    <div class="icon-option" onclick="selectIcon('🧯')">🧯</div>
+                    <div class="icon-option" onclick="selectIcon('🚫')">🚫</div>
+                    <div class="icon-option" onclick="selectIcon('🐛')">🐛</div>
+                    <div class="icon-option" onclick="selectIcon('🪲')">🪲</div>
                 </div>
             </div>
             
             <div class="icon-picker-section">
-                <h4>â° Time & Monitoring</h4>
+                <h4>⏰ Time & Monitoring</h4>
                 <div class="icon-options">
-                    <div class="icon-option" onclick="selectIcon('â°')">â°</div>
-                    <div class="icon-option" onclick="selectIcon('âŒ›')">âŒ›</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ“…')">ðŸ“…</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ””')">ðŸ””</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ‘ï¸')">ðŸ‘ï¸</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ”')">ðŸ”</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ“ˆ')">ðŸ“ˆ</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ“‰')">ðŸ“‰</div>
-                    <div class="icon-option" onclick="selectIcon('â±ï¸')">â±ï¸</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ•')">ðŸ•</div>
+                    <div class="icon-option" onclick="selectIcon('⏰')">⏰</div>
+                    <div class="icon-option" onclick="selectIcon('⌛')">⌛</div>
+                    <div class="icon-option" onclick="selectIcon('📅')">📅</div>
+                    <div class="icon-option" onclick="selectIcon('🔔')">🔔</div>
+                    <div class="icon-option" onclick="selectIcon('👁️')">👁️</div>
+                    <div class="icon-option" onclick="selectIcon('🔍')">🔍</div>
+                    <div class="icon-option" onclick="selectIcon('📈')">📈</div>
+                    <div class="icon-option" onclick="selectIcon('📉')">📉</div>
+                    <div class="icon-option" onclick="selectIcon('⏱️')">⏱️</div>
+                    <div class="icon-option" onclick="selectIcon('🕐')">🕐</div>
                 </div>
             </div>
             
             <div class="icon-picker-section">
-                <h4>ðŸŒ¿ Environment</h4>
+                <h4>🌿 Environment</h4>
                 <div class="icon-options">
-                    <div class="icon-option" onclick="selectIcon('ðŸŒ¿')">ðŸŒ¿</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸŒ±')">ðŸŒ±</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸƒ')">ðŸƒ</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ’š')">ðŸ’š</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸŒ')">ðŸŒ</div>
-                    <div class="icon-option" onclick="selectIcon('â˜€ï¸')">â˜€ï¸</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸŒ™')">ðŸŒ™</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸŒŠ')">ðŸŒŠ</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ€')">ðŸ€</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸŒ¸')">ðŸŒ¸</div>
+                    <div class="icon-option" onclick="selectIcon('🌿')">🌿</div>
+                    <div class="icon-option" onclick="selectIcon('🌱')">🌱</div>
+                    <div class="icon-option" onclick="selectIcon('🍃')">🍃</div>
+                    <div class="icon-option" onclick="selectIcon('💚')">💚</div>
+                    <div class="icon-option" onclick="selectIcon('🌍')">🌍</div>
+                    <div class="icon-option" onclick="selectIcon('☀️')">☀️</div>
+                    <div class="icon-option" onclick="selectIcon('🌙')">🌙</div>
+                    <div class="icon-option" onclick="selectIcon('🌊')">🌊</div>
+                    <div class="icon-option" onclick="selectIcon('🍀')">🍀</div>
+                    <div class="icon-option" onclick="selectIcon('🌸')">🌸</div>
                 </div>
             </div>
             
             <div class="icon-picker-section">
-                <h4>ðŸ”¢ Numbers & Symbols</h4>
+                <h4>🔢 Numbers & Symbols</h4>
                 <div class="icon-options">
-                    <div class="icon-option" onclick="selectIcon('1ï¸âƒ£')">1ï¸âƒ£</div>
-                    <div class="icon-option" onclick="selectIcon('2ï¸âƒ£')">2ï¸âƒ£</div>
-                    <div class="icon-option" onclick="selectIcon('3ï¸âƒ£')">3ï¸âƒ£</div>
-                    <div class="icon-option" onclick="selectIcon('4ï¸âƒ£')">4ï¸âƒ£</div>
-                    <div class="icon-option" onclick="selectIcon('5ï¸âƒ£')">5ï¸âƒ£</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ”´')">ðŸ”´</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸŸ¢')">ðŸŸ¢</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸ”µ')">ðŸ”µ</div>
-                    <div class="icon-option" onclick="selectIcon('ðŸŸ¡')">ðŸŸ¡</div>
-                    <div class="icon-option" onclick="selectIcon('âšª')">âšª</div>
+                    <div class="icon-option" onclick="selectIcon('1️⃣')">1️⃣</div>
+                    <div class="icon-option" onclick="selectIcon('2️⃣')">2️⃣</div>
+                    <div class="icon-option" onclick="selectIcon('3️⃣')">3️⃣</div>
+                    <div class="icon-option" onclick="selectIcon('4️⃣')">4️⃣</div>
+                    <div class="icon-option" onclick="selectIcon('5️⃣')">5️⃣</div>
+                    <div class="icon-option" onclick="selectIcon('🔴')">🔴</div>
+                    <div class="icon-option" onclick="selectIcon('🟢')">🟢</div>
+                    <div class="icon-option" onclick="selectIcon('🔵')">🔵</div>
+                    <div class="icon-option" onclick="selectIcon('🟡')">🟡</div>
+                    <div class="icon-option" onclick="selectIcon('⚪')">⚪</div>
                 </div>
             </div>
         </div>
@@ -1044,13 +1044,13 @@
 
         // Default colors
         const defaultColors = {
-            passColor: '#3b82f6',
+            passColor: '#10b981',
             failColor: '#ef4444',
             categoryPassColor: '#22c55e',
             categoryFailColor: '#f87171',
             headerBackgroundColor: '#1e3a5f',
             headerTextColor: '#ffffff',
-            bannerPassBackground: '#3b82f6',
+            bannerPassBackground: '#10b981',
             bannerPassText: '#ffffff',
             bannerFailBackground: '#ef4444',
             bannerFailText: '#ffffff',
@@ -1075,7 +1075,7 @@
                     document.getElementById('schemaTabsContainer').innerHTML = `
                         <div class="settings-panel">
                             <div style="text-align: center; padding: 40px; color: #6b7280;">
-                                <div style="font-size: 48px; margin-bottom: 16px;">ðŸ“‹</div>
+                                <div style="font-size: 48px; margin-bottom: 16px;">📋</div>
                                 <h3>No Schemas Found</h3>
                                 <p>Create a schema in Template Builder first.</p>
                             </div>
@@ -1092,7 +1092,7 @@
                 document.getElementById('schemaTabsContainer').innerHTML = `
                     <div class="settings-panel">
                         <div style="text-align: center; padding: 40px; color: #ef4444;">
-                            <div style="font-size: 48px; margin-bottom: 16px;">âš ï¸</div>
+                            <div style="font-size: 48px; margin-bottom: 16px;">⚠️</div>
                             <h3>Error Loading Settings</h3>
                             <p>${error.message}</p>
                         </div>
@@ -1106,7 +1106,7 @@
                 <div class="schema-tabs" id="schemaTabs">
                     ${schemas.map(schema => `
                         <button class="schema-tab" data-schema-id="${schema.SchemaID}" onclick="selectSchema(${schema.SchemaID})">
-                            ðŸ“‹ ${schema.SchemaName}
+                            📋 ${schema.SchemaName}
                         </button>
                     `).join('')}
                 </div>
@@ -1250,7 +1250,7 @@
             
             try {
                 saveBtn.disabled = true;
-                saveBtn.innerHTML = 'â³ Saving...';
+                saveBtn.innerHTML = '⏳ Saving...';
                 
                 const response = await fetch(`/receiving-audit/api/schema-department-names/${currentSchemaId}`, {
                     method: 'POST',
@@ -1263,17 +1263,17 @@
                     originalDepartmentNames = { ...currentDepartmentNames };
                     hasDeptNameChanges = false;
                     updateSaveBar();
-                    statusEl.textContent = 'âœ… Saved successfully!';
-                    saveBtn.innerHTML = 'ðŸ’¾ Save Department Names';
+                    statusEl.textContent = '✅ Saved successfully!';
+                    saveBtn.innerHTML = '💾 Save Department Names';
                     setTimeout(() => { statusEl.textContent = ''; }, 3000);
                 } else {
                     throw new Error(data.error || 'Failed to save');
                 }
             } catch (error) {
                 console.error('Error saving department names:', error);
-                statusEl.textContent = 'âŒ Error saving';
+                statusEl.textContent = '❌ Error saving';
                 saveBtn.disabled = false;
-                saveBtn.innerHTML = 'ðŸ’¾ Save Department Names';
+                saveBtn.innerHTML = '💾 Save Department Names';
             }
         }
 
@@ -1294,19 +1294,19 @@
             const settingsHtml = `
                 <div class="sub-tabs">
                     <button class="sub-tab ${currentSubTab === 'grades' ? 'active' : ''}" data-tab="grades" onclick="switchSubTab('grades')">
-                        ðŸ“Š Passing Grades
+                        📊 Passing Grades
                     </button>
                     <button class="sub-tab ${currentSubTab === 'colors' ? 'active' : ''}" data-tab="colors" onclick="switchSubTab('colors')">
-                        ðŸŽ¨ Report Colors
+                        🎨 Report Colors
                     </button>
                     <button class="sub-tab ${currentSubTab === 'icons' ? 'active' : ''}" data-tab="icons" onclick="switchSubTab('icons')">
-                        ðŸŽ¯ Section Icons
+                        🎯 Section Icons
                     </button>
                     <button class="sub-tab ${currentSubTab === 'checklist' ? 'active' : ''}" data-tab="checklist" onclick="switchSubTab('checklist')">
-                        ðŸ“ Checklist Info
+                        📝 Checklist Info
                     </button>
                     <button class="sub-tab ${currentSubTab === 'departments' ? 'active' : ''}" data-tab="departments" onclick="switchSubTab('departments')">
-                        ðŸ¢ Department Names
+                        🏢 Department Names
                     </button>
                 </div>
 
@@ -1314,12 +1314,12 @@
                 <div class="tab-content ${currentSubTab === 'grades' ? 'active' : ''}" id="gradesContent">
                     <div class="settings-section">
                         <div class="section-title">
-                            <span>ðŸŽ¯</span>
+                            <span>🎯</span>
                             Overall Passing Grade
                         </div>
                         <div class="overall-setting">
                             <div class="label">
-                                <div class="icon">ðŸ†</div>
+                                <div class="icon">🏆</div>
                                 <div>
                                     <h4>${schema.SchemaName}</h4>
                                     <p>Minimum overall score required to pass the audit</p>
@@ -1341,7 +1341,7 @@
 
                     <div class="settings-section">
                         <div class="section-title">
-                            <span>ðŸ“‹</span>
+                            <span>📋</span>
                             Section Passing Grades
                             <span style="font-size: 12px; font-weight: 400; color: #9ca3af; margin-left: auto;">
                                 ${schema.sections.length} sections
@@ -1351,7 +1351,7 @@
                             ${schema.sections.map(section => `
                                 <div class="section-card">
                                     <div class="section-info">
-                                        <span class="section-icon">${section.SectionIcon || 'ðŸ“„'}</span>
+                                        <span class="section-icon">${section.SectionIcon || '📄'}</span>
                                         <div>
                                             <div class="section-name">${section.SectionName}</div>
                                             <div class="section-number">Section ${section.SectionNumber}</div>
@@ -1376,7 +1376,7 @@
 
                     <div style="margin-top: 20px; padding: 16px; background: #f0f9ff; border-radius: 8px; border: 1px solid #bae6fd;">
                         <div style="display: flex; align-items: center; gap: 10px; color: #0369a1;">
-                            <span>ðŸ’¡</span>
+                            <span>💡</span>
                             <span style="font-size: 13px;">
                                 <strong>Tip:</strong> Section grades are used to determine pass/fail status per section in reports. 
                                 The overall grade determines the final audit status.
@@ -1390,7 +1390,7 @@
                     <div class="color-groups">
                         <!-- Pass/Fail Colors -->
                         <div class="color-group">
-                            <h4>âœ… Pass/Fail Colors</h4>
+                            <h4>✅ Pass/Fail Colors</h4>
                             <div class="color-row">
                                 <div class="color-item">
                                     <label>Pass Color</label>
@@ -1425,7 +1425,7 @@
 
                         <!-- Header Colors -->
                         <div class="color-group">
-                            <h4>ðŸ“‹ Report Header Colors</h4>
+                            <h4>📋 Report Header Colors</h4>
                             <div class="color-row">
                                 <div class="color-item">
                                     <label>Header Background</label>
@@ -1453,7 +1453,7 @@
 
                         <!-- Banner Colors -->
                         <div class="color-group">
-                            <h4>ðŸ† Performance Banner Colors</h4>
+                            <h4>🏆 Performance Banner Colors</h4>
                             <div class="color-row">
                                 <div class="color-item">
                                     <label>Pass Banner BG</label>
@@ -1488,7 +1488,7 @@
 
                         <!-- Section Colors -->
                         <div class="color-group">
-                            <h4>ðŸ“„ Section Colors</h4>
+                            <h4>📄 Section Colors</h4>
                             <div class="color-row">
                                 <div class="color-item">
                                     <label>Section Header BG</label>
@@ -1510,16 +1510,16 @@
 
                     <!-- Color Preview -->
                     <div class="color-preview-section">
-                        <h4>ðŸ‘ï¸ Live Preview</h4>
+                        <h4>👁️ Live Preview</h4>
                         <div class="preview-container">
                             <div class="preview-item" id="previewHeader" style="background: ${currentColors.headerBackgroundColor}; color: ${currentColors.headerTextColor};">
                                 Report Header Preview
                             </div>
                             <div class="preview-item" id="previewPass" style="background: ${currentColors.bannerPassBackground}; color: ${currentColors.bannerPassText};">
-                                âœ… PASS - 87%
+                                ✅ PASS - 87%
                             </div>
                             <div class="preview-item" id="previewFail" style="background: ${currentColors.bannerFailBackground}; color: ${currentColors.bannerFailText};">
-                                âŒ FAIL - 65%
+                                ❌ FAIL - 65%
                             </div>
                         </div>
                         <div class="preview-container" style="margin-top: 10px;">
@@ -1540,7 +1540,7 @@
 
                     <div class="color-actions">
                         <button class="btn btn-secondary" onclick="resetColorsToDefault()">
-                            ðŸ”„ Reset to Defaults
+                            🔄 Reset to Defaults
                         </button>
                     </div>
                 </div>
@@ -1549,7 +1549,7 @@
                 <div class="tab-content ${currentSubTab === 'icons' ? 'active' : ''}" id="iconsContent">
                     <div class="settings-section">
                         <div class="section-title">
-                            <span>ðŸŽ¯</span>
+                            <span>🎯</span>
                             Section Icons
                         </div>
                         <p style="color: #6b7280; margin-bottom: 20px; font-size: 14px;">
@@ -1560,9 +1560,9 @@
                             ${schema.sections.map(section => `
                                 <div class="section-icon-card" id="iconCard-${section.SectionID}">
                                     <div class="current-icon-display" 
-                                         onclick="openIconPicker(${section.SectionID}, '${section.SectionName.replace(/'/g, "\\'")}', '${section.SectionIcon || 'ðŸ“‹'}')"
+                                         onclick="openIconPicker(${section.SectionID}, '${section.SectionName.replace(/'/g, "\\'")}', '${section.SectionIcon || '📋'}')"
                                          id="iconDisplay-${section.SectionID}">
-                                        ${section.SectionIcon || 'ðŸ“‹'}
+                                        ${section.SectionIcon || '📋'}
                                     </div>
                                     <div class="section-icon-info">
                                         <div class="section-icon-name">${section.SectionName}</div>
@@ -1578,7 +1578,7 @@
                 <div class="tab-content ${currentSubTab === 'checklist' ? 'active' : ''}" id="checklistContent">
                     <div class="settings-section">
                         <div class="section-title">
-                            <span>ðŸ“</span>
+                            <span>📝</span>
                             Checklist Information
                         </div>
                         <p style="color: #6b7280; margin-bottom: 20px; font-size: 14px;">
@@ -1587,7 +1587,7 @@
                         
                         <div class="checklist-info-grid">
                             <div class="checklist-info-card">
-                                <div class="checklist-info-icon">ðŸ“…</div>
+                                <div class="checklist-info-icon">📅</div>
                                 <div class="checklist-info-content">
                                     <label class="checklist-info-label">Creation Date</label>
                                     <input type="date" 
@@ -1600,7 +1600,7 @@
                             </div>
                             
                             <div class="checklist-info-card">
-                                <div class="checklist-info-icon">ðŸ”„</div>
+                                <div class="checklist-info-icon">🔄</div>
                                 <div class="checklist-info-content">
                                     <label class="checklist-info-label">Last Revision Date</label>
                                     <input type="date" 
@@ -1613,7 +1613,7 @@
                             </div>
                             
                             <div class="checklist-info-card">
-                                <div class="checklist-info-icon">ðŸ“‹</div>
+                                <div class="checklist-info-icon">📋</div>
                                 <div class="checklist-info-content">
                                     <label class="checklist-info-label">Edition</label>
                                     <input type="text" 
@@ -1627,7 +1627,7 @@
                             </div>
                             
                             <div class="checklist-info-card">
-                                <div class="checklist-info-icon">ðŸ·ï¸</div>
+                                <div class="checklist-info-icon">🏷️</div>
                                 <div class="checklist-info-content">
                                     <label class="checklist-info-label">Report Title</label>
                                     <input type="text" 
@@ -1641,7 +1641,7 @@
                             </div>
                             
                             <div class="checklist-info-card">
-                                <div class="checklist-info-icon">ðŸ”¢</div>
+                                <div class="checklist-info-icon">🔢</div>
                                 <div class="checklist-info-content">
                                     <label class="checklist-info-label">Document Number Prefix</label>
                                     <input type="text" 
@@ -1661,7 +1661,7 @@
                 <div class="tab-content ${currentSubTab === 'departments' ? 'active' : ''}" id="departmentsContent">
                     <div class="settings-section">
                         <div class="section-title">
-                            <span>ðŸ¢</span>
+                            <span>🏢</span>
                             Department Report Names
                         </div>
                         <p style="color: #6b7280; margin-bottom: 20px; font-size: 14px;">
@@ -1670,7 +1670,7 @@
                         
                         <div class="checklist-info-grid">
                             <div class="checklist-info-card">
-                                <div class="checklist-info-icon">ðŸ”§</div>
+                                <div class="checklist-info-icon">🔧</div>
                                 <div class="checklist-info-content">
                                     <label class="checklist-info-label">Maintenance Department</label>
                                     <input type="text" 
@@ -1684,7 +1684,7 @@
                             </div>
                             
                             <div class="checklist-info-card">
-                                <div class="checklist-info-icon">ðŸ“¦</div>
+                                <div class="checklist-info-icon">📦</div>
                                 <div class="checklist-info-content">
                                     <label class="checklist-info-label">Procurement Department</label>
                                     <input type="text" 
@@ -1698,7 +1698,7 @@
                             </div>
                             
                             <div class="checklist-info-card">
-                                <div class="checklist-info-icon">ðŸ§¹</div>
+                                <div class="checklist-info-icon">🧹</div>
                                 <div class="checklist-info-content">
                                     <label class="checklist-info-label">Cleaning Department</label>
                                     <input type="text" 
@@ -1714,9 +1714,9 @@
                         
                         <div style="margin-top: 20px; display: flex; gap: 10px;">
                             <button class="save-btn" id="saveDeptNamesBtn" onclick="saveDepartmentNames()" disabled>
-                                ðŸ’¾ Save Department Names
+                                💾 Save Department Names
                             </button>
-                            <span id="deptNamesSaveStatus" style="color: #3b82f6; font-size: 14px; align-self: center;"></span>
+                            <span id="deptNamesSaveStatus" style="color: #10b981; font-size: 14px; align-self: center;"></span>
                         </div>
                     </div>
                 </div>
@@ -1810,8 +1810,8 @@
             originalSectionIcons = {};
             currentSectionIcons = {};
             schema.sections.forEach(section => {
-                originalSectionIcons[section.SectionID] = section.SectionIcon || 'ðŸ“‹';
-                currentSectionIcons[section.SectionID] = section.SectionIcon || 'ðŸ“‹';
+                originalSectionIcons[section.SectionID] = section.SectionIcon || '📋';
+                currentSectionIcons[section.SectionID] = section.SectionIcon || '📋';
             });
         }
 
@@ -2064,7 +2064,7 @@
             const toastIcon = document.getElementById('toastIcon');
             const toastMessage = document.getElementById('toastMessage');
 
-            toastIcon.textContent = type === 'success' ? 'âœ“' : 'âœ—';
+            toastIcon.textContent = type === 'success' ? '✓' : '✗';
             toastMessage.textContent = message;
             toast.classList.toggle('error', type === 'error');
             toast.classList.add('visible');
@@ -2076,4 +2076,3 @@
     </script>
 </body>
 </html>
-
