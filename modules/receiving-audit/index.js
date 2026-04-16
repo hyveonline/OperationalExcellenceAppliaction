@@ -73,6 +73,16 @@ const dbConfig = {
     }
 };
 
+// Shared pool - do NOT close per-request
+let _pool = null;
+async function getPool() {
+    if (!_pool) {
+        _pool = await getPool();
+        _pool.on('error', err => { console.error('SQL pool error:', err); _pool = null; });
+    }
+    return _pool;
+}
+
 // No-cache middleware
 router.use('/api', (req, res, next) => {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
@@ -96,7 +106,7 @@ router.use((req, res, next) => {
 // Landing page - Dashboard
 router.get('/', async (req, res) => {
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const stats = await pool.request().query(`
             SELECT 
                 COUNT(*) as total,
@@ -105,7 +115,6 @@ router.get('/', async (req, res) => {
                 SUM(CASE WHEN CAST(CreatedAt AS DATE) = CAST(GETDATE() AS DATE) THEN 1 ELSE 0 END) as today
             FROM RCV_Inspections
         `);
-        await pool.close();
         const s = stats.recordset[0] || { total: 0, drafts: 0, completed: 0, today: 0 };
 
         res.send(`<!DOCTYPE html><html><head>
@@ -133,12 +142,12 @@ router.get('/', async (req, res) => {
             </style>
         </head><body>
             <div class="header">
-                <h1>📦 Receiving Audit</h1>
+                <h1>ðŸ“¦ Receiving Audit</h1>
                 <div class="header-nav">
-                    <a href="/dashboard">🏠 Dashboard</a>
-                    <a href="/receiving-audit/list">📋 Audits</a>
-                    <a href="/receiving-audit/template-builder">🔧 Templates</a>
-                    <a href="/receiving-audit/settings">⚙️ Settings</a>
+                    <a href="/dashboard">ðŸ  Dashboard</a>
+                    <a href="/receiving-audit/list">ðŸ“‹ Audits</a>
+                    <a href="/receiving-audit/template-builder">ðŸ”§ Templates</a>
+                    <a href="/receiving-audit/settings">âš™ï¸ Settings</a>
                 </div>
             </div>
             <div class="container">
@@ -149,11 +158,11 @@ router.get('/', async (req, res) => {
                     <div class="stat-card"><div class="stat-number">${s.today}</div><div class="stat-label">Today</div></div>
                 </div>
                 <div class="actions">
-                    <a href="/receiving-audit/start" class="action-card"><div class="action-icon">🚀</div><div class="action-title">Start New Audit</div><div class="action-desc">Begin a new receiving area inspection</div></a>
-                    <a href="/receiving-audit/list" class="action-card"><div class="action-icon">📋</div><div class="action-title">View Audits</div><div class="action-desc">Browse all receiving audits</div></a>
-                    <a href="/receiving-audit/template-builder" class="action-card"><div class="action-icon">🔧</div><div class="action-title">Template Builder</div><div class="action-desc">Create and manage audit templates</div></a>
-                    <a href="/receiving-audit/store-management" class="action-card"><div class="action-icon">🏪</div><div class="action-title">Store Management</div><div class="action-desc">Manage stores and assignments</div></a>
-                    <a href="/receiving-audit/settings" class="action-card"><div class="action-icon">⚙️</div><div class="action-title">Settings</div><div class="action-desc">Configure audit settings</div></a>
+                    <a href="/receiving-audit/start" class="action-card"><div class="action-icon">ðŸš€</div><div class="action-title">Start New Audit</div><div class="action-desc">Begin a new receiving area inspection</div></a>
+                    <a href="/receiving-audit/list" class="action-card"><div class="action-icon">ðŸ“‹</div><div class="action-title">View Audits</div><div class="action-desc">Browse all receiving audits</div></a>
+                    <a href="/receiving-audit/template-builder" class="action-card"><div class="action-icon">ðŸ”§</div><div class="action-title">Template Builder</div><div class="action-desc">Create and manage audit templates</div></a>
+                    <a href="/receiving-audit/store-management" class="action-card"><div class="action-icon">ðŸª</div><div class="action-title">Store Management</div><div class="action-desc">Manage stores and assignments</div></a>
+                    <a href="/receiving-audit/settings" class="action-card"><div class="action-icon">âš™ï¸</div><div class="action-title">Settings</div><div class="action-desc">Configure audit settings</div></a>
                 </div>
             </div>
         </body></html>`);
@@ -176,9 +185,8 @@ router.get('/action-plan/:id', (req, res) => res.sendFile(path.join(__dirname, '
 // ==========================================
 router.get('/api/settings', async (req, res) => {
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const result = await pool.request().query('SELECT SettingKey, SettingValue FROM RCV_InspectionSettings WHERE IsActive = 1');
-        await pool.close();
         const settings = {};
         result.recordset.forEach(r => { settings[r.SettingKey] = r.SettingValue; });
         res.json({ success: true, data: settings });
@@ -187,7 +195,7 @@ router.get('/api/settings', async (req, res) => {
 
 router.post('/api/settings', async (req, res) => {
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         for (const [key, value] of Object.entries(req.body)) {
             await pool.request()
                 .input('key', sql.NVarChar, key)
@@ -199,7 +207,6 @@ router.post('/api/settings', async (req, res) => {
                         INSERT INTO RCV_InspectionSettings (SettingKey, SettingValue) VALUES (@key, @value)
                 `);
         }
-        await pool.close();
         res.json({ success: true });
     } catch (error) { res.json({ success: false, error: error.message }); }
 });
@@ -209,14 +216,13 @@ router.post('/api/settings', async (req, res) => {
 // ==========================================
 router.get('/api/next-document-number', async (req, res) => {
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const prefixResult = await pool.request().query("SELECT SettingValue FROM RCV_InspectionSettings WHERE SettingKey = 'DOCUMENT_PREFIX'");
         const prefix = prefixResult.recordset[0]?.SettingValue || 'GMRL-RCV';
         const maxResult = await pool.request()
             .input('prefix', sql.NVarChar, prefix + '-%')
             .query("SELECT MAX(CAST(RIGHT(DocumentNumber, 4) AS INT)) as maxNum FROM RCV_Inspections WHERE DocumentNumber LIKE @prefix");
         const nextNum = (maxResult.recordset[0]?.maxNum || 0) + 1;
-        await pool.close();
         res.json({ success: true, documentNumber: prefix + '-' + String(nextNum).padStart(4, '0') });
     } catch (error) { res.json({ success: false, error: error.message }); }
 });
@@ -226,7 +232,7 @@ router.get('/api/next-document-number', async (req, res) => {
 // ==========================================
 router.get('/api/stores', async (req, res) => {
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const result = await pool.request().query(`
             SELECT 
                 s.Id as storeId,
@@ -247,7 +253,6 @@ router.get('/api/stores', async (req, res) => {
             WHERE s.IsActive = 1
             ORDER BY s.StoreName
         `);
-        await pool.close();
         res.json({ success: true, data: result.recordset });
     } catch (error) { res.json({ success: false, error: error.message }); }
 });
@@ -255,7 +260,7 @@ router.get('/api/stores', async (req, res) => {
 router.post('/api/stores', async (req, res) => {
     try {
         const { storeCode, storeName, brandId, location, storeSize, templateId } = req.body;
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const result = await pool.request()
             .input('code', sql.NVarChar, storeCode)
             .input('name', sql.NVarChar, storeName)
@@ -269,7 +274,6 @@ router.post('/api/stores', async (req, res) => {
                 OUTPUT INSERTED.Id as storeId
                 VALUES (@code, @name, @brandId, @location, @storeSize, @templateId, 1, GETDATE(), @createdBy)
             `);
-        await pool.close();
         res.json({ success: true, data: { storeId: result.recordset[0].storeId } });
     } catch (error) { res.json({ success: false, error: error.message }); }
 });
@@ -277,7 +281,7 @@ router.post('/api/stores', async (req, res) => {
 router.put('/api/stores/:storeId', async (req, res) => {
     try {
         const { storeCode, storeName, brandId, location, storeSize, templateId, isActive } = req.body;
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         await pool.request()
             .input('id', sql.Int, req.params.storeId)
             .input('code', sql.NVarChar, storeCode)
@@ -288,25 +292,23 @@ router.put('/api/stores/:storeId', async (req, res) => {
             .input('templateId', sql.Int, templateId || null)
             .input('isActive', sql.Bit, isActive)
             .query(`UPDATE Stores SET StoreCode = @code, StoreName = @name, BrandId = @brandId, Location = @location, StoreSize = @storeSize, TemplateId = @templateId, IsActive = @isActive WHERE Id = @id`);
-        await pool.close();
         res.json({ success: true });
     } catch (error) { res.json({ success: false, error: error.message }); }
 });
 
 router.delete('/api/stores/:storeId', async (req, res) => {
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         await pool.request()
             .input('id', sql.Int, req.params.storeId)
             .query('UPDATE Stores SET IsActive = 0 WHERE Id = @id');
-        await pool.close();
         res.json({ success: true });
     } catch (error) { res.json({ success: false, error: error.message }); }
 });
 
 router.get('/api/stores/available-managers', async (req, res) => {
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const result = await pool.request().query(`
             SELECT u.Id as userId, u.Email as email, u.DisplayName as displayName, r.RoleName as role
             FROM Users u
@@ -316,21 +318,19 @@ router.get('/api/stores/available-managers', async (req, res) => {
             AND r.RoleName IN ('Store Manager', 'Duty Manager', 'Area Manager')
             ORDER BY u.DisplayName
         `);
-        await pool.close();
         res.json({ success: true, data: result.recordset });
     } catch (error) { res.json({ success: false, error: error.message }); }
 });
 
 router.get('/api/stores/manager-assignments', async (req, res) => {
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const result = await pool.request().query(`
             SELECT sma.StoreId as storeId, sma.UserId as userId, sma.IsPrimary as isPrimary, u.Email as email, u.DisplayName as displayName
             FROM StoreManagerAssignments sma
             JOIN Users u ON sma.UserId = u.Id
             ORDER BY sma.StoreId, sma.IsPrimary DESC
         `);
-        await pool.close();
         const assignments = {};
         result.recordset.forEach(row => {
             if (!assignments[row.storeId]) assignments[row.storeId] = [];
@@ -344,7 +344,7 @@ router.post('/api/stores/:storeId/managers', async (req, res) => {
     try {
         const { userIds } = req.body;
         const storeId = parseInt(req.params.storeId);
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         await pool.request().input('storeId', sql.Int, storeId).query('DELETE FROM StoreManagerAssignments WHERE StoreId = @storeId');
         for (let i = 0; i < userIds.length; i++) {
             await pool.request()
@@ -354,23 +354,21 @@ router.post('/api/stores/:storeId/managers', async (req, res) => {
                 .input('assignedBy', sql.Int, req.currentUser?.userId || null)
                 .query('INSERT INTO StoreManagerAssignments (StoreId, UserId, IsPrimary, AssignedAt, AssignedBy) VALUES (@storeId, @userId, @isPrimary, GETDATE(), @assignedBy)');
         }
-        await pool.close();
         res.json({ success: true });
     } catch (error) { res.json({ success: false, error: error.message }); }
 });
 
 router.get('/api/brands', async (req, res) => {
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const result = await pool.request().query('SELECT b.*, (SELECT COUNT(*) FROM Stores s WHERE s.BrandId = b.Id) as StoreCount FROM Brands b ORDER BY b.BrandName');
-        await pool.close();
         res.json(result.recordset);
     } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
 router.get('/api/store-responsibles', async (req, res) => {
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const result = await pool.request().query(`
             SELECT sr.*, s.StoreName, s.StoreCode, u.DisplayName as AreaManagerName, h.DisplayName as HeadOfOpsName
             FROM OE_StoreResponsibles sr
@@ -380,16 +378,14 @@ router.get('/api/store-responsibles', async (req, res) => {
             WHERE sr.IsActive = 1
             ORDER BY s.StoreName
         `);
-        await pool.close();
         res.json(result.recordset);
     } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
 router.get('/api/stores-list', async (req, res) => {
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const result = await pool.request().query('SELECT Id, StoreName, StoreCode, Brand FROM Stores WHERE IsActive = 1 ORDER BY StoreName');
-        await pool.close();
         res.json({ success: true, data: result.recordset });
     } catch (error) { res.json({ success: false, error: error.message }); }
 });
@@ -399,7 +395,7 @@ router.get('/api/stores-list', async (req, res) => {
 // ==========================================
 router.get('/api/schemas', async (req, res) => {
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const result = await pool.request().query(`
             SELECT t.Id as SchemaID, t.TemplateName as SchemaName, t.Description, t.IsActive,
                 ISNULL(s.SettingValue, '80') as overallPassingGrade
@@ -415,14 +411,13 @@ router.get('/api/schemas', async (req, res) => {
                     FROM RCV_InspectionTemplateSections ts WHERE ts.TemplateId = @templateId ORDER BY ts.SectionOrder`);
             schemas.push({ ...schema, sections: sectionsResult.recordset });
         }
-        await pool.close();
         res.json({ success: true, schemas });
     } catch (error) { res.json({ success: true, schemas: [] }); }
 });
 
 router.post('/api/schema/:schemaId', async (req, res) => {
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const schemaId = req.params.schemaId;
         const { overallPassingGrade, sectionGrades } = req.body;
         await pool.request()
@@ -439,18 +434,16 @@ router.post('/api/schema/:schemaId', async (req, res) => {
                     .query('UPDATE RCV_InspectionTemplateSections SET PassingGrade = @grade WHERE Id = @sectionId');
             }
         }
-        await pool.close();
         res.json({ success: true });
     } catch (error) { res.json({ success: false, error: error.message }); }
 });
 
 router.get('/api/schema-colors/:schemaId', async (req, res) => {
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const result = await pool.request()
             .input('schemaId', sql.Int, req.params.schemaId)
             .query("SELECT SettingKey, SettingValue FROM RCV_InspectionSettings WHERE SettingKey LIKE 'COLOR_%_' + CAST(@schemaId AS VARCHAR)");
-        await pool.close();
         const colors = { passColor: '#10b981', failColor: '#ef4444', headerColor: '#1e3a5f', accentColor: '#10b981' };
         result.recordset.forEach(row => {
             const key = row.SettingKey.replace(/_\d+$/, '').replace('COLOR_', '').toLowerCase() + 'Color';
@@ -462,7 +455,7 @@ router.get('/api/schema-colors/:schemaId', async (req, res) => {
 
 router.post('/api/schema-colors/:schemaId', async (req, res) => {
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const schemaId = req.params.schemaId;
         for (const [key, value] of Object.entries(req.body)) {
             const settingKey = 'COLOR_' + key.replace('Color', '').toUpperCase() + '_' + schemaId;
@@ -473,18 +466,16 @@ router.post('/api/schema-colors/:schemaId', async (req, res) => {
                     UPDATE RCV_InspectionSettings SET SettingValue = @value, UpdatedAt = GETDATE() WHERE SettingKey = @key
                     ELSE INSERT INTO RCV_InspectionSettings (SettingKey, SettingValue) VALUES (@key, @value)`);
         }
-        await pool.close();
         res.json({ success: true });
     } catch (error) { res.json({ success: false, error: error.message }); }
 });
 
 router.get('/api/schema-checklist-info/:schemaId', async (req, res) => {
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const result = await pool.request()
             .input('schemaId', sql.Int, req.params.schemaId)
             .query("SELECT SettingKey, SettingValue FROM RCV_InspectionSettings WHERE SettingKey LIKE 'CHECKLIST_%_' + CAST(@schemaId AS VARCHAR)");
-        await pool.close();
         const info = { creationDate: '', revisionDate: '', edition: '', reportTitle: 'Receiving Audit Report', documentPrefix: 'GMRL-RCV' };
         result.recordset.forEach(row => {
             const key = row.SettingKey.replace(/_\d+$/, '').replace('CHECKLIST_', '');
@@ -497,7 +488,7 @@ router.get('/api/schema-checklist-info/:schemaId', async (req, res) => {
 
 router.post('/api/schema-checklist-info/:schemaId', async (req, res) => {
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const schemaId = req.params.schemaId;
         for (const [key, value] of Object.entries(req.body)) {
             const settingKey = 'CHECKLIST_' + key.replace(/([A-Z])/g, '_$1').toUpperCase() + '_' + schemaId;
@@ -508,18 +499,16 @@ router.post('/api/schema-checklist-info/:schemaId', async (req, res) => {
                     UPDATE RCV_InspectionSettings SET SettingValue = @value, UpdatedAt = GETDATE() WHERE SettingKey = @key
                     ELSE INSERT INTO RCV_InspectionSettings (SettingKey, SettingValue) VALUES (@key, @value)`);
         }
-        await pool.close();
         res.json({ success: true });
     } catch (error) { res.json({ success: false, error: error.message }); }
 });
 
 router.get('/api/schema-department-names/:schemaId', async (req, res) => {
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const result = await pool.request()
             .input('schemaId', sql.Int, req.params.schemaId)
             .query("SELECT SettingKey, SettingValue FROM RCV_InspectionSettings WHERE SettingKey LIKE 'DEPT_%_' + CAST(@schemaId AS VARCHAR)");
-        await pool.close();
         const names = { Maintenance: 'Maintenance', Procurement: 'Procurement', Cleaning: 'Cleaning' };
         result.recordset.forEach(row => {
             const key = row.SettingKey.replace(/_\d+$/, '').replace('DEPT_', '');
@@ -531,7 +520,7 @@ router.get('/api/schema-department-names/:schemaId', async (req, res) => {
 
 router.post('/api/schema-department-names/:schemaId', async (req, res) => {
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const schemaId = req.params.schemaId;
         for (const [key, value] of Object.entries(req.body)) {
             const settingKey = 'DEPT_' + key + '_' + schemaId;
@@ -542,14 +531,13 @@ router.post('/api/schema-department-names/:schemaId', async (req, res) => {
                     UPDATE RCV_InspectionSettings SET SettingValue = @value, UpdatedAt = GETDATE() WHERE SettingKey = @key
                     ELSE INSERT INTO RCV_InspectionSettings (SettingKey, SettingValue) VALUES (@key, @value)`);
         }
-        await pool.close();
         res.json({ success: true });
     } catch (error) { res.json({ success: false, error: error.message }); }
 });
 
 router.post('/api/section-icons/:schemaId', async (req, res) => {
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const { icons } = req.body;
         if (icons && Array.isArray(icons)) {
             for (const icon of icons) {
@@ -559,7 +547,6 @@ router.post('/api/section-icons/:schemaId', async (req, res) => {
                     .query('UPDATE RCV_InspectionTemplateSections SET SectionIcon = @icon WHERE Id = @sectionId');
             }
         }
-        await pool.close();
         res.json({ success: true });
     } catch (error) { res.json({ success: false, error: error.message }); }
 });
@@ -569,9 +556,8 @@ router.post('/api/section-icons/:schemaId', async (req, res) => {
 // ==========================================
 router.get('/api/templates/schemas', async (req, res) => {
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const result = await pool.request().query('SELECT Id as schemaId, TemplateName as schemaName, Description as description, IsDefault as isDefault FROM RCV_InspectionTemplates WHERE IsActive = 1 ORDER BY TemplateName');
-        await pool.close();
         res.json({ success: true, data: result.recordset });
     } catch (error) { res.json({ success: false, error: error.message }); }
 });
@@ -579,13 +565,12 @@ router.get('/api/templates/schemas', async (req, res) => {
 router.post('/api/templates/schemas', async (req, res) => {
     try {
         const { schemaName, description } = req.body;
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const result = await pool.request()
             .input('name', sql.NVarChar, schemaName)
             .input('desc', sql.NVarChar, description || null)
             .input('createdBy', sql.Int, req.currentUser?.userId || 1)
             .query('INSERT INTO RCV_InspectionTemplates (TemplateName, Description, CreatedBy) OUTPUT INSERTED.Id VALUES (@name, @desc, @createdBy)');
-        await pool.close();
         res.json({ success: true, data: { schemaId: result.recordset[0].Id } });
     } catch (error) { res.json({ success: false, error: error.message }); }
 });
@@ -593,10 +578,10 @@ router.post('/api/templates/schemas', async (req, res) => {
 router.get('/api/templates/schemas/:schemaId', async (req, res) => {
     try {
         const schemaId = parseInt(req.params.schemaId);
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const templateResult = await pool.request().input('id', sql.Int, schemaId)
             .query('SELECT Id as schemaId, TemplateName as schemaName, Description as description FROM RCV_InspectionTemplates WHERE Id = @id');
-        if (templateResult.recordset.length === 0) { await pool.close(); return res.json({ success: false, error: 'Template not found' }); }
+        if (templateResult.recordset.length === 0) { return res.json({ success: false, error: 'Template not found' }); }
         const template = templateResult.recordset[0];
         const sectionsResult = await pool.request().input('templateId', sql.Int, schemaId)
             .query('SELECT Id as sectionId, SectionName as sectionName, SectionIcon as sectionIcon, SectionOrder as sectionNumber FROM RCV_InspectionTemplateSections WHERE TemplateId = @templateId AND IsActive = 1 ORDER BY SectionOrder');
@@ -609,7 +594,6 @@ router.get('/api/templates/schemas/:schemaId', async (req, res) => {
             section.items = itemsResult.recordset;
             template.sections.push(section);
         }
-        await pool.close();
         res.json({ success: true, data: template });
     } catch (error) { res.json({ success: false, error: error.message }); }
 });
@@ -617,19 +601,17 @@ router.get('/api/templates/schemas/:schemaId', async (req, res) => {
 router.put('/api/templates/schemas/:schemaId', async (req, res) => {
     try {
         const { schemaName, description } = req.body;
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         await pool.request().input('id', sql.Int, req.params.schemaId).input('name', sql.NVarChar, schemaName).input('desc', sql.NVarChar, description || null)
             .query('UPDATE RCV_InspectionTemplates SET TemplateName = @name, Description = @desc, UpdatedAt = GETDATE() WHERE Id = @id');
-        await pool.close();
         res.json({ success: true });
     } catch (error) { res.json({ success: false, error: error.message }); }
 });
 
 router.delete('/api/templates/schemas/:schemaId', async (req, res) => {
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         await pool.request().input('id', sql.Int, req.params.schemaId).query('UPDATE RCV_InspectionTemplates SET IsActive = 0 WHERE Id = @id');
-        await pool.close();
         res.json({ success: true });
     } catch (error) { res.json({ success: false, error: error.message }); }
 });
@@ -637,10 +619,9 @@ router.delete('/api/templates/schemas/:schemaId', async (req, res) => {
 // Template Sections
 router.get('/api/templates/schemas/:schemaId/sections', async (req, res) => {
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const result = await pool.request().input('templateId', sql.Int, req.params.schemaId)
             .query('SELECT Id as sectionId, SectionName as sectionName, SectionIcon as sectionIcon, SectionOrder as sectionNumber FROM RCV_InspectionTemplateSections WHERE TemplateId = @templateId AND IsActive = 1 ORDER BY SectionOrder');
-        await pool.close();
         res.json({ success: true, data: result.recordset });
     } catch (error) { res.json({ success: false, error: error.message }); }
 });
@@ -648,16 +629,15 @@ router.get('/api/templates/schemas/:schemaId/sections', async (req, res) => {
 router.post('/api/templates/schemas/:schemaId/sections', async (req, res) => {
     try {
         const { sectionName, sectionIcon } = req.body;
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const maxOrder = await pool.request().input('templateId', sql.Int, req.params.schemaId)
             .query('SELECT ISNULL(MAX(SectionOrder), 0) + 1 as nextOrder FROM RCV_InspectionTemplateSections WHERE TemplateId = @templateId');
         const result = await pool.request()
             .input('templateId', sql.Int, req.params.schemaId)
             .input('name', sql.NVarChar, sectionName)
-            .input('icon', sql.NVarChar, sectionIcon || '📋')
+            .input('icon', sql.NVarChar, sectionIcon || 'ðŸ“‹')
             .input('order', sql.Int, maxOrder.recordset[0].nextOrder)
             .query('INSERT INTO RCV_InspectionTemplateSections (TemplateId, SectionName, SectionIcon, SectionOrder) OUTPUT INSERTED.Id VALUES (@templateId, @name, @icon, @order)');
-        await pool.close();
         res.json({ success: true, data: { sectionId: result.recordset[0].Id } });
     } catch (error) { res.json({ success: false, error: error.message }); }
 });
@@ -665,19 +645,17 @@ router.post('/api/templates/schemas/:schemaId/sections', async (req, res) => {
 router.put('/api/templates/sections/:sectionId', async (req, res) => {
     try {
         const { sectionName, sectionIcon, sectionNumber } = req.body;
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         await pool.request().input('id', sql.Int, req.params.sectionId).input('name', sql.NVarChar, sectionName).input('icon', sql.NVarChar, sectionIcon).input('order', sql.Int, sectionNumber || null)
             .query('UPDATE RCV_InspectionTemplateSections SET SectionName = @name, SectionIcon = ISNULL(@icon, SectionIcon), SectionOrder = ISNULL(@order, SectionOrder) WHERE Id = @id');
-        await pool.close();
         res.json({ success: true });
     } catch (error) { res.json({ success: false, error: error.message }); }
 });
 
 router.delete('/api/templates/sections/:sectionId', async (req, res) => {
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         await pool.request().input('id', sql.Int, req.params.sectionId).query('UPDATE RCV_InspectionTemplateSections SET IsActive = 0 WHERE Id = @id');
-        await pool.close();
         res.json({ success: true });
     } catch (error) { res.json({ success: false, error: error.message }); }
 });
@@ -685,12 +663,11 @@ router.delete('/api/templates/sections/:sectionId', async (req, res) => {
 // Template Items
 router.get('/api/templates/sections/:sectionId/items', async (req, res) => {
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const result = await pool.request().input('sectionId', sql.Int, req.params.sectionId)
             .query(`SELECT Id as itemId, ReferenceValue as referenceValue, Question as title, Coefficient as coeff, AnswerOptions as answer, Criteria as cr, Quantity as quantity, DefaultSeverity as defaultSeverity, IsQuantitative as isQuantitative
                 FROM RCV_InspectionTemplateItems WHERE SectionId = @sectionId AND IsActive = 1
                 ORDER BY TRY_CAST(PARSENAME(REPLACE(ReferenceValue, '-', '.'), 2) AS INT), TRY_CAST(PARSENAME(REPLACE(ReferenceValue, '-', '.'), 1) AS INT)`);
-        await pool.close();
         res.json({ success: true, data: result.recordset });
     } catch (error) { res.json({ success: false, error: error.message }); }
 });
@@ -698,7 +675,7 @@ router.get('/api/templates/sections/:sectionId/items', async (req, res) => {
 router.post('/api/templates/sections/:sectionId/items', async (req, res) => {
     try {
         const { referenceValue, title, coeff, quantity, answer, cr, defaultSeverity, isQuantitative } = req.body;
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const sectionInfo = await pool.request().input('sectionId', sql.Int, req.params.sectionId).query('SELECT TemplateId FROM RCV_InspectionTemplateSections WHERE Id = @sectionId');
         const maxOrder = await pool.request().input('sectionId', sql.Int, req.params.sectionId).query('SELECT ISNULL(MAX(ItemOrder), 0) + 1 as nextOrder FROM RCV_InspectionTemplateItems WHERE SectionId = @sectionId');
         const result = await pool.request()
@@ -713,7 +690,6 @@ router.post('/api/templates/sections/:sectionId/items', async (req, res) => {
             .input('isQuantitative', sql.Bit, isQuantitative || 0)
             .input('order', sql.Int, maxOrder.recordset[0].nextOrder)
             .query('INSERT INTO RCV_InspectionTemplateItems (SectionId, ReferenceValue, Question, Coefficient, Quantity, AnswerOptions, Criteria, DefaultSeverity, IsQuantitative, ItemOrder) OUTPUT INSERTED.Id VALUES (@sectionId, @ref, @question, @coeff, @quantity, @answer, @cr, @defaultSeverity, @isQuantitative, @order)');
-        await pool.close();
         res.json({ success: true, data: { itemId: result.recordset[0].Id } });
     } catch (error) { res.json({ success: false, error: error.message }); }
 });
@@ -722,7 +698,7 @@ router.post('/api/templates/sections/:sectionId/items/bulk', async (req, res) =>
     try {
         const { items } = req.body;
         if (!items || !Array.isArray(items) || items.length === 0) return res.json({ success: false, error: 'No items provided' });
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const existingResult = await pool.request().input('sectionId', sql.Int, req.params.sectionId)
             .query('SELECT ReferenceValue FROM RCV_InspectionTemplateItems WHERE SectionId = @sectionId AND IsActive = 1');
         const existingRefs = new Set(existingResult.recordset.map(r => r.ReferenceValue?.toLowerCase()));
@@ -743,7 +719,6 @@ router.post('/api/templates/sections/:sectionId/items/bulk', async (req, res) =>
                 .query('INSERT INTO RCV_InspectionTemplateItems (SectionId, ReferenceValue, Question, Coefficient, AnswerOptions, Criteria, ItemOrder) VALUES (@sectionId, @ref, @question, @coeff, @answer, @cr, @order)');
             imported++;
         }
-        await pool.close();
         res.json({ success: true, data: { imported, skipped } });
     } catch (error) { res.json({ success: false, error: error.message }); }
 });
@@ -751,23 +726,21 @@ router.post('/api/templates/sections/:sectionId/items/bulk', async (req, res) =>
 router.put('/api/templates/items/:itemId', async (req, res) => {
     try {
         const { referenceValue, title, coeff, quantity, answer, cr, defaultSeverity, isQuantitative } = req.body;
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         await pool.request()
             .input('id', sql.Int, req.params.itemId)
             .input('ref', sql.NVarChar, referenceValue).input('question', sql.NVarChar, title).input('coeff', sql.Decimal(5,2), coeff || 1)
             .input('quantity', sql.Int, quantity || null).input('answer', sql.NVarChar, answer).input('cr', sql.NVarChar, cr || null)
             .input('defaultSeverity', sql.NVarChar, defaultSeverity || null).input('isQuantitative', sql.Bit, isQuantitative || 0)
             .query('UPDATE RCV_InspectionTemplateItems SET ReferenceValue=@ref, Question=@question, Coefficient=@coeff, Quantity=@quantity, AnswerOptions=@answer, Criteria=@cr, DefaultSeverity=@defaultSeverity, IsQuantitative=@isQuantitative WHERE Id=@id');
-        await pool.close();
         res.json({ success: true });
     } catch (error) { res.json({ success: false, error: error.message }); }
 });
 
 router.delete('/api/templates/items/:itemId', async (req, res) => {
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         await pool.request().input('id', sql.Int, req.params.itemId).query('UPDATE RCV_InspectionTemplateItems SET IsActive = 0 WHERE Id = @id');
-        await pool.close();
         res.json({ success: true });
     } catch (error) { res.json({ success: false, error: error.message }); }
 });
@@ -779,7 +752,7 @@ router.post('/api/inspections', async (req, res) => {
     try {
         const { storeId, storeName, documentNumber, inspectionDate, inspectors, accompaniedBy, templateId } = req.body;
         const userId = req.currentUser?.userId || 1;
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
 
         // Determine cycle number: count previous audits for this store + 1
         const cycleResult = await pool.request().input('storeId', sql.Int, storeId)
@@ -833,7 +806,6 @@ router.post('/api/inspections', async (req, res) => {
                 }
             }
         }
-        await pool.close();
         res.json({ success: true, data: { id: inspectionId, documentNumber, cycle } });
     } catch (error) { console.error('Error creating inspection:', error); res.json({ success: false, error: error.message }); }
 });
@@ -841,9 +813,8 @@ router.post('/api/inspections', async (req, res) => {
 // List audits (must be before :auditId route)
 router.get('/api/audits/list', async (req, res) => {
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const result = await pool.request().query(`SELECT Id, DocumentNumber, StoreName, InspectionDate, Inspectors, Status, Score, Cycle, Year, CreatedAt FROM RCV_Inspections ORDER BY CreatedAt DESC`);
-        await pool.close();
         res.json({ success: true, data: result.recordset });
     } catch (error) { res.json({ success: false, error: error.message }); }
 });
@@ -852,11 +823,11 @@ router.get('/api/audits/list', async (req, res) => {
 router.get('/api/audits/:auditId', async (req, res) => {
     try {
         const { auditId } = req.params;
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const auditResult = await pool.request().input('id', sql.Int, auditId)
             .query(`SELECT i.Id, i.DocumentNumber, i.StoreId, i.StoreName, i.InspectionDate, i.TimeIn, i.TimeOut, i.Inspectors, i.AccompaniedBy, i.Cycle, i.Year, i.Status, i.Score, i.TotalPoints, i.MaxPoints, i.Comments, i.TemplateId, i.CreatedBy, i.CreatedAt, i.CompletedAt,
                 s.StoreCode FROM RCV_Inspections i LEFT JOIN Stores s ON i.StoreId = s.Id WHERE i.Id = @id`);
-        if (auditResult.recordset.length === 0) { await pool.close(); return res.status(404).json({ success: false, error: 'Audit not found' }); }
+        if (auditResult.recordset.length === 0) { return res.status(404).json({ success: false, error: 'Audit not found' }); }
         const audit = auditResult.recordset[0];
         const sectionsResult = await pool.request().input('inspectionId', sql.Int, auditId)
             .query('SELECT Id as sectionId, SectionName as sectionName, SectionOrder as sectionNumber, SectionIcon as sectionIcon, Score as sectionScore, TotalPoints as totalPoints, MaxPoints as maxPoints FROM RCV_InspectionSections WHERE InspectionId = @inspectionId ORDER BY SectionOrder');
@@ -869,7 +840,6 @@ router.get('/api/audits/:auditId', async (req, res) => {
             section.items = itemsResult.recordset;
             sections.push(section);
         }
-        await pool.close();
         res.json({ success: true, data: { auditId: audit.Id, documentNumber: audit.DocumentNumber, storeId: audit.StoreId, storeCode: audit.StoreCode || '', storeName: audit.StoreName, auditDate: audit.InspectionDate, auditors: audit.Inspectors, accompaniedBy: audit.AccompaniedBy, cycle: audit.Cycle, year: audit.Year, status: audit.Status, score: audit.Score, templateId: audit.TemplateId, sections } });
     } catch (error) { console.error('Error fetching audit:', error); res.status(500).json({ success: false, error: error.message }); }
 });
@@ -879,7 +849,7 @@ router.put('/api/audits/response/:responseId', async (req, res) => {
     try {
         const { responseId } = req.params;
         const { selectedChoice, coeff, finding, comment, cr, priority, escalate, department } = req.body;
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const currentResult = await pool.request().input('id', sql.Int, responseId)
             .query('SELECT Answer, Score, Finding, Comment, CorrectedAction, Priority, Escalate, Department FROM RCV_InspectionItems WHERE Id = @id');
         const current = currentResult.recordset[0] || {};
@@ -900,7 +870,6 @@ router.put('/api/audits/response/:responseId', async (req, res) => {
             .input('cr', sql.NVarChar, finalCr).input('priority', sql.NVarChar, finalPriority)
             .input('escalate', sql.Bit, finalEscalate).input('department', sql.NVarChar, finalDepartment)
             .query('UPDATE RCV_InspectionItems SET Answer=@selectedChoice, Score=@value, Finding=@finding, Comment=@comment, CorrectedAction=@cr, Priority=@priority, Escalate=@escalate, Department=@department WHERE Id=@id');
-        await pool.close();
         res.json({ success: true, data: { score: value } });
     } catch (error) { console.error('Error updating response:', error); res.status(500).json({ success: false, error: error.message }); }
 });
@@ -914,7 +883,7 @@ router.post('/api/audits/pictures', auditUpload.single('picture'), async (req, r
         await compressImage(fullPath);
         const stats = fs.statSync(fullPath);
         const filePath = '/uploads/receiving-audit/' + req.file.filename;
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const result = await pool.request()
             .input('responseId', sql.Int, responseId).input('auditId', sql.Int, auditId)
             .input('fileName', sql.NVarChar, req.file.filename).input('originalName', sql.NVarChar, req.file.originalname)
@@ -922,7 +891,6 @@ router.post('/api/audits/pictures', auditUpload.single('picture'), async (req, r
             .input('filePath', sql.NVarChar, filePath).input('fileSize', sql.Int, stats.size)
             .query('INSERT INTO RCV_InspectionPictures (ItemId, InspectionId, FileName, OriginalName, ContentType, PictureType, FilePath, FileSize, CreatedAt) OUTPUT INSERTED.Id as pictureId VALUES (@responseId, @auditId, @fileName, @originalName, @contentType, @pictureType, @filePath, @fileSize, GETDATE())');
         await pool.request().input('id', sql.Int, responseId).query('UPDATE RCV_InspectionItems SET HasPicture = 1 WHERE Id = @id');
-        await pool.close();
         res.json({ success: true, data: { pictureId: result.recordset[0].pictureId, filePath } });
     } catch (error) { console.error('Error uploading picture:', error); res.status(500).json({ success: false, error: error.message }); }
 });
@@ -930,10 +898,9 @@ router.post('/api/audits/pictures', auditUpload.single('picture'), async (req, r
 // Get pictures for item
 router.get('/api/audits/pictures/:responseId', async (req, res) => {
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const result = await pool.request().input('responseId', sql.Int, req.params.responseId)
             .query('SELECT Id as pictureId, FileName as fileName, OriginalName as originalName, FilePath as filePath, PictureType as pictureType, FileSize as fileSize, CreatedAt as createdAt FROM RCV_InspectionPictures WHERE ItemId = @responseId ORDER BY CreatedAt');
-        await pool.close();
         res.json({ success: true, data: result.recordset });
     } catch (error) { res.json({ success: false, error: error.message }); }
 });
@@ -941,7 +908,7 @@ router.get('/api/audits/pictures/:responseId', async (req, res) => {
 // Delete picture
 router.delete('/api/audits/pictures/:pictureId', async (req, res) => {
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const pic = await pool.request().input('id', sql.Int, req.params.pictureId).query('SELECT FileName, ItemId FROM RCV_InspectionPictures WHERE Id = @id');
         if (pic.recordset.length > 0) {
             const filePath = path.join(uploadDir, pic.recordset[0].FileName);
@@ -950,7 +917,6 @@ router.delete('/api/audits/pictures/:pictureId', async (req, res) => {
             const remaining = await pool.request().input('itemId', sql.Int, pic.recordset[0].ItemId).query('SELECT COUNT(*) as cnt FROM RCV_InspectionPictures WHERE ItemId = @itemId');
             if (remaining.recordset[0].cnt === 0) await pool.request().input('itemId', sql.Int, pic.recordset[0].ItemId).query('UPDATE RCV_InspectionItems SET HasPicture = 0 WHERE Id = @itemId');
         }
-        await pool.close();
         res.json({ success: true });
     } catch (error) { res.json({ success: false, error: error.message }); }
 });
@@ -959,7 +925,7 @@ router.delete('/api/audits/pictures/:pictureId', async (req, res) => {
 router.post('/api/audits/:auditId/complete', async (req, res) => {
     try {
         const { auditId } = req.params;
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const scoreResult = await pool.request().input('auditId', sql.Int, auditId)
             .query("SELECT ISNULL(SUM(Score), 0) as totalPoints, ISNULL(SUM(Coefficient), 0) as maxPoints FROM RCV_InspectionItems WHERE InspectionId = @auditId AND Answer IS NOT NULL AND Answer != 'NA'");
         const { totalPoints, maxPoints } = scoreResult.recordset[0];
@@ -984,7 +950,6 @@ router.post('/api/audits/:auditId/complete', async (req, res) => {
                 actionItemsCreated++;
             }
         }
-        await pool.close();
         res.json({ success: true, data: { score: totalScore, actionItemsCreated } });
     } catch (error) { console.error('Error completing audit:', error); res.status(500).json({ success: false, error: error.message }); }
 });
@@ -992,13 +957,12 @@ router.post('/api/audits/:auditId/complete', async (req, res) => {
 // Delete audit
 router.delete('/api/audits/:auditId', async (req, res) => {
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         await pool.request().input('id', sql.Int, req.params.auditId).query('DELETE FROM RCV_InspectionPictures WHERE InspectionId = @id');
         await pool.request().input('id', sql.Int, req.params.auditId).query('DELETE FROM RCV_InspectionActionItems WHERE InspectionId = @id');
         await pool.request().input('id', sql.Int, req.params.auditId).query('DELETE FROM RCV_InspectionItems WHERE InspectionId = @id');
         await pool.request().input('id', sql.Int, req.params.auditId).query('DELETE FROM RCV_InspectionSections WHERE InspectionId = @id');
         await pool.request().input('id', sql.Int, req.params.auditId).query('DELETE FROM RCV_Inspections WHERE Id = @id');
-        await pool.close();
         res.json({ success: true });
     } catch (error) { res.json({ success: false, error: error.message }); }
 });
@@ -1006,12 +970,12 @@ router.delete('/api/audits/:auditId', async (req, res) => {
 // Action plan
 router.get('/api/action-plan/:inspectionId', async (req, res) => {
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await getPool();
         const result = await pool.request().input('inspectionId', sql.Int, req.params.inspectionId)
             .query('SELECT Id, ReferenceValue, SectionName, Finding, SuggestedAction, Action, Responsible, Department, Deadline, Priority, Status, CompletionDate, CompletionNotes, BeforeImageUrl, AfterImageUrl, CreatedAt FROM RCV_InspectionActionItems WHERE InspectionId = @inspectionId ORDER BY Priority DESC, ReferenceValue');
-        await pool.close();
         res.json({ success: true, data: result.recordset });
     } catch (error) { res.json({ success: false, error: error.message }); }
 });
 
 module.exports = router;
+
