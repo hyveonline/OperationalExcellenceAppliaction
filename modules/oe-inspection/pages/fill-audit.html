@@ -1877,6 +1877,32 @@
             align-items: center;
             justify-content: center;
         }
+
+        /* Multi-Gallery Assign to Item Modal */
+        .gallery-to-item-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 10001; display: none; align-items: center; justify-content: center; }
+        .gallery-to-item-modal.show { display: flex; }
+        .gallery-to-item-content { background: white; border-radius: 16px; width: 90%; max-width: 700px; max-height: 85vh; display: flex; flex-direction: column; overflow: hidden; }
+        .gallery-to-item-header { padding: 1rem 1.5rem; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; display: flex; justify-content: space-between; align-items: center; }
+        .gallery-to-item-header h3 { margin: 0; font-size: 1.1rem; }
+        .gallery-to-item-close { background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer; }
+        .gallery-to-item-body { padding: 1rem 1.5rem; overflow-y: auto; flex: 1; }
+        .gallery-to-item-info { padding: 0.75rem; background: rgba(99,102,241,0.08); border-radius: 8px; margin-bottom: 1rem; font-size: 0.85rem; color: #475569; }
+        .gallery-to-item-type { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+        .gallery-to-item-type button { flex: 1; padding: 0.6rem; border: 2px solid #e2e8f0; border-radius: 8px; background: white; cursor: pointer; font-size: 0.85rem; transition: all 0.2s; }
+        .gallery-to-item-type button.active { border-color: #6366f1; background: rgba(99,102,241,0.1); font-weight: 600; }
+        .gallery-photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 0.75rem; }
+        .gallery-photo-option { position: relative; border-radius: 10px; overflow: hidden; cursor: pointer; border: 3px solid transparent; transition: all 0.2s; aspect-ratio: 1; }
+        .gallery-photo-option:hover { border-color: #a5b4fc; }
+        .gallery-photo-option.selected { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,0.3); }
+        .gallery-photo-option img { width: 100%; height: 100%; object-fit: cover; }
+        .gallery-photo-check { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border-radius: 50%; background: white; border: 2px solid #cbd5e1; display: flex; align-items: center; justify-content: center; font-size: 14px; transition: all 0.2s; }
+        .gallery-photo-option.selected .gallery-photo-check { background: #6366f1; border-color: #6366f1; color: white; }
+        .gallery-to-item-footer { padding: 1rem 1.5rem; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; }
+        .gallery-to-item-footer .count { font-size: 0.85rem; color: #6366f1; font-weight: 600; }
+        .gallery-to-item-footer .actions { display: flex; gap: 0.75rem; }
+        .gallery-to-item-empty { text-align: center; padding: 2rem; color: #94a3b8; }
+        .item-gallery-btn { background: linear-gradient(135deg, #8b5cf6, #6366f1); color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; transition: all 0.2s; }
+        .item-gallery-btn:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(99,102,241,0.4); }
     </style>
 </head>
 <body>
@@ -2224,6 +2250,32 @@
         </div>
     </div>
 
+    <!-- Multi-Gallery-to-Item Modal -->
+    <div class="gallery-to-item-modal" id="galleryToItemModal">
+        <div class="gallery-to-item-content">
+            <div class="gallery-to-item-header">
+                <h3>🖼️ Assign Gallery Photos to Item</h3>
+                <button class="gallery-to-item-close" onclick="closeGalleryToItemModal()">×</button>
+            </div>
+            <div class="gallery-to-item-body">
+                <div class="gallery-to-item-info" id="galleryToItemInfo"></div>
+                <div class="gallery-to-item-type">
+                    <button onclick="setGalleryToItemType('Finding')" id="gtiTypeFinding">❌ Finding</button>
+                    <button onclick="setGalleryToItemType('Good')" id="gtiTypeGood">✅ Good</button>
+                    <button onclick="setGalleryToItemType('Corrective')" id="gtiTypeCorrective">🔧 Corrective</button>
+                </div>
+                <div class="gallery-photo-grid" id="galleryToItemGrid"></div>
+            </div>
+            <div class="gallery-to-item-footer">
+                <span class="count" id="gtiSelectedCount">0 selected</span>
+                <div class="actions">
+                    <button class="gallery-assign-btn cancel" onclick="closeGalleryToItemModal()">Cancel</button>
+                    <button class="gallery-assign-btn save" onclick="saveGalleryToItem()">✓ Assign Selected</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         let auditData = null;
         let currentSectionIndex = 0;
@@ -2543,10 +2595,13 @@
                             </div>
                         </div>
                         ${renderCRField(item)}
-                        <div class="finding-group">
+                        <div class="finding-group" style="display:flex;gap:8px;flex-wrap:wrap;">
                             <button class="picture-btn ${item.hasPicture ? 'has-picture' : ''}" 
                                 onclick="takePicture(${item.responseId})">
                                 📷 ${item.hasPicture ? 'Picture Added' : 'Add Picture'}
+                            </button>
+                            <button class="item-gallery-btn" onclick="openGalleryToItemModal(${item.responseId}, '${item.referenceValue}', 'Finding')" title="Assign multiple gallery photos">
+                                🖼️ Gallery
                             </button>
                         </div>
                         
@@ -2585,10 +2640,13 @@
                                 onchange="updateFinding(${item.responseId}, 'comment', this.value)"
                             >${item.comment || ''}</textarea>
                         </div>
-                        <div class="finding-group">
+                        <div class="finding-group" style="display:flex;gap:8px;flex-wrap:wrap;">
                             <button class="picture-btn good-observation-btn ${item.hasGoodPicture ? 'has-picture' : ''}" 
                                 onclick="takePicture(${item.responseId}, 'Good')">
                                 📷 ${item.hasGoodPicture ? 'Picture Added' : 'Add Picture'}
+                            </button>
+                            <button class="item-gallery-btn" onclick="openGalleryToItemModal(${item.responseId}, '${item.referenceValue}', 'Good')" title="Assign multiple gallery photos">
+                                🖼️ Gallery
                             </button>
                         </div>
                     </div>
@@ -4010,6 +4068,107 @@
             } catch (error) {
                 return [];
             }
+        }
+
+        // ==========================================
+        // Multi-Gallery-to-Item: assign multiple gallery photos to one item
+        // ==========================================
+        let gtiResponseId = null;
+        let gtiSelectedType = null;
+        let gtiSelectedPictures = new Set();
+
+        async function openGalleryToItemModal(responseId, refValue, defaultType) {
+            gtiResponseId = responseId;
+            gtiSelectedPictures = new Set();
+            gtiSelectedType = defaultType || 'Finding';
+
+            // Load gallery if not loaded yet
+            if (!galleryPictures || galleryPictures.length === 0) {
+                await loadGalleryPictures();
+            }
+
+            // Set item info
+            document.getElementById('galleryToItemInfo').innerHTML = `Assigning photos to item <strong>${refValue}</strong>`;
+
+            // Set default type button
+            document.querySelectorAll('.gallery-to-item-type button').forEach(b => b.classList.remove('active'));
+            document.getElementById('gtiType' + gtiSelectedType).classList.add('active');
+
+            // Render grid
+            renderGalleryToItemGrid();
+            updateGtiCount();
+
+            document.getElementById('galleryToItemModal').classList.add('show');
+        }
+
+        function closeGalleryToItemModal() {
+            document.getElementById('galleryToItemModal').classList.remove('show');
+            gtiResponseId = null;
+            gtiSelectedPictures = new Set();
+        }
+
+        function setGalleryToItemType(type) {
+            gtiSelectedType = type;
+            document.querySelectorAll('.gallery-to-item-type button').forEach(b => b.classList.remove('active'));
+            document.getElementById('gtiType' + type).classList.add('active');
+        }
+
+        function renderGalleryToItemGrid() {
+            const grid = document.getElementById('galleryToItemGrid');
+            if (!galleryPictures || galleryPictures.length === 0) {
+                grid.innerHTML = '<div class="gallery-to-item-empty">📸 No photos in gallery yet.<br>Upload photos using the Gallery tab in the sidebar first.</div>';
+                return;
+            }
+            grid.innerHTML = galleryPictures.map(pic => `
+                <div class="gallery-photo-option ${gtiSelectedPictures.has(pic.Id) ? 'selected' : ''}" onclick="toggleGtiPhoto(${pic.Id})">
+                    <img src="${pic.FilePath}" alt="${pic.OriginalName}">
+                    <div class="gallery-photo-check">${gtiSelectedPictures.has(pic.Id) ? '✓' : ''}</div>
+                </div>
+            `).join('');
+        }
+
+        function toggleGtiPhoto(pictureId) {
+            if (gtiSelectedPictures.has(pictureId)) {
+                gtiSelectedPictures.delete(pictureId);
+            } else {
+                gtiSelectedPictures.add(pictureId);
+            }
+            renderGalleryToItemGrid();
+            updateGtiCount();
+        }
+
+        function updateGtiCount() {
+            document.getElementById('gtiSelectedCount').textContent = gtiSelectedPictures.size + ' selected';
+        }
+
+        async function saveGalleryToItem() {
+            if (!gtiResponseId) return;
+            if (!gtiSelectedType) { showToast('Please select a picture type', 'error'); return; }
+            if (gtiSelectedPictures.size === 0) { showToast('Please select at least one photo', 'error'); return; }
+
+            let successCount = 0;
+            for (const pictureId of gtiSelectedPictures) {
+                try {
+                    const response = await fetch('/oe-inspection/api/gallery/assign', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            galleryPictureId: pictureId,
+                            responseId: gtiResponseId,
+                            pictureType: gtiSelectedType
+                        })
+                    });
+                    const result = await response.json();
+                    if (result.success) successCount++;
+                } catch (error) {
+                    console.error('Error assigning gallery photo:', error);
+                }
+            }
+
+            showToast(`${successCount} photo(s) assigned!`, 'success');
+            closeGalleryToItemModal();
+            await loadGalleryPictures();
+            renderSection(currentSectionIndex);
         }
 
         // Initialize on load
