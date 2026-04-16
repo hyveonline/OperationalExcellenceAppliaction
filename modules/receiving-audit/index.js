@@ -142,12 +142,12 @@ router.get('/', async (req, res) => {
             </style>
         </head><body>
             <div class="header">
-                <h1>≡ƒôª Receiving Audit</h1>
+                <h1>📦 Receiving Audit</h1>
                 <div class="header-nav">
-                    <a href="/dashboard">≡ƒÅá Dashboard</a>
-                    <a href="/receiving-audit/list">≡ƒôï Audits</a>
-                    <a href="/receiving-audit/template-builder">≡ƒöº Templates</a>
-                    <a href="/receiving-audit/settings">ΓÜÖ∩╕Å Settings</a>
+                    <a href="/dashboard">🏠 Dashboard</a>
+                    <a href="/receiving-audit/list">📋 Audits</a>
+                    <a href="/receiving-audit/template-builder">🔧 Templates</a>
+                    <a href="/receiving-audit/settings">⚙️ Settings</a>
                 </div>
             </div>
             <div class="container">
@@ -158,11 +158,11 @@ router.get('/', async (req, res) => {
                     <div class="stat-card"><div class="stat-number">${s.today}</div><div class="stat-label">Today</div></div>
                 </div>
                 <div class="actions">
-                    <a href="/receiving-audit/start" class="action-card"><div class="action-icon">≡ƒÜÇ</div><div class="action-title">Start New Audit</div><div class="action-desc">Begin a new receiving area inspection</div></a>
-                    <a href="/receiving-audit/list" class="action-card"><div class="action-icon">≡ƒôï</div><div class="action-title">View Audits</div><div class="action-desc">Browse all receiving audits</div></a>
-                    <a href="/receiving-audit/template-builder" class="action-card"><div class="action-icon">≡ƒöº</div><div class="action-title">Template Builder</div><div class="action-desc">Create and manage audit templates</div></a>
-                    <a href="/receiving-audit/store-management" class="action-card"><div class="action-icon">≡ƒÅ¬</div><div class="action-title">Store Management</div><div class="action-desc">Manage stores and assignments</div></a>
-                    <a href="/receiving-audit/settings" class="action-card"><div class="action-icon">ΓÜÖ∩╕Å</div><div class="action-title">Settings</div><div class="action-desc">Configure audit settings</div></a>
+                    <a href="/receiving-audit/start" class="action-card"><div class="action-icon">🚀</div><div class="action-title">Start New Audit</div><div class="action-desc">Begin a new receiving area inspection</div></a>
+                    <a href="/receiving-audit/list" class="action-card"><div class="action-icon">📋</div><div class="action-title">View Audits</div><div class="action-desc">Browse all receiving audits</div></a>
+                    <a href="/receiving-audit/template-builder" class="action-card"><div class="action-icon">🔧</div><div class="action-title">Template Builder</div><div class="action-desc">Create and manage audit templates</div></a>
+                    <a href="/receiving-audit/store-management" class="action-card"><div class="action-icon">🏪</div><div class="action-title">Store Management</div><div class="action-desc">Manage stores and assignments</div></a>
+                    <a href="/receiving-audit/settings" class="action-card"><div class="action-icon">⚙️</div><div class="action-title">Settings</div><div class="action-desc">Configure audit settings</div></a>
                 </div>
             </div>
         </body></html>`);
@@ -224,6 +224,32 @@ router.get('/api/next-document-number', async (req, res) => {
             .query("SELECT MAX(CAST(RIGHT(DocumentNumber, 4) AS INT)) as maxNum FROM RCV_Inspections WHERE DocumentNumber LIKE @prefix");
         const nextNum = (maxResult.recordset[0]?.maxNum || 0) + 1;
         res.json({ success: true, documentNumber: prefix + '-' + String(nextNum).padStart(4, '0') });
+    } catch (error) { res.json({ success: false, error: error.message }); }
+});
+
+// ==========================================
+// Cycle/Visit Info API
+// ==========================================
+router.get('/api/cycle/store/:storeId', async (req, res) => {
+    try {
+        const pool = await getPool();
+        const storeId = parseInt(req.params.storeId);
+        const result = await pool.request()
+            .input('storeId', sql.Int, storeId)
+            .query(`
+                SELECT COUNT(*) as storeAuditCount,
+                    MAX(Cycle) as lastCycle
+                FROM RCV_Inspections WHERE StoreId = @storeId
+            `);
+        const { storeAuditCount, lastCycle } = result.recordset[0] || { storeAuditCount: 0, lastCycle: 0 };
+        const currentCycle = (lastCycle || 0) + 1;
+        // Check if there's a pending (Draft) audit in the current cycle
+        const pendingResult = await pool.request()
+            .input('storeId', sql.Int, storeId)
+            .input('cycle', sql.Int, lastCycle || 1)
+            .query("SELECT COUNT(*) as cnt FROM RCV_Inspections WHERE StoreId = @storeId AND Cycle = @cycle AND Status = 'Draft'");
+        const isPendingInCurrentCycle = pendingResult.recordset[0].cnt > 0;
+        res.json({ success: true, data: { storeAuditCount, currentCycle, isPendingInCurrentCycle } });
     } catch (error) { res.json({ success: false, error: error.message }); }
 });
 
