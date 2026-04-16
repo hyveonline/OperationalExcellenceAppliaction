@@ -395,6 +395,176 @@ router.get('/api/stores-list', async (req, res) => {
 });
 
 // ==========================================
+// Schema Settings APIs (for system-settings page)
+// ==========================================
+router.get('/api/schemas', async (req, res) => {
+    try {
+        const pool = await sql.connect(dbConfig);
+        const result = await pool.request().query(`
+            SELECT t.Id as SchemaID, t.TemplateName as SchemaName, t.Description, t.IsActive,
+                ISNULL(s.SettingValue, '80') as overallPassingGrade
+            FROM RCV_InspectionTemplates t
+            LEFT JOIN RCV_InspectionSettings s ON s.SettingKey = 'PASSING_SCORE_' + CAST(t.Id AS VARCHAR)
+            WHERE t.IsActive = 1 ORDER BY t.TemplateName
+        `);
+        const schemas = [];
+        for (const schema of result.recordset) {
+            const sectionsResult = await pool.request()
+                .input('templateId', sql.Int, schema.SchemaID)
+                .query(`SELECT ts.Id as SectionID, ts.SectionName, ts.SectionOrder, ts.SectionIcon, ISNULL(ts.PassingGrade, 80) as PassingGrade
+                    FROM RCV_InspectionTemplateSections ts WHERE ts.TemplateId = @templateId ORDER BY ts.SectionOrder`);
+            schemas.push({ ...schema, sections: sectionsResult.recordset });
+        }
+        await pool.close();
+        res.json({ success: true, schemas });
+    } catch (error) { res.json({ success: true, schemas: [] }); }
+});
+
+router.post('/api/schema/:schemaId', async (req, res) => {
+    try {
+        const pool = await sql.connect(dbConfig);
+        const schemaId = req.params.schemaId;
+        const { overallPassingGrade, sectionGrades } = req.body;
+        await pool.request()
+            .input('key', sql.NVarChar, 'PASSING_SCORE_' + schemaId)
+            .input('value', sql.NVarChar, String(overallPassingGrade))
+            .query(`IF EXISTS (SELECT 1 FROM RCV_InspectionSettings WHERE SettingKey = @key)
+                UPDATE RCV_InspectionSettings SET SettingValue = @value, UpdatedAt = GETDATE() WHERE SettingKey = @key
+                ELSE INSERT INTO RCV_InspectionSettings (SettingKey, SettingValue) VALUES (@key, @value)`);
+        if (sectionGrades && Array.isArray(sectionGrades)) {
+            for (const sg of sectionGrades) {
+                await pool.request()
+                    .input('sectionId', sql.Int, sg.sectionId)
+                    .input('grade', sql.Int, sg.passingGrade)
+                    .query('UPDATE RCV_InspectionTemplateSections SET PassingGrade = @grade WHERE Id = @sectionId');
+            }
+        }
+        await pool.close();
+        res.json({ success: true });
+    } catch (error) { res.json({ success: false, error: error.message }); }
+});
+
+router.get('/api/schema-colors/:schemaId', async (req, res) => {
+    try {
+        const pool = await sql.connect(dbConfig);
+        const result = await pool.request()
+            .input('schemaId', sql.Int, req.params.schemaId)
+            .query("SELECT SettingKey, SettingValue FROM RCV_InspectionSettings WHERE SettingKey LIKE 'COLOR_%_' + CAST(@schemaId AS VARCHAR)");
+        await pool.close();
+        const colors = { passColor: '#10b981', failColor: '#ef4444', headerColor: '#1e3a5f', accentColor: '#10b981' };
+        result.recordset.forEach(row => {
+            const key = row.SettingKey.replace(/_\d+$/, '').replace('COLOR_', '').toLowerCase() + 'Color';
+            if (colors.hasOwnProperty(key)) colors[key] = row.SettingValue;
+        });
+        res.json({ success: true, colors });
+    } catch (error) { res.json({ success: true, colors: { passColor: '#10b981', failColor: '#ef4444', headerColor: '#1e3a5f', accentColor: '#10b981' } }); }
+});
+
+router.post('/api/schema-colors/:schemaId', async (req, res) => {
+    try {
+        const pool = await sql.connect(dbConfig);
+        const schemaId = req.params.schemaId;
+        for (const [key, value] of Object.entries(req.body)) {
+            const settingKey = 'COLOR_' + key.replace('Color', '').toUpperCase() + '_' + schemaId;
+            await pool.request()
+                .input('key', sql.NVarChar, settingKey)
+                .input('value', sql.NVarChar, value)
+                .query(`IF EXISTS (SELECT 1 FROM RCV_InspectionSettings WHERE SettingKey = @key)
+                    UPDATE RCV_InspectionSettings SET SettingValue = @value, UpdatedAt = GETDATE() WHERE SettingKey = @key
+                    ELSE INSERT INTO RCV_InspectionSettings (SettingKey, SettingValue) VALUES (@key, @value)`);
+        }
+        await pool.close();
+        res.json({ success: true });
+    } catch (error) { res.json({ success: false, error: error.message }); }
+});
+
+router.get('/api/schema-checklist-info/:schemaId', async (req, res) => {
+    try {
+        const pool = await sql.connect(dbConfig);
+        const result = await pool.request()
+            .input('schemaId', sql.Int, req.params.schemaId)
+            .query("SELECT SettingKey, SettingValue FROM RCV_InspectionSettings WHERE SettingKey LIKE 'CHECKLIST_%_' + CAST(@schemaId AS VARCHAR)");
+        await pool.close();
+        const info = { creationDate: '', revisionDate: '', edition: '', reportTitle: 'Receiving Audit Report', documentPrefix: 'GMRL-RCV' };
+        result.recordset.forEach(row => {
+            const key = row.SettingKey.replace(/_\d+$/, '').replace('CHECKLIST_', '');
+            const camelKey = key.toLowerCase().replace(/_([a-z])/g, (m, c) => c.toUpperCase());
+            if (info.hasOwnProperty(camelKey)) info[camelKey] = row.SettingValue;
+        });
+        res.json({ success: true, info });
+    } catch (error) { res.json({ success: true, info: { creationDate: '', revisionDate: '', edition: '', reportTitle: 'Receiving Audit Report', documentPrefix: 'GMRL-RCV' } }); }
+});
+
+router.post('/api/schema-checklist-info/:schemaId', async (req, res) => {
+    try {
+        const pool = await sql.connect(dbConfig);
+        const schemaId = req.params.schemaId;
+        for (const [key, value] of Object.entries(req.body)) {
+            const settingKey = 'CHECKLIST_' + key.replace(/([A-Z])/g, '_$1').toUpperCase() + '_' + schemaId;
+            await pool.request()
+                .input('key', sql.NVarChar, settingKey)
+                .input('value', sql.NVarChar, value || '')
+                .query(`IF EXISTS (SELECT 1 FROM RCV_InspectionSettings WHERE SettingKey = @key)
+                    UPDATE RCV_InspectionSettings SET SettingValue = @value, UpdatedAt = GETDATE() WHERE SettingKey = @key
+                    ELSE INSERT INTO RCV_InspectionSettings (SettingKey, SettingValue) VALUES (@key, @value)`);
+        }
+        await pool.close();
+        res.json({ success: true });
+    } catch (error) { res.json({ success: false, error: error.message }); }
+});
+
+router.get('/api/schema-department-names/:schemaId', async (req, res) => {
+    try {
+        const pool = await sql.connect(dbConfig);
+        const result = await pool.request()
+            .input('schemaId', sql.Int, req.params.schemaId)
+            .query("SELECT SettingKey, SettingValue FROM RCV_InspectionSettings WHERE SettingKey LIKE 'DEPT_%_' + CAST(@schemaId AS VARCHAR)");
+        await pool.close();
+        const names = { Maintenance: 'Maintenance', Procurement: 'Procurement', Cleaning: 'Cleaning' };
+        result.recordset.forEach(row => {
+            const key = row.SettingKey.replace(/_\d+$/, '').replace('DEPT_', '');
+            if (names.hasOwnProperty(key)) names[key] = row.SettingValue;
+        });
+        res.json({ success: true, names });
+    } catch (error) { res.json({ success: true, names: { Maintenance: 'Maintenance', Procurement: 'Procurement', Cleaning: 'Cleaning' } }); }
+});
+
+router.post('/api/schema-department-names/:schemaId', async (req, res) => {
+    try {
+        const pool = await sql.connect(dbConfig);
+        const schemaId = req.params.schemaId;
+        for (const [key, value] of Object.entries(req.body)) {
+            const settingKey = 'DEPT_' + key + '_' + schemaId;
+            await pool.request()
+                .input('key', sql.NVarChar, settingKey)
+                .input('value', sql.NVarChar, value)
+                .query(`IF EXISTS (SELECT 1 FROM RCV_InspectionSettings WHERE SettingKey = @key)
+                    UPDATE RCV_InspectionSettings SET SettingValue = @value, UpdatedAt = GETDATE() WHERE SettingKey = @key
+                    ELSE INSERT INTO RCV_InspectionSettings (SettingKey, SettingValue) VALUES (@key, @value)`);
+        }
+        await pool.close();
+        res.json({ success: true });
+    } catch (error) { res.json({ success: false, error: error.message }); }
+});
+
+router.post('/api/section-icons/:schemaId', async (req, res) => {
+    try {
+        const pool = await sql.connect(dbConfig);
+        const { icons } = req.body;
+        if (icons && Array.isArray(icons)) {
+            for (const icon of icons) {
+                await pool.request()
+                    .input('sectionId', sql.Int, icon.sectionId)
+                    .input('icon', sql.NVarChar, icon.icon)
+                    .query('UPDATE RCV_InspectionTemplateSections SET SectionIcon = @icon WHERE Id = @sectionId');
+            }
+        }
+        await pool.close();
+        res.json({ success: true });
+    } catch (error) { res.json({ success: false, error: error.message }); }
+});
+
+// ==========================================
 // Template APIs
 // ==========================================
 router.get('/api/templates/schemas', async (req, res) => {
