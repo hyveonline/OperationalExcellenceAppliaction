@@ -1102,10 +1102,13 @@
                     throw new Error(result.error || 'Failed to generate report');
                 }
                 
-                // Open each section report in a new tab
                 if (result.files && result.files.length > 0) {
-                    for (const file of result.files) {
-                        window.open(`/security-inspection/api/audits/reports/${file.fileName}`, '_blank');
+                    if (result.files.length === 1) {
+                        // Single section — open directly
+                        window.open(`/security-inspection/api/audits/reports/${result.files[0].fileName}`, '_blank');
+                    } else {
+                        // Multiple sections — show picker modal
+                        showReportPickerModal(result.files);
                     }
                 }
                 
@@ -1115,6 +1118,39 @@
             } finally {
                 loading.remove();
             }
+        }
+
+        function showReportPickerModal(files) {
+            // Remove existing modal if any
+            const existing = document.getElementById('reportPickerModal');
+            if (existing) existing.remove();
+
+            const modal = document.createElement('div');
+            modal.id = 'reportPickerModal';
+            modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;display:flex;justify-content:center;align-items:center;';
+            modal.innerHTML = `
+                <div style="background:white;border-radius:12px;padding:30px;max-width:500px;width:90%;box-shadow:0 10px 40px rgba(0,0,0,0.3);">
+                    <h3 style="margin:0 0 8px 0;font-size:18px;">📊 Reports Generated</h3>
+                    <p style="margin:0 0 20px 0;color:#64748b;font-size:14px;">Click each report to open it:</p>
+                    <div style="display:flex;flex-direction:column;gap:10px;">
+                        ${files.map(f => `
+                            <a href="/security-inspection/api/audits/reports/${f.fileName}" target="_blank" 
+                               style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:linear-gradient(135deg,#f8fafc,#e2e8f0);border-radius:8px;text-decoration:none;color:#1e293b;border:1px solid #cbd5e1;transition:all 0.2s;"
+                               onmouseover="this.style.background='linear-gradient(135deg,#dbeafe,#bfdbfe)';this.style.borderColor='#3b82f6'" 
+                               onmouseout="this.style.background='linear-gradient(135deg,#f8fafc,#e2e8f0)';this.style.borderColor='#cbd5e1'">
+                                <span style="font-weight:600;">📋 ${f.sectionName}</span>
+                                <span style="font-size:13px;color:${f.score >= 80 ? '#16a34a' : '#ef4444'};font-weight:700;">${f.score}%</span>
+                            </a>
+                        `).join('')}
+                    </div>
+                    <button onclick="document.getElementById('reportPickerModal').remove()" 
+                            style="margin-top:20px;width:100%;padding:10px;background:#64748b;color:white;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:500;">
+                        Close
+                    </button>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
         }
 
         // Toggle department dropdown
