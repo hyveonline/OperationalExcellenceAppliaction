@@ -1557,6 +1557,24 @@ router.get('/api/audits/list', async (req, res) => {
     }
 });
 
+// Serve report files (MUST be before /api/audits/:auditId to avoid route conflict)
+router.get('/api/audits/reports/:fileName', (req, res) => {
+    const { fileName } = req.params;
+    const reportsDir = path.join(__dirname, '..', '..', 'reports', 'oe-inspection');
+    const filePath = path.join(reportsDir, fileName);
+    
+    // Security check - prevent directory traversal
+    if (!filePath.startsWith(reportsDir)) {
+        return res.status(403).json({ error: 'Access denied' });
+    }
+    
+    if (fs.existsSync(filePath)) {
+        res.sendFile(filePath);
+    } else {
+        res.status(404).json({ error: 'Report not found' });
+    }
+});
+
 // Get single audit
 router.get('/api/audits/:auditId', async (req, res) => {
     try {
@@ -1815,25 +1833,6 @@ router.get('/api/audits/:auditId/published-report', async (req, res) => {
     } catch (error) {
         console.error('Error fetching published report:', error);
         res.json({ success: false, error: error.message });
-    }
-});
-
-// Serve report files
-router.get('/api/audits/reports/:fileName', (req, res) => {
-    const { fileName } = req.params;
-    const reportsDir = path.join(__dirname, '..', '..', 'reports', 'oe-inspection');
-    const filePath = path.join(reportsDir, fileName);
-    
-    // Security check - prevent directory traversal
-    if (!filePath.startsWith(reportsDir)) {
-        return res.status(403).json({ error: 'Access denied' });
-    }
-    
-    const fs = require('fs');
-    if (fs.existsSync(filePath)) {
-        res.sendFile(filePath);
-    } else {
-        res.status(404).json({ error: 'Report not found' });
     }
 });
 
@@ -3166,7 +3165,7 @@ router.post('/api/audits/:auditId/complete', async (req, res) => {
 router.post('/api/audits/:auditId/fridge-readings', async (req, res) => {
     try {
         const { auditId } = req.params;
-        const { documentNumber, goodReadings, badReadings, enabledSections } = req.body;
+        const { goodReadings, badReadings } = req.body;
         
         const pool = await sql.connect(dbConfig);
         
@@ -3175,36 +3174,34 @@ router.post('/api/audits/:auditId/fridge-readings', async (req, res) => {
             .input('auditId', sql.Int, auditId)
             .query(`DELETE FROM OE_FridgeReadings WHERE InspectionId = @auditId`);
         
-        // Insert good readings
+        // Insert good readings (IsCompliant = 1)
         for (const reading of (goodReadings || [])) {
             await pool.request()
                 .input('auditId', sql.Int, auditId)
-                .input('documentNumber', sql.NVarChar, documentNumber)
-                .input('readingType', sql.NVarChar, 'Good')
+                .input('fridgeNumber', sql.NVarChar, reading.unit || null)
                 .input('unitTemp', sql.NVarChar, reading.unit || null)
-                .input('displayTemp', sql.NVarChar, reading.display || null)
-                .input('probeTemp', sql.NVarChar, reading.probe || null)
-                .input('sectionName', sql.NVarChar, reading.sectionName || null)
+                .input('displayTemp', sql.NVarChar, reading.display || reading.displayTemp || null)
+                .input('probeTemp', sql.NVarChar, reading.probe || reading.probeTemp || null)
+                .input('isCompliant', sql.Bit, 1)
                 .query(`
-                    INSERT INTO OE_FridgeReadings (InspectionId, DocumentNumber, ReadingType, UnitTemp, DisplayTemp, ProbeTemp, SectionName, CreatedAt)
-                    VALUES (@auditId, @documentNumber, @readingType, @unitTemp, @displayTemp, @probeTemp, @sectionName, GETDATE())
+                    INSERT INTO OE_FridgeReadings (InspectionId, FridgeNumber, UnitTemp, DisplayTemp, ProbeTemp, IsCompliant, CreatedAt)
+                    VALUES (@auditId, @fridgeNumber, @unitTemp, @displayTemp, @probeTemp, @isCompliant, GETDATE())
                 `);
         }
         
-        // Insert bad readings
+        // Insert bad readings (IsCompliant = 0)
         for (const reading of (badReadings || [])) {
             await pool.request()
                 .input('auditId', sql.Int, auditId)
-                .input('documentNumber', sql.NVarChar, documentNumber)
-                .input('readingType', sql.NVarChar, 'Bad')
+                .input('fridgeNumber', sql.NVarChar, reading.unit || null)
                 .input('unitTemp', sql.NVarChar, reading.unit || null)
-                .input('displayTemp', sql.NVarChar, reading.display || null)
-                .input('probeTemp', sql.NVarChar, reading.probe || null)
+                .input('displayTemp', sql.NVarChar, reading.display || reading.displayTemp || null)
+                .input('probeTemp', sql.NVarChar, reading.probe || reading.probeTemp || null)
                 .input('issue', sql.NVarChar, reading.issue || null)
-                .input('sectionName', sql.NVarChar, reading.sectionName || null)
+                .input('isCompliant', sql.Bit, 0)
                 .query(`
-                    INSERT INTO OE_FridgeReadings (InspectionId, DocumentNumber, ReadingType, UnitTemp, DisplayTemp, ProbeTemp, Issue, SectionName, CreatedAt)
-                    VALUES (@auditId, @documentNumber, @readingType, @unitTemp, @displayTemp, @probeTemp, @issue, @sectionName, GETDATE())
+                    INSERT INTO OE_FridgeReadings (InspectionId, FridgeNumber, UnitTemp, DisplayTemp, ProbeTemp, Issue, IsCompliant, CreatedAt)
+                    VALUES (@auditId, @fridgeNumber, @unitTemp, @displayTemp, @probeTemp, @issue, @isCompliant, GETDATE())
                 `);
         }
         
