@@ -2353,43 +2353,76 @@ router.post('/api/audits/:auditId/generate-report', async (req, res) => {
             });
         }
         
-        // Build report data
-        const reportData = {
-            audit,
-            sections: sections.map(s => ({
-                ...s,
-                Percentage: s.maxScore > 0 ? Math.round((s.earnedScore / s.maxScore) * 100) : 0
-            })),
-            findings,
-            pictures: picturesByItem,
-            fridgeReadings: fridgeResult.recordset,
-            overallScore,
-            threshold,
-            cycleAudits,
-            generatedAt: new Date().toISOString()
-        };
-        
-        // Generate HTML report
-        const html = generateReportHTML(reportData);
-        
-        // Save report to file
+        // Build report data and generate per-section reports
         const reportsDir = path.join(__dirname, '..', '..', 'reports', 'security-inspection');
         if (!fs.existsSync(reportsDir)) {
             fs.mkdirSync(reportsDir, { recursive: true });
         }
         
-        const fileName = `SEC_Report_${audit.DocumentNumber}_${new Date().toISOString().split('T')[0]}.html`;
-        const filePath = path.join(reportsDir, fileName);
-        fs.writeFileSync(filePath, html, 'utf8');
+        const generatedFiles = [];
+        const dateStr = new Date().toISOString().split('T')[0];
         
-        // Update audit with report info
-        await pool.request()
-            .input('auditId', sql.Int, auditId)
-            .input('fileName', sql.NVarChar, fileName)
-            .query(`UPDATE SEC_Inspections SET ReportFileName = @fileName, ReportGeneratedAt = GETDATE() WHERE Id = @auditId`);
+        for (const section of sections) {
+            const sectionSections = [{
+                ...section,
+                Percentage: section.maxScore > 0 ? Math.round((section.earnedScore / section.maxScore) * 100) : 0
+            }];
+            
+            const sectionScore = section.maxScore > 0 ? Math.round((section.earnedScore / section.maxScore) * 100) : 0;
+            const sectionThreshold = section.PassingGrade || threshold;
+            
+            // Filter findings to this section's items
+            const sectionItemIds = new Set(section.items.map(i => i.Id));
+            const sectionFindings = findings.filter(f => sectionItemIds.has(f.Id));
+            
+            // Filter pictures to this section's items
+            const sectionPictures = {};
+            for (const item of section.items) {
+                if (picturesByItem[item.Id]) {
+                    sectionPictures[item.Id] = picturesByItem[item.Id];
+                }
+            }
+            
+            // Build per-section cycle history (section-specific scores)
+            const sectionCycleAudits = cycleAudits.map(ca => ({
+                ...ca,
+                totalScore: ca.sectionScores[section.SectionName] || 0
+            }));
+            
+            const sectionReportData = {
+                audit,
+                sections: sectionSections,
+                findings: sectionFindings,
+                pictures: sectionPictures,
+                fridgeReadings: fridgeResult.recordset,
+                overallScore: sectionScore,
+                threshold: sectionThreshold,
+                cycleAudits: sectionCycleAudits,
+                generatedAt: new Date().toISOString(),
+                sectionLabel: section.SectionName
+            };
+            
+            const html = generateReportHTML(sectionReportData);
+            
+            // Sanitize section name for filename
+            const safeSectionName = section.SectionName.replace(/[^a-zA-Z0-9]/g, '_');
+            const fileName = `SEC_Report_${audit.DocumentNumber}_${safeSectionName}_${dateStr}.html`;
+            const filePath = path.join(reportsDir, fileName);
+            fs.writeFileSync(filePath, html, 'utf8');
+            
+            generatedFiles.push({ fileName, sectionName: section.SectionName, score: sectionScore });
+            console.log(`✅ Section report generated: ${fileName}`);
+        }
         
-        console.log(`✅ Report generated: ${fileName}`);
-        res.json({ success: true, fileName, overallScore });
+        // Update audit with first report info
+        if (generatedFiles.length > 0) {
+            await pool.request()
+                .input('auditId', sql.Int, auditId)
+                .input('fileName', sql.NVarChar, generatedFiles[0].fileName)
+                .query(`UPDATE SEC_Inspections SET ReportFileName = @fileName, ReportGeneratedAt = GETDATE() WHERE Id = @auditId`);
+        }
+        
+        res.json({ success: true, files: generatedFiles, overallScore });
         
     } catch (error) {
         console.error('Error generating report:', error);
@@ -2399,7 +2432,7 @@ router.post('/api/audits/:auditId/generate-report', async (req, res) => {
 
 // Helper function to generate HTML report
 function generateReportHTML(data) {
-    const { audit, sections, findings, pictures, fridgeReadings, overallScore, threshold, cycleAudits, generatedAt } = data;
+    const { audit, sections, findings, pictures, fridgeReadings, overallScore, threshold, cycleAudits, generatedAt, sectionLabel } = data;
     const passedClass = overallScore >= threshold ? 'pass' : 'fail';
     const passedText = overallScore >= threshold ? 'PASS ✅' : 'FAIL ❌';
     
@@ -2440,7 +2473,7 @@ function generateReportHTML(data) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Security Inspection Report - ${audit.DocumentNumber}</title>
+    <title>Security Inspection Report - ${audit.DocumentNumber}${sectionLabel ? ' - ' + sectionLabel : ''}</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f5f5f5; color: #333; line-height: 1.6; }
@@ -2688,7 +2721,7 @@ function generateReportHTML(data) {
         </div>
         
         <div class="header">
-            <h1>📋 Security Inspection Report</h1>
+            <h1>📋 Security Inspection Report${sectionLabel ? ' - ' + sectionLabel : ''}</h1>
             <div class="header-info">
                 <div class="header-item"><label>Document #</label><span>${audit.DocumentNumber}</span></div>
                 <div class="header-item"><label>Store</label><span>${audit.StoreName}</span></div>

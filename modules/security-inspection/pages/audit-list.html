@@ -1086,7 +1086,7 @@
             loading.innerHTML = `
                 <div class="report-loading-content">
                     <div class="report-loading-spinner"></div>
-                    <div>Generating Full Report...</div>
+                    <div>Generating Reports...</div>
                 </div>
             `;
             document.body.appendChild(loading);
@@ -1102,8 +1102,12 @@
                     throw new Error(result.error || 'Failed to generate report');
                 }
                 
-                // Open the generated report in a new tab
-                window.open(`/security-inspection/api/audits/reports/${result.fileName}`, '_blank');
+                // Open each section report in a new tab
+                if (result.files && result.files.length > 0) {
+                    for (const file of result.files) {
+                        window.open(`/security-inspection/api/audits/reports/${file.fileName}`, '_blank');
+                    }
+                }
                 
             } catch (error) {
                 console.error('Error generating full report:', error);
