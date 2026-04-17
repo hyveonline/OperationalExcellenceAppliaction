@@ -2655,6 +2655,12 @@
                 await loadGalleryPictures();
             }
 
+            // Load existing assignments and pre-select them
+            const existingAssignments = await loadItemGalleryPictures(responseId);
+            for (const assignment of existingAssignments) {
+                gtiSelectedPictures.add(assignment.GalleryPictureId);
+            }
+
             document.getElementById('galleryToItemInfo').innerHTML = `Assigning photos to item <strong>${refValue}</strong>`;
 
             document.querySelectorAll('.gallery-to-item-type button').forEach(b => b.classList.remove('active'));

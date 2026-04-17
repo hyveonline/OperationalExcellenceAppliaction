@@ -161,7 +161,6 @@ router.get('/', async (req, res) => {
             FROM OE_Inspections
         `);
         
-        await pool.close();
         
         const s = stats.recordset[0] || { total: 0, drafts: 0, completed: 0, today: 0 };
         
@@ -567,7 +566,6 @@ router.get('/api/templates/schemas', async (req, res) => {
             WHERE t.IsActive = 1
             ORDER BY t.TemplateName
         `);
-        await pool.close();
         res.json({ success: true, data: result.recordset });
     } catch (error) {
         console.error('Error fetching templates:', error);
@@ -589,7 +587,6 @@ router.post('/api/templates/schemas', async (req, res) => {
                 OUTPUT INSERTED.Id as schemaId
                 VALUES (@name, @desc, @createdBy, GETDATE(), 1)
             `);
-        await pool.close();
         res.json({ success: true, data: { schemaId: result.recordset[0].schemaId } });
     } catch (error) {
         console.error('Error creating template:', error);
@@ -609,7 +606,6 @@ router.get('/api/templates/schemas/:schemaId', async (req, res) => {
             .query(`SELECT Id as schemaId, TemplateName as schemaName, Description as description FROM OE_InspectionTemplates WHERE Id = @id`);
         
         if (templateResult.recordset.length === 0) {
-            await pool.close();
             return res.json({ success: false, error: 'Template not found' });
         }
         
@@ -645,7 +641,6 @@ router.get('/api/templates/schemas/:schemaId', async (req, res) => {
             template.sections.push(section);
         }
         
-        await pool.close();
         res.json({ success: true, data: template });
     } catch (error) {
         console.error('Error fetching template:', error);
@@ -663,7 +658,6 @@ router.put('/api/templates/schemas/:schemaId', async (req, res) => {
             .input('name', sql.NVarChar, schemaName)
             .input('desc', sql.NVarChar, description || '')
             .query(`UPDATE OE_InspectionTemplates SET TemplateName = @name, Description = @desc WHERE Id = @id`);
-        await pool.close();
         res.json({ success: true });
     } catch (error) {
         console.error('Error updating template:', error);
@@ -678,7 +672,6 @@ router.delete('/api/templates/schemas/:schemaId', async (req, res) => {
         await pool.request()
             .input('id', sql.Int, req.params.schemaId)
             .query(`UPDATE OE_InspectionTemplates SET IsActive = 0 WHERE Id = @id`);
-        await pool.close();
         res.json({ success: true });
     } catch (error) {
         console.error('Error deleting template:', error);
@@ -703,7 +696,6 @@ router.get('/api/templates/schemas/:schemaId/sections', async (req, res) => {
                 WHERE s.TemplateId = @templateId AND s.IsActive = 1
                 ORDER BY s.SectionOrder
             `);
-        await pool.close();
         res.json({ success: true, data: result.recordset });
     } catch (error) {
         console.error('Error fetching sections:', error);
@@ -726,7 +718,6 @@ router.post('/api/templates/schemas/:schemaId/sections', async (req, res) => {
                 OUTPUT INSERTED.Id as sectionId
                 VALUES (@templateId, @name, @icon, @order, 1)
             `);
-        await pool.close();
         res.json({ success: true, data: { sectionId: result.recordset[0].sectionId } });
     } catch (error) {
         console.error('Error creating section:', error);
@@ -749,7 +740,6 @@ router.put('/api/templates/sections/:sectionId', async (req, res) => {
                 SET SectionName = @name, SectionIcon = @icon, SectionOrder = @order
                 WHERE Id = @sectionId
             `);
-        await pool.close();
         res.json({ success: true });
     } catch (error) {
         console.error('Error updating section:', error);
@@ -769,7 +759,6 @@ router.delete('/api/templates/sections/:sectionId', async (req, res) => {
         await pool.request()
             .input('sectionId', sql.Int, req.params.sectionId)
             .query('DELETE FROM OE_InspectionTemplateSections WHERE Id = @sectionId');
-        await pool.close();
         res.json({ success: true });
     } catch (error) {
         console.error('Error deleting section:', error);
@@ -792,7 +781,6 @@ router.get('/api/templates/sections/:sectionId/items', async (req, res) => {
                     CAST(PARSENAME(REPLACE(ReferenceValue, '-', '.'), 2) AS INT),
                     CAST(PARSENAME(REPLACE(ReferenceValue, '-', '.'), 1) AS INT)
             `);
-        await pool.close();
         res.json({ success: true, data: result.recordset });
     } catch (error) {
         console.error('Error fetching items:', error);
@@ -825,7 +813,6 @@ router.post('/api/templates/sections/:sectionId/items', async (req, res) => {
                 OUTPUT INSERTED.Id as itemId
                 VALUES (@sectionId, @ref, @question, @coeff, @quantity, @answer, @criteria, @defaultSeverity, 1, @isQuantitative, @range1From, @range1To, @range2From, @range2To, @range3From)
             `);
-        await pool.close();
         res.json({ success: true, data: { itemId: result.recordset[0].itemId } });
     } catch (error) {
         console.error('Error creating item:', error);
@@ -874,7 +861,6 @@ router.post('/api/templates/sections/:sectionId/items/bulk', async (req, res) =>
             existingRefs.add(refLower);
         }
         
-        await pool.close();
         res.json({ success: true, data: { created, skipped, total: items.length } });
     } catch (error) {
         console.error('Error bulk creating items:', error);
@@ -903,7 +889,6 @@ router.put('/api/templates/items/:itemId', async (req, res) => {
             .input('range2To', sql.Int, range2To != null ? range2To : null)
             .input('range3From', sql.Int, range3From != null ? range3From : null)
             .query(`UPDATE OE_InspectionTemplateItems SET ReferenceValue = @ref, Question = @question, Coefficient = @coeff, Quantity = @quantity, AnswerOptions = @answer, Criteria = @criteria, DefaultSeverity = @defaultSeverity, IsQuantitative = @isQuantitative, Range1From = @range1From, Range1To = @range1To, Range2From = @range2From, Range2To = @range2To, Range3From = @range3From WHERE Id = @id`);
-        await pool.close();
         res.json({ success: true });
     } catch (error) {
         console.error('Error updating item:', error);
@@ -918,7 +903,6 @@ router.delete('/api/templates/items/:itemId', async (req, res) => {
         await pool.request()
             .input('id', sql.Int, req.params.itemId)
             .query(`UPDATE OE_InspectionTemplateItems SET IsActive = 0 WHERE Id = @id`);
-        await pool.close();
         res.json({ success: true });
     } catch (error) {
         console.error('Error deleting item:', error);
@@ -933,7 +917,6 @@ router.delete('/api/templates/sections/:sectionId/items/all', async (req, res) =
         const result = await pool.request()
             .input('sectionId', sql.Int, req.params.sectionId)
             .query(`UPDATE OE_InspectionTemplateItems SET IsActive = 0 WHERE SectionId = @sectionId; SELECT @@ROWCOUNT as deleted`);
-        await pool.close();
         res.json({ success: true, data: { deleted: result.recordset[0].deleted } });
     } catch (error) {
         console.error('Error deleting items:', error);
@@ -969,7 +952,6 @@ router.get('/api/stores', async (req, res) => {
             WHERE s.IsActive = 1
             ORDER BY s.StoreName
         `);
-        await pool.close();
         res.json({ success: true, data: result.recordset });
     } catch (error) {
         console.error('Error fetching stores:', error);
@@ -995,7 +977,6 @@ router.post('/api/stores', async (req, res) => {
                 OUTPUT INSERTED.Id as storeId
                 VALUES (@code, @name, @brandId, @location, @storeSize, @templateId, 1, GETDATE(), @createdBy)
             `);
-        await pool.close();
         res.json({ success: true, data: { storeId: result.recordset[0].storeId } });
     } catch (error) {
         console.error('Error creating store:', error);
@@ -1023,7 +1004,6 @@ router.put('/api/stores/:storeId', async (req, res) => {
                     StoreSize = @storeSize, TemplateId = @templateId, IsActive = @isActive
                 WHERE Id = @id
             `);
-        await pool.close();
         res.json({ success: true });
     } catch (error) {
         console.error('Error updating store:', error);
@@ -1038,7 +1018,6 @@ router.delete('/api/stores/:storeId', async (req, res) => {
         await pool.request()
             .input('id', sql.Int, req.params.storeId)
             .query(`DELETE FROM Stores WHERE Id = @id`);
-        await pool.close();
         res.json({ success: true });
     } catch (error) {
         console.error('Error deleting store:', error);
@@ -1062,7 +1041,6 @@ router.get('/api/stores/available-managers', async (req, res) => {
             AND r.RoleName IN ('Store Manager', 'Duty Manager', 'Area Manager')
             ORDER BY u.DisplayName
         `);
-        await pool.close();
         res.json({ success: true, data: result.recordset });
     } catch (error) {
         console.error('Error fetching available managers:', error);
@@ -1085,7 +1063,6 @@ router.get('/api/stores/manager-assignments', async (req, res) => {
             JOIN Users u ON sma.UserId = u.Id
             ORDER BY sma.StoreId, sma.IsPrimary DESC
         `);
-        await pool.close();
         
         // Group by storeId
         const assignments = {};
@@ -1133,7 +1110,6 @@ router.post('/api/stores/:storeId/managers', async (req, res) => {
                 `);
         }
         
-        await pool.close();
         res.json({ success: true });
     } catch (error) {
         console.error('Error assigning managers:', error);
@@ -1154,7 +1130,6 @@ router.get('/api/settings', async (req, res) => {
             FROM OE_InspectionSettings
             WHERE IsActive = 1
         `);
-        await pool.close();
         
         const settings = {};
         result.recordset.forEach(row => {
@@ -1186,7 +1161,6 @@ router.post('/api/settings', async (req, res) => {
                 `);
         }
         
-        await pool.close();
         res.json({ success: true });
     } catch (error) {
         console.error('Error saving settings:', error);
@@ -1204,7 +1178,6 @@ router.get('/api/stores-list', async (req, res) => {
             WHERE IsActive = 1
             ORDER BY StoreName
         `);
-        await pool.close();
         res.json({ success: true, data: result.recordset });
     } catch (error) {
         console.error('Error fetching stores:', error);
@@ -1235,7 +1208,6 @@ router.get('/api/next-document-number', async (req, res) => {
         const nextNum = (maxResult.recordset[0]?.maxNum || 0) + 1;
         const documentNumber = `${prefix}-${String(nextNum).padStart(4, '0')}`;
         
-        await pool.close();
         res.json({ success: true, documentNumber });
     } catch (error) {
         console.error('Error generating document number:', error);
@@ -1340,7 +1312,6 @@ router.post('/api/inspections', async (req, res) => {
             }
         }
         
-        await pool.close();
         
         res.json({ success: true, data: { id: inspectionId, documentNumber } });
     } catch (error) {
@@ -1363,7 +1334,6 @@ router.get('/api/inspections', async (req, res) => {
             LEFT JOIN Users u ON i.CreatedBy = u.Id
             ORDER BY i.CreatedAt DESC
         `);
-        await pool.close();
         res.json({ success: true, data: result.recordset });
     } catch (error) {
         console.error('Error fetching inspections:', error);
@@ -1385,7 +1355,6 @@ router.get('/api/inspections/:id', async (req, res) => {
             .input('id', sql.Int, id)
             .query(`SELECT * FROM OE_InspectionItems WHERE InspectionId = @id ORDER BY SectionOrder, ItemOrder`);
         
-        await pool.close();
         
         if (inspection.recordset.length === 0) {
             return res.json({ success: false, error: 'Inspection not found' });
@@ -1445,7 +1414,6 @@ router.put('/api/inspections/:id', async (req, res) => {
             }
         }
         
-        await pool.close();
         res.json({ success: true });
     } catch (error) {
         console.error('Error updating inspection:', error);
@@ -1476,7 +1444,6 @@ router.get('/api/action-plan/:inspectionId', async (req, res) => {
                 ORDER BY ai.Priority DESC, ai.CreatedAt
             `);
         
-        await pool.close();
         res.json({ success: true, data: result.recordset });
     } catch (error) {
         console.error('Error fetching action plan:', error);
@@ -1521,7 +1488,6 @@ router.post('/api/action-plan', async (req, res) => {
             }
         }
         
-        await pool.close();
         res.json({ success: true });
     } catch (error) {
         console.error('Error saving action plan:', error);
@@ -1541,7 +1507,6 @@ router.get('/api/stats', async (req, res) => {
                 SUM(CASE WHEN CAST(CreatedAt AS DATE) = CAST(GETDATE() AS DATE) THEN 1 ELSE 0 END) as today
             FROM OE_Inspections
         `);
-        await pool.close();
         res.json({ success: true, data: stats.recordset[0] });
     } catch (error) {
         res.json({ success: true, data: { total: 0, drafts: 0, completed: 0, today: 0 } });
@@ -1585,7 +1550,6 @@ router.get('/api/audits/list', async (req, res) => {
             LEFT JOIN OE_InspectionSettings s ON s.SettingKey = 'PASSING_SCORE'
             ORDER BY i.CreatedAt DESC
         `);
-        await pool.close();
         res.json({ success: true, audits: result.recordset });
     } catch (error) {
         console.error('Error fetching audits list:', error);
@@ -1618,7 +1582,6 @@ router.get('/api/audits/:auditId', async (req, res) => {
             `);
         
         if (auditResult.recordset.length === 0) {
-            await pool.close();
             return res.status(404).json({ success: false, error: 'Audit not found' });
         }
         
@@ -1766,7 +1729,6 @@ router.get('/api/audits/:auditId', async (req, res) => {
             sections.push(section);
         }
         
-        await pool.close();
         res.json({ 
             success: true, 
             data: {
@@ -1821,7 +1783,6 @@ router.delete('/api/audits/:auditId', async (req, res) => {
             .input('id', sql.Int, auditId)
             .query(`DELETE FROM OE_Inspections WHERE Id = @id; SELECT @@ROWCOUNT as deleted`);
         
-        await pool.close();
         
         if (result.recordset[0].deleted === 0) {
             return res.status(404).json({ success: false, error: 'Audit not found' });
@@ -2816,7 +2777,6 @@ router.get('/api/audits/:auditId/department-report/:department', async (req, res
             `);
         
         if (auditResult.recordset.length === 0) {
-            await pool.close();
             return res.status(404).json({ success: false, error: 'Audit not found' });
         }
         
@@ -2858,7 +2818,6 @@ router.get('/api/audits/:auditId/department-report/:department', async (req, res
             correctivePictures: []
         }));
         
-        await pool.close();
         
         // Calculate statistics
         const byPriority = {
@@ -2984,7 +2943,6 @@ router.put('/api/audits/response/:responseId', async (req, res) => {
             }
         }
         
-        await pool.close();
         res.json({ success: true, data: { score: value } });
     } catch (error) {
         console.error('Error updating response:', error);
@@ -3031,7 +2989,6 @@ router.post('/api/audits/pictures', oeAuditUpload.single('picture'), async (req,
             .input('id', sql.Int, responseId)
             .query(`UPDATE OE_InspectionItems SET HasPicture = 1 WHERE Id = @id`);
         
-        await pool.close();
         res.json({ success: true, data: { pictureId: result.recordset[0].pictureId, filePath: filePath } });
     } catch (error) {
         console.error('Error uploading picture:', error);
@@ -3055,7 +3012,6 @@ router.get('/api/audits/pictures/:responseId', async (req, res) => {
                 ORDER BY CreatedAt
             `);
         
-        await pool.close();
         res.json({ success: true, data: result.recordset });
     } catch (error) {
         console.error('Error fetching pictures:', error);
@@ -3085,7 +3041,6 @@ router.delete('/api/audits/pictures/:pictureId', async (req, res) => {
             .input('id', sql.Int, pictureId)
             .query(`DELETE FROM OE_InspectionPictures WHERE Id = @id`);
         
-        await pool.close();
         res.json({ success: true });
     } catch (error) {
         console.error('Error deleting picture:', error);
@@ -3200,7 +3155,6 @@ router.post('/api/audits/:auditId/complete', async (req, res) => {
             }
         }
         
-        await pool.close();
         res.json({ success: true, data: { totalScore, actionItemsCreated } });
     } catch (error) {
         console.error('Error completing audit:', error);
@@ -3254,7 +3208,6 @@ router.post('/api/audits/:auditId/fridge-readings', async (req, res) => {
                 `);
         }
         
-        await pool.close();
         res.json({ success: true });
     } catch (error) {
         console.error('Error saving fridge readings:', error);
@@ -3278,7 +3231,6 @@ router.get('/api/audits/:auditId/fridge-readings', async (req, res) => {
                 ORDER BY CreatedAt
             `);
         
-        await pool.close();
         
         const goodReadings = result.recordset.filter(r => r.IsCompliant === true || r.IsCompliant === 1);
         const badReadings = result.recordset.filter(r => r.IsCompliant === false || r.IsCompliant === 0);
@@ -3315,7 +3267,6 @@ router.get('/api/action-plan/by-doc/:documentNumber', async (req, res) => {
                     CAST(PARSENAME(REPLACE(a.ReferenceValue, '-', '.'), 1) AS INT)
             `);
         
-        await pool.close();
         res.json({ success: true, actions: result.recordset });
     } catch (error) {
         console.error('Error fetching action plan:', error);
@@ -3335,7 +3286,6 @@ router.post('/api/action-plan/save', async (req, res) => {
             .query(`SELECT Id FROM OE_Inspections WHERE DocumentNumber = @documentNumber`);
         
         if (inspResult.recordset.length === 0) {
-            await pool.close();
             return res.status(404).json({ success: false, error: 'Inspection not found' });
         }
         
@@ -3424,7 +3374,6 @@ router.post('/api/action-plan/save', async (req, res) => {
             console.log(`[Action Plan] All items completed for inspection ${inspectionId}, marked as completed`);
         }
         
-        await pool.close();
         res.json({ success: true });
     } catch (error) {
         console.error('Error saving action plan:', error);
@@ -3498,7 +3447,6 @@ router.get('/api/schemas', async (req, res) => {
             });
         }
         
-        await pool.close();
         res.json({ success: true, schemas });
     } catch (error) {
         console.error('Error fetching schemas:', error);
@@ -3517,7 +3465,6 @@ router.get('/api/schema-colors/:schemaId', async (req, res) => {
                 FROM OE_InspectionSettings 
                 WHERE SettingKey LIKE 'COLOR_%_' + CAST(@schemaId AS VARCHAR)
             `);
-        await pool.close();
         
         const colors = {
             passColor: '#10b981',
@@ -3560,7 +3507,6 @@ router.post('/api/schema-colors/:schemaId', async (req, res) => {
                 `);
         }
         
-        await pool.close();
         res.json({ success: true });
     } catch (error) {
         console.error('Error saving schema colors:', error);
@@ -3579,7 +3525,6 @@ router.get('/api/schema-checklist-info/:schemaId', async (req, res) => {
                 FROM OE_InspectionSettings 
                 WHERE SettingKey LIKE 'CHECKLIST_%_' + CAST(@schemaId AS VARCHAR)
             `);
-        await pool.close();
         
         const info = {
             creationDate: '',
@@ -3624,7 +3569,6 @@ router.post('/api/schema-checklist-info/:schemaId', async (req, res) => {
                 `);
         }
         
-        await pool.close();
         res.json({ success: true });
     } catch (error) {
         console.error('Error saving checklist info:', error);
@@ -3643,7 +3587,6 @@ router.get('/api/schema-department-names/:schemaId', async (req, res) => {
                 FROM OE_InspectionSettings 
                 WHERE SettingKey LIKE 'DEPT_%_' + CAST(@schemaId AS VARCHAR)
             `);
-        await pool.close();
         
         const names = {
             Maintenance: 'Maintenance',
@@ -3685,7 +3628,6 @@ router.post('/api/schema-department-names/:schemaId', async (req, res) => {
                 `);
         }
         
-        await pool.close();
         res.json({ success: true });
     } catch (error) {
         console.error('Error saving department names:', error);
@@ -3725,7 +3667,6 @@ router.post('/api/schema/:schemaId', async (req, res) => {
             }
         }
         
-        await pool.close();
         res.json({ success: true });
     } catch (error) {
         console.error('Error saving schema settings:', error);
@@ -3752,7 +3693,6 @@ router.post('/api/section-icons/:schemaId', async (req, res) => {
             }
         }
         
-        await pool.close();
         res.json({ success: true });
     } catch (error) {
         console.error('Error saving section icons:', error);
@@ -3826,7 +3766,6 @@ router.get('/api/action-items', async (req, res) => {
             ai.Deadline`;
         
         const result = await request.query(query);
-        await pool.close();
         
         res.json({ success: true, data: result.recordset });
     } catch (error) {
@@ -3882,7 +3821,6 @@ router.put('/api/action-items/:id', async (req, res) => {
             WHERE Id = @id
         `);
         
-        await pool.close();
         res.json({ success: true });
     } catch (error) {
         console.error('Error updating action item:', error);
@@ -3928,7 +3866,6 @@ router.get('/api/schedules', async (req, res) => {
                 ORDER BY s.ScheduledDate, st.StoreName
             `);
         
-        await pool.close();
         res.json({ success: true, data: result.recordset });
     } catch (error) {
         console.error('Error fetching schedules:', error);
@@ -3970,7 +3907,6 @@ router.get('/api/schedules/inspector/:inspectorId', async (req, res) => {
                 ORDER BY s.ScheduledDate, st.StoreName
             `);
         
-        await pool.close();
         res.json({ success: true, data: result.recordset });
     } catch (error) {
         console.error('Error fetching inspector schedules:', error);
@@ -3999,7 +3935,6 @@ router.post('/api/schedules', async (req, res) => {
                 VALUES (@inspectorId, @storeId, @templateId, @scheduledDate, @notes, @createdBy)
             `);
         
-        await pool.close();
         res.json({ success: true, id: result.recordset[0].Id });
     } catch (error) {
         console.error('Error creating schedule:', error);
@@ -4049,7 +3984,6 @@ router.put('/api/schedules/:id', async (req, res) => {
             WHERE Id = @id
         `);
         
-        await pool.close();
         res.json({ success: true });
     } catch (error) {
         console.error('Error updating schedule:', error);
@@ -4067,7 +4001,6 @@ router.delete('/api/schedules/:id', async (req, res) => {
             .input('id', sql.Int, id)
             .query('DELETE FROM OE_InspectionSchedule WHERE Id = @id');
         
-        await pool.close();
         res.json({ success: true });
     } catch (error) {
         console.error('Error deleting schedule:', error);
@@ -4090,7 +4023,6 @@ router.get('/api/schedules/data/inspectors', async (req, res) => {
                 ORDER BY u.DisplayName
             `);
         
-        await pool.close();
         res.json({ success: true, data: result.recordset });
     } catch (error) {
         console.error('Error fetching inspectors:', error);
@@ -4111,7 +4043,6 @@ router.get('/api/schedules/data/stores', async (req, res) => {
                 ORDER BY StoreName
             `);
         
-        await pool.close();
         res.json({ success: true, data: result.recordset });
     } catch (error) {
         console.error('Error fetching stores:', error);
@@ -4132,7 +4063,6 @@ router.get('/api/schedules/data/templates', async (req, res) => {
                 ORDER BY TemplateName
             `);
         
-        await pool.close();
         res.json({ success: true, data: result.recordset });
     } catch (error) {
         console.error('Error fetching templates:', error);
@@ -4187,7 +4117,6 @@ router.get('/api/verification/inspections', async (req, res) => {
                 ORDER BY i.Id DESC
             `);
         
-        await pool.close();
         res.json({ success: true, data: result.recordset });
     } catch (error) {
         console.error('Error fetching verification inspections:', error);
@@ -4252,7 +4181,6 @@ router.get('/api/verification/inspection/:inspectionId', async (req, res) => {
                 ORDER BY ai.SectionName, ai.Id
             `);
         
-        await pool.close();
         res.json({ 
             success: true, 
             inspection: inspectionResult.recordset[0],
@@ -4311,7 +4239,6 @@ router.post('/api/verification/submit', async (req, res) => {
                 `);
         }
         
-        await pool.close();
         res.json({ success: true });
     } catch (error) {
         console.error('Error submitting verification:', error);
@@ -4358,7 +4285,6 @@ router.get('/api/verification/stats', async (req, res) => {
                     (SELECT COUNT(*) FROM OE_ActionItemVerification WHERE VerificationStatus = 'Verified Not Complete') as VerifiedNotComplete
             `);
         
-        await pool.close();
         res.json({ success: true, data: result.recordset[0] });
     } catch (error) {
         console.error('Error fetching verification stats:', error);
@@ -4401,7 +4327,6 @@ router.get('/api/verification/email-template/:actionItemId', async (req, res) =>
             .input('templateKey', sql.NVarChar, 'OE_VERIFICATION_SUBMITTED')
             .query('SELECT SubjectTemplate, BodyTemplate FROM EmailTemplates WHERE TemplateKey = @templateKey');
         
-        await pool.close();
         
         if (templateResult.recordset.length === 0) {
             return res.status(404).json({ success: false, error: 'Email template not found' });
@@ -4476,7 +4401,6 @@ router.post('/api/verification/send-email', async (req, res) => {
                 INSERT INTO OE_VerificationEmailLog (ActionItemId, ToEmail, Subject, SentBy, SentAt)
                 VALUES (@actionItemId, @toEmail, @subject, @sentBy, GETDATE())
             `);
-        await pool.close();
         
         res.json({ success: true });
     } catch (error) {
@@ -4525,7 +4449,6 @@ router.get('/api/verification/email-template-full/:inspectionId', async (req, re
                 ORDER BY ai.SectionName, ai.Id
             `);
         
-        await pool.close();
         
         const actionItems = actionItemsResult.recordset;
         const verifiedComplete = actionItems.filter(i => i.VerificationStatus === 'Verified Complete').length;
@@ -4637,7 +4560,6 @@ router.post('/api/verification/send-email-full', async (req, res) => {
                 INSERT INTO OE_VerificationEmailLog (InspectionId, ToEmail, Subject, SentBy, SentAt)
                 VALUES (@inspectionId, @toEmail, @subject, @sentBy, GETDATE())
             `);
-        await pool.close();
         
         res.json({ success: true });
     } catch (error) {
@@ -4689,7 +4611,6 @@ router.get('/api/audits/:auditId/email-recipients', async (req, res) => {
             `);
         
         if (auditResult.recordset.length === 0) {
-            await pool.close();
             return res.status(404).json({ error: 'Audit not found' });
         }
         
@@ -4769,7 +4690,6 @@ router.get('/api/audits/:auditId/email-recipients', async (req, res) => {
             }
         }
         
-        await pool.close();
         
         // Build response
         res.json({
@@ -4823,7 +4743,6 @@ router.get('/api/audits/:auditId/email-preview', async (req, res) => {
             `);
         
         if (auditResult.recordset.length === 0) {
-            await pool.close();
             return res.status(404).json({ error: 'Audit not found' });
         }
         
@@ -4852,7 +4771,6 @@ router.get('/api/audits/:auditId/email-preview', async (req, res) => {
             findingsStats = findingsResult.recordset[0];
         }
         
-        await pool.close();
         
         // Build email using template builder
         const auditData = {
@@ -4919,7 +4837,6 @@ router.post('/api/audits/:auditId/send-report-email', async (req, res) => {
             `);
         
         if (auditResult.recordset.length === 0) {
-            await pool.close();
             return res.status(404).json({ error: 'Audit not found' });
         }
         
@@ -5021,7 +4938,6 @@ router.post('/api/audits/:auditId/send-report-email', async (req, res) => {
                  @storeId, @storeName, @brandId, @brandName, GETDATE())
             `);
         
-        await pool.close();
         
         if (emailResult.success) {
             res.json({ success: true, message: 'Email sent successfully' });
@@ -5559,7 +5475,6 @@ router.put('/api/department-escalations/:id/acknowledge', async (req, res) => {
                 WHERE Id = @id AND Module = 'OE'
             `);
         
-        await pool.close();
         console.log(`[Escalation] Successfully acknowledged ID ${id}`);
         res.json({ success: true });
     } catch (error) {
@@ -5683,7 +5598,6 @@ router.post('/api/gallery/:auditId/upload', galleryUpload.single('picture'), asy
                 VALUES (@auditId, @fileName, @filePath, @originalName, @fileSize, @uploadedBy)
             `);
         
-        await pool.close();
         
         res.json({ 
             success: true, 
@@ -5733,7 +5647,6 @@ router.post('/api/gallery/:auditId/upload-multiple', galleryUpload.array('pictur
             uploadedPictures.push(result.recordset[0]);
         }
         
-        await pool.close();
         
         res.json({ 
             success: true, 
@@ -5764,7 +5677,6 @@ router.get('/api/gallery/:auditId', async (req, res) => {
                 ORDER BY g.UploadedAt DESC
             `);
         
-        await pool.close();
         
         res.json({ success: true, data: result.recordset });
     } catch (error) {
@@ -5785,7 +5697,6 @@ router.delete('/api/gallery/picture/:pictureId', async (req, res) => {
             .query('SELECT FilePath FROM OE_InspectionGallery WHERE Id = @id');
         
         if (fileResult.recordset.length === 0) {
-            await pool.close();
             return res.status(404).json({ success: false, error: 'Picture not found' });
         }
         
@@ -5794,7 +5705,6 @@ router.delete('/api/gallery/picture/:pictureId', async (req, res) => {
             .input('id', sql.Int, pictureId)
             .query('DELETE FROM OE_InspectionGallery WHERE Id = @id');
         
-        await pool.close();
         
         // Delete file from disk
         const filePath = path.join(__dirname, '..', '..', fileResult.recordset[0].FilePath);
@@ -5831,7 +5741,6 @@ router.post('/api/gallery/assign', async (req, res) => {
             `);
         
         if (existing.recordset.length > 0) {
-            await pool.close();
             return res.json({ success: true, message: 'Already assigned' });
         }
         
@@ -5855,7 +5764,6 @@ router.post('/api/gallery/assign', async (req, res) => {
                 WHERE Id = @responseId
             `);
         
-        await pool.close();
         
         res.json({ success: true, linkId: result.recordset[0].Id });
     } catch (error) {
@@ -5876,7 +5784,6 @@ router.delete('/api/gallery/unassign/:linkId', async (req, res) => {
             .query('SELECT ResponseId FROM OE_InspectionGalleryLinks WHERE Id = @id');
         
         if (linkResult.recordset.length === 0) {
-            await pool.close();
             return res.status(404).json({ success: false, error: 'Link not found' });
         }
         
@@ -5903,7 +5810,6 @@ router.delete('/api/gallery/unassign/:linkId', async (req, res) => {
                 .query('UPDATE OE_InspectionItems SET HasPicture = 0 WHERE Id = @responseId');
         }
         
-        await pool.close();
         
         res.json({ success: true });
     } catch (error) {
@@ -5930,7 +5836,6 @@ router.get('/api/gallery/picture/:pictureId/assignments', async (req, res) => {
                 ORDER BY l.AssignedAt DESC
             `);
         
-        await pool.close();
         
         res.json({ success: true, data: result.recordset });
     } catch (error) {
@@ -5957,7 +5862,6 @@ router.get('/api/gallery/item/:responseId', async (req, res) => {
                 ORDER BY l.AssignedAt DESC
             `);
         
-        await pool.close();
         
         res.json({ success: true, data: result.recordset });
     } catch (error) {
@@ -5984,7 +5888,6 @@ router.get('/api/gallery/:auditId/unassigned', async (req, res) => {
                 ORDER BY g.UploadedAt DESC
             `);
         
-        await pool.close();
         
         res.json({ success: true, data: result.recordset, count: result.recordset.length });
     } catch (error) {
@@ -6022,7 +5925,6 @@ router.delete('/api/gallery/:auditId/unassigned', async (req, res) => {
                 )
             `);
         
-        await pool.close();
         
         // Delete files from disk
         for (const file of files.recordset) {

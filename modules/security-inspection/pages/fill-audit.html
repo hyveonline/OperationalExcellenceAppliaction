@@ -2270,7 +2270,7 @@
                 <span class="count" id="gtiSelectedCount">0 selected</span>
                 <div class="actions">
                     <button class="gallery-assign-btn cancel" onclick="closeGalleryToItemModal()">Cancel</button>
-                    <button class="gallery-assign-btn save" onclick="saveGalleryToItem()">✓ Assign Selected</button>
+                    <button class="gallery-assign-btn save" id="gtiAssignBtn" onclick="saveGalleryToItem()">✓ Assign Selected</button>
                 </div>
             </div>
         </div>
@@ -4084,10 +4084,20 @@
                 await loadGalleryPictures();
             }
 
+            // Load existing assignments and pre-select them
+            const existingAssignments = await loadItemGalleryPictures(responseId);
+            for (const assignment of existingAssignments) {
+                gtiSelectedPictures.add(assignment.GalleryPictureId);
+            }
+
             document.getElementById('galleryToItemInfo').innerHTML = `Assigning photos to item <strong>${refValue}</strong>`;
 
             document.querySelectorAll('.gallery-to-item-type button').forEach(b => b.classList.remove('active'));
             document.getElementById('gtiType' + gtiSelectedType).classList.add('active');
+
+            // Hide assign button in readonly mode
+            const assignBtn = document.getElementById('gtiAssignBtn');
+            if (assignBtn) assignBtn.style.display = isReadOnly ? 'none' : '';
 
             renderGalleryToItemGrid();
             updateGtiCount();
@@ -4113,7 +4123,7 @@
                 return;
             }
             grid.innerHTML = galleryPictures.map(pic => `
-                <div class="gallery-photo-option ${gtiSelectedPictures.has(pic.Id) ? 'selected' : ''}" onclick="toggleGtiPhoto(${pic.Id})">
+                <div class="gallery-photo-option ${gtiSelectedPictures.has(pic.Id) ? 'selected' : ''}" ${isReadOnly ? '' : `onclick="toggleGtiPhoto(${pic.Id})"`}>
                     <img src="${pic.FilePath}" alt="${pic.OriginalName}">
                     <div class="gallery-photo-check">${gtiSelectedPictures.has(pic.Id) ? '✓' : ''}</div>
                 </div>
