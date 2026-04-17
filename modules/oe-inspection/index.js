@@ -1917,9 +1917,12 @@ router.post('/api/audits/:auditId/generate-report', async (req, res) => {
         const fridgeResult = await pool.request()
             .input('auditId', sql.Int, auditId)
             .query(`
-                SELECT * FROM OE_FridgeReadings 
-                WHERE InspectionId = @auditId
-                ORDER BY Id
+                SELECT fr.Id, fr.ItemId, fr.FridgeNumber, fr.UnitTemp, fr.DisplayTemp, fr.ProbeTemp, fr.Issue, fr.IsCompliant, fr.Picture,
+                       i.SectionName, i.ReferenceValue
+                FROM OE_FridgeReadings fr
+                LEFT JOIN OE_InspectionItems i ON fr.ItemId = i.Id
+                WHERE fr.InspectionId = @auditId AND fr.ItemId IS NOT NULL
+                ORDER BY fr.Id
             `);
         
         // Calculate overall score
@@ -2555,33 +2558,35 @@ function generateReportHTML(data) {
                     `}).join('')}
                 </div>
                 ` : ''}
+                ${(() => {
+                    const sectionFridgeReadings = fridgeReadings.filter(r => r.SectionName === section.SectionName);
+                    if (sectionFridgeReadings.length === 0) return '';
+                    return `
+                <div class="section-findings" style="margin-top:10px;">
+                    <div class="section-findings-title">🌡️ Fridge Temperature Readings (${sectionFridgeReadings.length})</div>
+                    <table>
+                        <thead>
+                            <tr><th>Ref</th><th>Display (°C)</th><th>Probe (°C)</th><th>Status</th><th>Issue</th><th>Photo</th></tr>
+                        </thead>
+                        <tbody>
+                            ${sectionFridgeReadings.map(r => `
+                            <tr>
+                                <td>${r.ReferenceValue || 'N/A'}</td>
+                                <td>${r.DisplayTemp ?? 'N/A'}</td>
+                                <td>${r.ProbeTemp ?? 'N/A'}</td>
+                                <td>${r.IsCompliant ? '✅ OK' : '❌ Issue'}</td>
+                                <td>${r.Issue || '-'}</td>
+                                <td>${r.Picture ? '<img src="' + r.Picture + '" alt="Fridge" style="max-width:80px;max-height:60px;border-radius:4px;cursor:pointer;object-fit:cover;" onclick="openLightbox(this.src)">' : '-'}</td>
+                            </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+                `;
+                })()}
             </div>
         </div>
         `}).join('')}
-        
-        ${fridgeReadings.length > 0 ? `
-        <div class="fridge-section">
-            <div class="fridge-header">
-                <div class="fridge-title">🌡️ Fridge Temperature Readings</div>
-            </div>
-            <table>
-                <thead>
-                    <tr><th>Unit</th><th>Display (°C)</th><th>Probe (°C)</th><th>Status</th><th>Issue</th></tr>
-                </thead>
-                <tbody>
-                    ${fridgeReadings.map(r => `
-                    <tr>
-                        <td>${r.FridgeNumber || r.UnitTemp || 'N/A'}</td>
-                        <td>${r.DisplayTemp ?? 'N/A'}</td>
-                        <td>${r.ProbeTemp ?? 'N/A'}</td>
-                        <td>${r.IsCompliant ? '✅ OK' : '❌ Issue'}</td>
-                        <td>${r.Issue || '-'}</td>
-                    </tr>
-                    `).join('')}
-                </tbody>
-            </table>
-        </div>
-        ` : ''}
         
         <!-- Observation Gallery -->
         <div class="gallery-section">
@@ -3161,6 +3166,22 @@ router.post('/api/audits/:auditId/complete', async (req, res) => {
     }
 });
 
+// Helper: save base64 fridge picture to disk
+function saveFridgePicture(base64Data, auditId) {
+    if (!base64Data || typeof base64Data !== 'string') return null;
+    // Handle data URL format: data:image/jpeg;base64,xxxxx
+    const match = base64Data.match(/^data:image\/(\w+);base64,(.+)$/);
+    if (!match) return null;
+    const ext = match[1] === 'jpeg' ? 'jpg' : match[1];
+    const buffer = Buffer.from(match[2], 'base64');
+    const filename = `oe-fridge-${auditId}-${Date.now()}-${Math.round(Math.random() * 1E9)}.${ext}`;
+    const fullPath = path.join(oeAuditUploadDir, filename);
+    fs.writeFileSync(fullPath, buffer);
+    // Compress
+    compressImage(fullPath).catch(err => console.error('Fridge pic compress error:', err));
+    return '/uploads/oe-inspection/' + filename;
+}
+
 // Save fridge readings
 router.post('/api/audits/:auditId/fridge-readings', async (req, res) => {
     try {
@@ -3169,6 +3190,27 @@ router.post('/api/audits/:auditId/fridge-readings', async (req, res) => {
         
         const pool = await sql.connect(dbConfig);
         
+        // Get existing picture file paths before deleting
+        const existingPics = await pool.request()
+            .input('auditId', sql.Int, auditId)
+            .query(`SELECT Picture FROM OE_FridgeReadings WHERE InspectionId = @auditId AND Picture IS NOT NULL`);
+        
+        // Collect paths of pictures that are being re-submitted (to keep them)
+        const reusedPaths = new Set();
+        for (const r of [...(goodReadings || []), ...(badReadings || [])]) {
+            if (r.picture && !r.picture.startsWith('data:')) reusedPaths.add(r.picture);
+        }
+        
+        // Delete orphan picture files
+        for (const row of existingPics.recordset) {
+            if (row.Picture && !reusedPaths.has(row.Picture)) {
+                const filePath = path.join(__dirname, '..', '..', row.Picture);
+                if (fs.existsSync(filePath)) {
+                    try { fs.unlinkSync(filePath); } catch (e) { /* ignore */ }
+                }
+            }
+        }
+        
         // Delete existing readings
         await pool.request()
             .input('auditId', sql.Int, auditId)
@@ -3176,40 +3218,61 @@ router.post('/api/audits/:auditId/fridge-readings', async (req, res) => {
         
         // Insert good readings (IsCompliant = 1)
         for (const reading of (goodReadings || [])) {
+            const itemId = parseInt(reading.responseId);
+            if (!itemId) continue;
             const displayVal = parseFloat(reading.displayTemp || reading.display);
             const probeVal = parseFloat(reading.probeTemp || reading.probe);
-            const fridgeNum = parseInt(reading.responseId) || null;
+            // Save picture: if base64 save to disk, if already a path reuse it
+            let picturePath = null;
+            if (reading.picture) {
+                if (reading.picture.startsWith('data:')) {
+                    picturePath = saveFridgePicture(reading.picture, auditId);
+                } else {
+                    picturePath = reading.picture; // already a file path from previous save
+                }
+            }
             await pool.request()
                 .input('auditId', sql.Int, auditId)
-                .input('itemId', sql.Int, fridgeNum)
-                .input('fridgeNumber', sql.Int, fridgeNum)
+                .input('itemId', sql.Int, itemId)
+                .input('fridgeNumber', sql.Int, null)
                 .input('unitTemp', sql.Decimal(10,2), isNaN(displayVal) ? null : displayVal)
                 .input('displayTemp', sql.Decimal(10,2), isNaN(displayVal) ? null : displayVal)
                 .input('probeTemp', sql.Decimal(10,2), isNaN(probeVal) ? null : probeVal)
                 .input('isCompliant', sql.Bit, 1)
+                .input('picture', sql.NVarChar, picturePath)
                 .query(`
-                    INSERT INTO OE_FridgeReadings (InspectionId, ItemId, FridgeNumber, UnitTemp, DisplayTemp, ProbeTemp, IsCompliant, CreatedAt)
-                    VALUES (@auditId, @itemId, @fridgeNumber, @unitTemp, @displayTemp, @probeTemp, @isCompliant, GETDATE())
+                    INSERT INTO OE_FridgeReadings (InspectionId, ItemId, FridgeNumber, UnitTemp, DisplayTemp, ProbeTemp, IsCompliant, Picture, CreatedAt)
+                    VALUES (@auditId, @itemId, @fridgeNumber, @unitTemp, @displayTemp, @probeTemp, @isCompliant, @picture, GETDATE())
                 `);
         }
         
         // Insert bad readings (IsCompliant = 0)
         for (const reading of (badReadings || [])) {
+            const itemId = parseInt(reading.responseId);
+            if (!itemId) continue;
             const displayVal = parseFloat(reading.displayTemp || reading.display);
             const probeVal = parseFloat(reading.probeTemp || reading.probe);
-            const fridgeNum = parseInt(reading.responseId) || null;
+            let picturePath = null;
+            if (reading.picture) {
+                if (reading.picture.startsWith('data:')) {
+                    picturePath = saveFridgePicture(reading.picture, auditId);
+                } else {
+                    picturePath = reading.picture;
+                }
+            }
             await pool.request()
                 .input('auditId', sql.Int, auditId)
-                .input('itemId', sql.Int, fridgeNum)
-                .input('fridgeNumber', sql.Int, fridgeNum)
+                .input('itemId', sql.Int, itemId)
+                .input('fridgeNumber', sql.Int, null)
                 .input('unitTemp', sql.Decimal(10,2), isNaN(displayVal) ? null : displayVal)
                 .input('displayTemp', sql.Decimal(10,2), isNaN(displayVal) ? null : displayVal)
                 .input('probeTemp', sql.Decimal(10,2), isNaN(probeVal) ? null : probeVal)
                 .input('issue', sql.NVarChar, reading.issue || null)
                 .input('isCompliant', sql.Bit, 0)
+                .input('picture', sql.NVarChar, picturePath)
                 .query(`
-                    INSERT INTO OE_FridgeReadings (InspectionId, ItemId, FridgeNumber, UnitTemp, DisplayTemp, ProbeTemp, Issue, IsCompliant, CreatedAt)
-                    VALUES (@auditId, @itemId, @fridgeNumber, @unitTemp, @displayTemp, @probeTemp, @issue, @isCompliant, GETDATE())
+                    INSERT INTO OE_FridgeReadings (InspectionId, ItemId, FridgeNumber, UnitTemp, DisplayTemp, ProbeTemp, Issue, IsCompliant, Picture, CreatedAt)
+                    VALUES (@auditId, @itemId, @fridgeNumber, @unitTemp, @displayTemp, @probeTemp, @issue, @isCompliant, @picture, GETDATE())
                 `);
         }
         
@@ -3229,28 +3292,49 @@ router.get('/api/audits/:auditId/fridge-readings', async (req, res) => {
         const result = await pool.request()
             .input('auditId', sql.Int, auditId)
             .query(`
-                SELECT Id, ItemId, FridgeNumber, UnitTemp, DisplayTemp, ProbeTemp, Issue, IsCompliant
-                FROM OE_FridgeReadings
-                WHERE InspectionId = @auditId
-                ORDER BY CreatedAt
+                SELECT fr.Id, fr.ItemId, fr.FridgeNumber, fr.UnitTemp, fr.DisplayTemp, fr.ProbeTemp, fr.Issue, fr.IsCompliant, fr.Picture,
+                       i.SectionName
+                FROM OE_FridgeReadings fr
+                LEFT JOIN OE_InspectionItems i ON fr.ItemId = i.Id
+                WHERE fr.InspectionId = @auditId
+                ORDER BY fr.CreatedAt
             `);
         
+        // Auto-detect which sections have fridge readings
+        const enabledSectionsResult = await pool.request()
+            .input('auditId', sql.Int, auditId)
+            .query(`
+                SELECT DISTINCT sec.Id as sectionId
+                FROM OE_FridgeReadings fr
+                INNER JOIN OE_InspectionItems i ON fr.ItemId = i.Id AND i.InspectionId = @auditId
+                INNER JOIN OE_InspectionSections sec ON sec.InspectionId = @auditId AND sec.SectionName = i.SectionName
+                WHERE fr.InspectionId = @auditId
+            `);
+        
+        const enabledSections = {};
+        for (const row of enabledSectionsResult.recordset) {
+            enabledSections[row.sectionId] = true;
+        }
+        
         // Map to frontend property names
-        const mapped = result.recordset.map(r => ({
-            id: r.Id,
-            responseId: r.ItemId || r.FridgeNumber,
-            unit: r.FridgeNumber ? String(r.FridgeNumber) : '',
-            section: '',
-            displayTemp: r.DisplayTemp != null ? String(r.DisplayTemp) : '',
-            probeTemp: r.ProbeTemp != null ? String(r.ProbeTemp) : '',
-            issue: r.Issue || '',
-            isCompliant: r.IsCompliant
-        }));
+        const mapped = result.recordset
+            .filter(r => r.ItemId != null)
+            .map(r => ({
+                id: r.Id,
+                responseId: r.ItemId,
+                unit: r.FridgeNumber ? String(r.FridgeNumber) : '',
+                section: r.SectionName || '',
+                displayTemp: r.DisplayTemp != null ? String(r.DisplayTemp) : '',
+                probeTemp: r.ProbeTemp != null ? String(r.ProbeTemp) : '',
+                issue: r.Issue || '',
+                picture: r.Picture || null,
+                isCompliant: r.IsCompliant
+            }));
         
         const goodReadings = mapped.filter(r => r.isCompliant === true || r.isCompliant === 1);
         const badReadings = mapped.filter(r => r.isCompliant === false || r.isCompliant === 0);
         
-        res.json({ success: true, data: { goodReadings, badReadings, enabledSections: {} } });
+        res.json({ success: true, data: { goodReadings, badReadings, enabledSections } });
     } catch (error) {
         console.error('Error fetching fridge readings:', error);
         res.status(500).json({ success: false, error: error.message });
