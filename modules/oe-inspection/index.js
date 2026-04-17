@@ -3176,32 +3176,34 @@ router.post('/api/audits/:auditId/fridge-readings', async (req, res) => {
         
         // Insert good readings (IsCompliant = 1)
         for (const reading of (goodReadings || [])) {
+            const displayVal = parseFloat(reading.display || reading.displayTemp);
+            const probeVal = parseFloat(reading.probe || reading.probeTemp);
             await pool.request()
                 .input('auditId', sql.Int, auditId)
-                .input('fridgeNumber', sql.NVarChar, reading.unit || null)
-                .input('unitTemp', sql.NVarChar, reading.unit || null)
-                .input('displayTemp', sql.NVarChar, reading.display || reading.displayTemp || null)
-                .input('probeTemp', sql.NVarChar, reading.probe || reading.probeTemp || null)
+                .input('unitTemp', sql.Decimal(10,2), isNaN(displayVal) ? null : displayVal)
+                .input('displayTemp', sql.Decimal(10,2), isNaN(displayVal) ? null : displayVal)
+                .input('probeTemp', sql.Decimal(10,2), isNaN(probeVal) ? null : probeVal)
                 .input('isCompliant', sql.Bit, 1)
                 .query(`
-                    INSERT INTO OE_FridgeReadings (InspectionId, FridgeNumber, UnitTemp, DisplayTemp, ProbeTemp, IsCompliant, CreatedAt)
-                    VALUES (@auditId, @fridgeNumber, @unitTemp, @displayTemp, @probeTemp, @isCompliant, GETDATE())
+                    INSERT INTO OE_FridgeReadings (InspectionId, UnitTemp, DisplayTemp, ProbeTemp, IsCompliant, CreatedAt)
+                    VALUES (@auditId, @unitTemp, @displayTemp, @probeTemp, @isCompliant, GETDATE())
                 `);
         }
         
         // Insert bad readings (IsCompliant = 0)
         for (const reading of (badReadings || [])) {
+            const displayVal = parseFloat(reading.display || reading.displayTemp);
+            const probeVal = parseFloat(reading.probe || reading.probeTemp);
             await pool.request()
                 .input('auditId', sql.Int, auditId)
-                .input('fridgeNumber', sql.NVarChar, reading.unit || null)
-                .input('unitTemp', sql.NVarChar, reading.unit || null)
-                .input('displayTemp', sql.NVarChar, reading.display || reading.displayTemp || null)
-                .input('probeTemp', sql.NVarChar, reading.probe || reading.probeTemp || null)
+                .input('unitTemp', sql.Decimal(10,2), isNaN(displayVal) ? null : displayVal)
+                .input('displayTemp', sql.Decimal(10,2), isNaN(displayVal) ? null : displayVal)
+                .input('probeTemp', sql.Decimal(10,2), isNaN(probeVal) ? null : probeVal)
                 .input('issue', sql.NVarChar, reading.issue || null)
                 .input('isCompliant', sql.Bit, 0)
                 .query(`
-                    INSERT INTO OE_FridgeReadings (InspectionId, FridgeNumber, UnitTemp, DisplayTemp, ProbeTemp, Issue, IsCompliant, CreatedAt)
-                    VALUES (@auditId, @fridgeNumber, @unitTemp, @displayTemp, @probeTemp, @issue, @isCompliant, GETDATE())
+                    INSERT INTO OE_FridgeReadings (InspectionId, UnitTemp, DisplayTemp, ProbeTemp, Issue, IsCompliant, CreatedAt)
+                    VALUES (@auditId, @unitTemp, @displayTemp, @probeTemp, @issue, @isCompliant, GETDATE())
                 `);
         }
         
