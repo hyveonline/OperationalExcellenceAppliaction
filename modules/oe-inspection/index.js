@@ -2571,7 +2571,7 @@ function generateReportHTML(data) {
                 <tbody>
                     ${fridgeReadings.map(r => `
                     <tr>
-                        <td>${r.UnitName || 'N/A'}</td>
+                        <td>${r.FridgeNumber || r.UnitTemp || 'N/A'}</td>
                         <td>${r.DisplayTemp ?? 'N/A'}</td>
                         <td>${r.ProbeTemp ?? 'N/A'}</td>
                         <td>${r.IsCompliant ? '✅ OK' : '❌ Issue'}</td>
@@ -3176,34 +3176,40 @@ router.post('/api/audits/:auditId/fridge-readings', async (req, res) => {
         
         // Insert good readings (IsCompliant = 1)
         for (const reading of (goodReadings || [])) {
-            const displayVal = parseFloat(reading.display || reading.displayTemp);
-            const probeVal = parseFloat(reading.probe || reading.probeTemp);
+            const displayVal = parseFloat(reading.displayTemp || reading.display);
+            const probeVal = parseFloat(reading.probeTemp || reading.probe);
+            const fridgeNum = parseInt(reading.responseId) || null;
             await pool.request()
                 .input('auditId', sql.Int, auditId)
+                .input('itemId', sql.Int, fridgeNum)
+                .input('fridgeNumber', sql.Int, fridgeNum)
                 .input('unitTemp', sql.Decimal(10,2), isNaN(displayVal) ? null : displayVal)
                 .input('displayTemp', sql.Decimal(10,2), isNaN(displayVal) ? null : displayVal)
                 .input('probeTemp', sql.Decimal(10,2), isNaN(probeVal) ? null : probeVal)
                 .input('isCompliant', sql.Bit, 1)
                 .query(`
-                    INSERT INTO OE_FridgeReadings (InspectionId, UnitTemp, DisplayTemp, ProbeTemp, IsCompliant, CreatedAt)
-                    VALUES (@auditId, @unitTemp, @displayTemp, @probeTemp, @isCompliant, GETDATE())
+                    INSERT INTO OE_FridgeReadings (InspectionId, ItemId, FridgeNumber, UnitTemp, DisplayTemp, ProbeTemp, IsCompliant, CreatedAt)
+                    VALUES (@auditId, @itemId, @fridgeNumber, @unitTemp, @displayTemp, @probeTemp, @isCompliant, GETDATE())
                 `);
         }
         
         // Insert bad readings (IsCompliant = 0)
         for (const reading of (badReadings || [])) {
-            const displayVal = parseFloat(reading.display || reading.displayTemp);
-            const probeVal = parseFloat(reading.probe || reading.probeTemp);
+            const displayVal = parseFloat(reading.displayTemp || reading.display);
+            const probeVal = parseFloat(reading.probeTemp || reading.probe);
+            const fridgeNum = parseInt(reading.responseId) || null;
             await pool.request()
                 .input('auditId', sql.Int, auditId)
+                .input('itemId', sql.Int, fridgeNum)
+                .input('fridgeNumber', sql.Int, fridgeNum)
                 .input('unitTemp', sql.Decimal(10,2), isNaN(displayVal) ? null : displayVal)
                 .input('displayTemp', sql.Decimal(10,2), isNaN(displayVal) ? null : displayVal)
                 .input('probeTemp', sql.Decimal(10,2), isNaN(probeVal) ? null : probeVal)
                 .input('issue', sql.NVarChar, reading.issue || null)
                 .input('isCompliant', sql.Bit, 0)
                 .query(`
-                    INSERT INTO OE_FridgeReadings (InspectionId, UnitTemp, DisplayTemp, ProbeTemp, Issue, IsCompliant, CreatedAt)
-                    VALUES (@auditId, @unitTemp, @displayTemp, @probeTemp, @issue, @isCompliant, GETDATE())
+                    INSERT INTO OE_FridgeReadings (InspectionId, ItemId, FridgeNumber, UnitTemp, DisplayTemp, ProbeTemp, Issue, IsCompliant, CreatedAt)
+                    VALUES (@auditId, @itemId, @fridgeNumber, @unitTemp, @displayTemp, @probeTemp, @issue, @isCompliant, GETDATE())
                 `);
         }
         
@@ -3223,16 +3229,26 @@ router.get('/api/audits/:auditId/fridge-readings', async (req, res) => {
         const result = await pool.request()
             .input('auditId', sql.Int, auditId)
             .query(`
-                SELECT Id, FridgeNumber, UnitTemp as unit, DisplayTemp as display, 
-                       ProbeTemp as probe, Issue as issue, IsCompliant
+                SELECT Id, ItemId, FridgeNumber, UnitTemp, DisplayTemp, ProbeTemp, Issue, IsCompliant
                 FROM OE_FridgeReadings
                 WHERE InspectionId = @auditId
                 ORDER BY CreatedAt
             `);
         
+        // Map to frontend property names
+        const mapped = result.recordset.map(r => ({
+            id: r.Id,
+            responseId: r.ItemId || r.FridgeNumber,
+            unit: r.FridgeNumber ? String(r.FridgeNumber) : '',
+            section: '',
+            displayTemp: r.DisplayTemp != null ? String(r.DisplayTemp) : '',
+            probeTemp: r.ProbeTemp != null ? String(r.ProbeTemp) : '',
+            issue: r.Issue || '',
+            isCompliant: r.IsCompliant
+        }));
         
-        const goodReadings = result.recordset.filter(r => r.IsCompliant === true || r.IsCompliant === 1);
-        const badReadings = result.recordset.filter(r => r.IsCompliant === false || r.IsCompliant === 0);
+        const goodReadings = mapped.filter(r => r.isCompliant === true || r.isCompliant === 1);
+        const badReadings = mapped.filter(r => r.isCompliant === false || r.isCompliant === 0);
         
         res.json({ success: true, data: { goodReadings, badReadings, enabledSections: {} } });
     } catch (error) {
