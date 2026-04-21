@@ -7802,7 +7802,7 @@ router.get('/job-monitor', async (req, res) => {
                     async function previewInspectionEmail(module, type, base64Data) {
                         // Decode Base64 data
                         const inspection = JSON.parse(atob(base64Data));
-                        const templateKey = module.toLowerCase() + '_inspection_' + type;
+                        const templateKey = module.toUpperCase() + '_INSPECTION_' + type.toUpperCase();
                         try {
                             const res = await fetch('/admin/api/job-monitor/preview-inspection-email', {
                                 method: 'POST',
