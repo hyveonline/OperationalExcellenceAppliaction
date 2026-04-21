@@ -424,22 +424,25 @@ router.get('/api/schemas', async (req, res) => {
     try {
         const pool = await getPool();
         const result = await pool.request().query(`
-            SELECT t.Id as SchemaID, t.TemplateName as SchemaName, t.Description, t.IsActive,
-                ISNULL(s.SettingValue, '80') as overallPassingGrade
+            SELECT t.Id as schemaId, t.TemplateName as schemaName, t.Description as description, t.IsActive as isActive,
+                ISNULL(s.SettingValue, '80') as overallPassingGrade,
+                ISNULL(u.DisplayName, 'System') as createdBy,
+                (SELECT COUNT(*) FROM RCV_InspectionTemplateSections ts WHERE ts.TemplateId = t.Id) as sectionCount
             FROM RCV_InspectionTemplates t
             LEFT JOIN RCV_InspectionSettings s ON s.SettingKey = 'PASSING_SCORE_' + CAST(t.Id AS VARCHAR)
+            LEFT JOIN Users u ON t.CreatedBy = u.Id
             WHERE t.IsActive = 1 ORDER BY t.TemplateName
         `);
         const schemas = [];
         for (const schema of result.recordset) {
             const sectionsResult = await pool.request()
-                .input('templateId', sql.Int, schema.SchemaID)
-                .query(`SELECT ts.Id as SectionID, ts.SectionName, ts.SectionOrder, ts.SectionIcon, ISNULL(ts.PassingGrade, 80) as PassingGrade
+                .input('templateId', sql.Int, schema.schemaId)
+                .query(`SELECT ts.Id as sectionId, ts.SectionName as sectionName, ts.SectionOrder as sectionOrder, ts.SectionIcon as sectionIcon, ISNULL(ts.PassingGrade, 80) as passingGrade
                     FROM RCV_InspectionTemplateSections ts WHERE ts.TemplateId = @templateId ORDER BY ts.SectionOrder`);
             schemas.push({ ...schema, sections: sectionsResult.recordset });
         }
-        res.json({ success: true, schemas });
-    } catch (error) { res.json({ success: true, schemas: [] }); }
+        res.json({ success: true, data: schemas });
+    } catch (error) { res.json({ success: true, data: [] }); }
 });
 
 router.post('/api/schema/:schemaId', async (req, res) => {
@@ -584,7 +587,14 @@ router.post('/api/section-icons/:schemaId', async (req, res) => {
 router.get('/api/templates/schemas', async (req, res) => {
     try {
         const pool = await getPool();
-        const result = await pool.request().query('SELECT Id as schemaId, TemplateName as schemaName, Description as description, IsDefault as isDefault FROM RCV_InspectionTemplates WHERE IsActive = 1 ORDER BY TemplateName');
+        const result = await pool.request().query(`
+            SELECT t.Id as schemaId, t.TemplateName as schemaName, t.Description as description, t.IsDefault as isDefault,
+                ISNULL(u.DisplayName, 'System') as createdBy,
+                (SELECT COUNT(*) FROM RCV_InspectionTemplateSections ts WHERE ts.TemplateId = t.Id) as sectionCount
+            FROM RCV_InspectionTemplates t
+            LEFT JOIN Users u ON t.CreatedBy = u.Id
+            WHERE t.IsActive = 1 ORDER BY t.TemplateName
+        `);
         res.json({ success: true, data: result.recordset });
     } catch (error) { res.json({ success: false, error: error.message }); }
 });
@@ -648,7 +658,13 @@ router.get('/api/templates/schemas/:schemaId/sections', async (req, res) => {
     try {
         const pool = await getPool();
         const result = await pool.request().input('templateId', sql.Int, req.params.schemaId)
-            .query('SELECT Id as sectionId, SectionName as sectionName, SectionIcon as sectionIcon, SectionOrder as sectionNumber FROM RCV_InspectionTemplateSections WHERE TemplateId = @templateId AND IsActive = 1 ORDER BY SectionOrder');
+            .query(`
+                SELECT ts.Id as sectionId, ts.SectionName as sectionName, ts.SectionIcon as sectionIcon, ts.SectionOrder as sectionNumber,
+                    (SELECT COUNT(*) FROM RCV_InspectionTemplateItems ti WHERE ti.SectionId = ts.Id) as itemCount
+                FROM RCV_InspectionTemplateSections ts 
+                WHERE ts.TemplateId = @templateId AND ts.IsActive = 1 
+                ORDER BY ts.SectionOrder
+            `);
         res.json({ success: true, data: result.recordset });
     } catch (error) { res.json({ success: false, error: error.message }); }
 });
