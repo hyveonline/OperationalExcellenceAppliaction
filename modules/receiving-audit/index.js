@@ -12,6 +12,9 @@ const sql = require('mssql');
 const fs = require('fs');
 const multer = require('multer');
 const sharp = require('sharp');
+const emailTemplateBuilder = require('../../services/email-template-builder');
+const emailService = require('../../services/email-service');
+const { getFreshAccessToken } = require('../../auth/auth-server');
 
 // Configure multer for receiving audit photo uploads (file storage, NOT base64)
 const uploadDir = path.join(__dirname, '..', '..', 'uploads', 'receiving-audit');
@@ -1524,6 +1527,7 @@ function generateRcvReportHTML(data) {
     <div class="action-bar">
         <button class="btn-back" onclick="goBack()">← Back</button>
         <button class="btn-pdf" onclick="exportToPDF()">📄 PDF</button>
+        <button class="btn-email" onclick="openEmailModal('full')">📧 Send Report</button>
         <button class="btn-print" onclick="window.print()">🖨️ Print</button>
     </div>
 
@@ -1545,7 +1549,54 @@ function generateRcvReportHTML(data) {
         }
         function openLightbox(src) { document.getElementById('lightbox-img').src = src; document.getElementById('lightbox').classList.add('active'); }
         function closeLightbox() { document.getElementById('lightbox').classList.remove('active'); }
+        
+        const auditId = ${audit.Id};
+        
+        async function openEmailModal(reportType) {
+            try {
+                const btn = document.querySelector('.btn-email');
+                const originalText = btn.innerHTML;
+                btn.innerHTML = '⏳ Loading...';
+                btn.disabled = true;
+                
+                const recipientsRes = await fetch('/receiving-audit/api/audits/' + auditId + '/email-recipients?reportType=' + reportType);
+                const recipientsData = await recipientsRes.json();
+                
+                if (!recipientsData.success) {
+                    throw new Error(recipientsData.error || 'Failed to load recipients');
+                }
+                
+                const previewRes = await fetch('/receiving-audit/api/audits/' + auditId + '/email-preview?reportType=' + reportType);
+                const previewData = await previewRes.json();
+                
+                if (!previewData.success) {
+                    throw new Error(previewData.error || 'Failed to generate preview');
+                }
+                
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                
+                EmailModal.show({
+                    module: 'RCV',
+                    from: recipientsData.from,
+                    to: recipientsData.to,
+                    ccSuggestions: recipientsData.ccSuggestions,
+                    subject: previewData.subject,
+                    bodyHtml: previewData.bodyHtml,
+                    reportType: reportType,
+                    auditId: auditId,
+                    sendUrl: '/receiving-audit/api/audits/' + auditId + '/send-report-email',
+                    searchEndpoint: '/operational-excellence/api/users'
+                });
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error preparing email: ' + error.message);
+                const btn = document.querySelector('.btn-email');
+                if (btn) { btn.innerHTML = '📧 Send Report'; btn.disabled = false; }
+            }
+        }
     </script>
+    <script src="/js/email-modal.js"></script>
 
     <div class="container">
         <!-- Filter Toolbar -->
@@ -2290,6 +2341,359 @@ router.delete('/api/gallery/:auditId/unassigned', async (req, res) => {
         res.json({ success: true, deleted: files.recordset.length });
     } catch (error) {
         console.error('Error deleting unassigned pictures:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ============ EMAIL FUNCTIONALITY ============
+
+// Get email recipients for RCV audit
+router.get('/api/audits/:auditId/email-recipients', async (req, res) => {
+    try {
+        const { auditId } = req.params;
+        const { reportType } = req.query; // 'full' or 'action-plan'
+        const pool = await getPool();
+        
+        // Get audit info with store
+        const auditResult = await pool.request()
+            .input('auditId', sql.Int, auditId)
+            .query(`
+                SELECT 
+                    i.Id as auditId,
+                    i.DocumentNumber,
+                    i.StoreId,
+                    s.StoreName,
+                    s.StoreCode,
+                    s.BrandId,
+                    b.BrandName,
+                    b.BrandCode,
+                    b.PrimaryColor as BrandColor,
+                    i.Score as TotalScore,
+                    i.InspectionDate,
+                    i.Inspectors,
+                    i.Status,
+                    i.CreatedBy
+                FROM RCV_Inspections i
+                INNER JOIN Stores s ON i.StoreId = s.Id
+                LEFT JOIN Brands b ON s.BrandId = b.Id
+                WHERE i.Id = @auditId
+            `);
+        
+        if (auditResult.recordset.length === 0) {
+            return res.status(404).json({ success: false, error: 'Audit not found' });
+        }
+        
+        const audit = auditResult.recordset[0];
+        let toRecipient = null;
+        
+        // For action-plan reports, send to the inspector who created the audit
+        if (reportType === 'action-plan' && audit.CreatedBy) {
+            const inspectorResult = await pool.request()
+                .input('userId', sql.Int, audit.CreatedBy)
+                .query(`SELECT Id, Email, DisplayName FROM Users WHERE Id = @userId AND IsActive = 1`);
+            
+            if (inspectorResult.recordset.length > 0) {
+                const inspector = inspectorResult.recordset[0];
+                toRecipient = { email: inspector.Email, name: inspector.DisplayName };
+            }
+        } else {
+            // For full reports, send to store manager
+            const storeManagerResult = await pool.request()
+                .input('storeId', sql.Int, audit.StoreId)
+                .query(`
+                    SELECT TOP 1 u.Id, u.Email, u.DisplayName
+                    FROM StoreManagerAssignments sma
+                    INNER JOIN Users u ON sma.UserId = u.Id
+                    WHERE sma.StoreId = @storeId AND sma.IsPrimary = 1 AND u.IsActive = 1
+                `);
+            
+            if (storeManagerResult.recordset.length > 0) {
+                const storeManager = storeManagerResult.recordset[0];
+                toRecipient = { email: storeManager.Email, name: storeManager.DisplayName };
+            }
+        }
+        
+        // Get CC suggestions (brand responsibles)
+        const ccSuggestions = [];
+        if (audit.BrandId) {
+            const brandResponsiblesResult = await pool.request()
+                .input('brandId', sql.Int, audit.BrandId)
+                .query(`
+                    SELECT 
+                        br.AreaManagerId, am.Email as AreaManagerEmail, am.DisplayName as AreaManagerName,
+                        br.HeadOfOpsId, ho.Email as HeadOfOpsEmail, ho.DisplayName as HeadOfOpsName
+                    FROM OE_BrandResponsibles br
+                    LEFT JOIN Users am ON br.AreaManagerId = am.Id AND am.IsActive = 1
+                    LEFT JOIN Users ho ON br.HeadOfOpsId = ho.Id AND ho.IsActive = 1
+                    WHERE br.BrandId = @brandId AND br.IsActive = 1
+                `);
+            
+            if (brandResponsiblesResult.recordset.length > 0) {
+                const br = brandResponsiblesResult.recordset[0];
+                if (br.AreaManagerEmail) {
+                    ccSuggestions.push({ email: br.AreaManagerEmail, name: br.AreaManagerName, role: 'Area Manager' });
+                }
+                if (br.HeadOfOpsEmail) {
+                    ccSuggestions.push({ email: br.HeadOfOpsEmail, name: br.HeadOfOpsName, role: 'Head of Operations' });
+                }
+            }
+        }
+        
+        res.json({
+            success: true,
+            audit: {
+                auditId: audit.auditId,
+                documentNumber: audit.DocumentNumber,
+                storeName: audit.StoreName,
+                storeCode: audit.StoreCode,
+                brandName: audit.BrandName,
+                brandCode: audit.BrandCode,
+                totalScore: audit.TotalScore,
+                inspectionDate: audit.InspectionDate,
+                inspectors: audit.Inspectors,
+                status: audit.Status
+            },
+            to: toRecipient,
+            ccSuggestions: ccSuggestions,
+            from: req.currentUser ? {
+                email: req.currentUser.email,
+                name: req.currentUser.displayName || req.currentUser.name || req.currentUser.email
+            } : null
+        });
+    } catch (error) {
+        console.error('Error fetching email recipients:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Get email preview for RCV audit
+router.get('/api/audits/:auditId/email-preview', async (req, res) => {
+    try {
+        const { auditId } = req.params;
+        const { reportType } = req.query; // 'full' or 'action-plan'
+        const pool = await getPool();
+        
+        // Get audit details
+        const auditResult = await pool.request()
+            .input('auditId', sql.Int, auditId)
+            .query(`
+                SELECT 
+                    i.Id, i.DocumentNumber, i.StoreId, s.StoreName, s.StoreCode,
+                    b.BrandCode, i.Score as TotalScore, i.InspectionDate, i.Inspectors, i.Status,
+                    i.Cycle, i.Year
+                FROM RCV_Inspections i
+                INNER JOIN Stores s ON i.StoreId = s.Id
+                LEFT JOIN Brands b ON s.BrandId = b.Id
+                WHERE i.Id = @auditId
+            `);
+        
+        if (auditResult.recordset.length === 0) {
+            return res.status(404).json({ success: false, error: 'Audit not found' });
+        }
+        
+        const audit = auditResult.recordset[0];
+        
+        // Build report URL
+        const appUrl = process.env.APP_URL || `https://${req.get('host')}`;
+        const reportUrl = reportType === 'action-plan' 
+            ? `${appUrl}/receiving-audit/api/audits/reports/RCV_ActionPlan_${audit.DocumentNumber}_${new Date().toISOString().split('T')[0]}.html`
+            : `${appUrl}/receiving-audit/api/audits/reports/RCV_Report_audit-${auditId}_${audit.DocumentNumber}_${new Date().toISOString().split('T')[0]}.html`;
+        
+        // Get findings stats for action plan
+        let findingsStats = null;
+        if (reportType === 'action-plan') {
+            const findingsResult = await pool.request()
+                .input('auditId', sql.Int, auditId)
+                .query(`
+                    SELECT 
+                        COUNT(*) as total,
+                        SUM(CASE WHEN Priority = 'Critical' OR Priority = 'High' THEN 1 ELSE 0 END) as high,
+                        SUM(CASE WHEN Priority = 'Medium' THEN 1 ELSE 0 END) as medium,
+                        SUM(CASE WHEN Priority = 'Low' THEN 1 ELSE 0 END) as low
+                    FROM RCV_InspectionActionItems
+                    WHERE InspectionId = @auditId
+                `);
+            findingsStats = findingsResult.recordset[0];
+        }
+        
+        // Build email using template builder
+        const auditData = {
+            documentNumber: audit.DocumentNumber,
+            storeName: audit.StoreName,
+            storeCode: audit.StoreCode,
+            brandCode: audit.BrandCode,
+            inspectionDate: audit.InspectionDate,
+            auditDate: audit.InspectionDate,
+            inspectorName: audit.Inspectors,
+            auditors: audit.Inspectors,
+            totalScore: audit.TotalScore,
+            status: audit.Status,
+            cycle: audit.Cycle,
+            year: audit.Year,
+            passingGrade: 80
+        };
+        
+        // Use database template
+        const emailContent = await emailTemplateBuilder.buildEmailFromDB('RCV', reportType, auditData, reportUrl, findingsStats);
+        
+        res.json({
+            success: true,
+            subject: emailContent.subject,
+            bodyHtml: emailContent.body,
+            reportUrl: reportUrl
+        });
+    } catch (error) {
+        console.error('Error generating email preview:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Send RCV report email
+router.post('/api/audits/:auditId/send-report-email', async (req, res) => {
+    try {
+        const { auditId } = req.params;
+        const { reportType, to, cc } = req.body;
+        
+        // Handle both array format and object format
+        let toRecipient;
+        if (Array.isArray(to) && to.length > 0) {
+            toRecipient = to[0];
+        } else if (to && to.email) {
+            toRecipient = to;
+        }
+        
+        if (!toRecipient || !toRecipient.email) {
+            return res.status(400).json({ success: false, error: 'Recipient (to) is required' });
+        }
+        
+        const pool = await getPool();
+        
+        // Get audit details
+        const auditResult = await pool.request()
+            .input('auditId', sql.Int, auditId)
+            .query(`
+                SELECT 
+                    i.Id, i.DocumentNumber, i.StoreId, s.StoreName, s.StoreCode,
+                    s.BrandId, b.BrandName, b.BrandCode, 
+                    i.Score as TotalScore, i.InspectionDate, i.Inspectors, i.Status, i.Cycle, i.Year
+                FROM RCV_Inspections i
+                INNER JOIN Stores s ON i.StoreId = s.Id
+                LEFT JOIN Brands b ON s.BrandId = b.Id
+                WHERE i.Id = @auditId
+            `);
+        
+        if (auditResult.recordset.length === 0) {
+            return res.status(404).json({ success: false, error: 'Audit not found' });
+        }
+        
+        const audit = auditResult.recordset[0];
+        
+        // Build report URL
+        const appUrl = process.env.APP_URL || `https://${req.get('host')}`;
+        const reportUrl = reportType === 'action-plan' 
+            ? `${appUrl}/receiving-audit/api/audits/reports/RCV_ActionPlan_${audit.DocumentNumber}_${new Date().toISOString().split('T')[0]}.html`
+            : `${appUrl}/receiving-audit/api/audits/reports/RCV_Report_audit-${auditId}_${audit.DocumentNumber}_${new Date().toISOString().split('T')[0]}.html`;
+        
+        // Get findings stats for action plan
+        let findingsStats = null;
+        if (reportType === 'action-plan') {
+            const findingsResult = await pool.request()
+                .input('auditId', sql.Int, auditId)
+                .query(`
+                    SELECT 
+                        COUNT(*) as total,
+                        SUM(CASE WHEN Priority = 'Critical' OR Priority = 'High' THEN 1 ELSE 0 END) as high,
+                        SUM(CASE WHEN Priority = 'Medium' THEN 1 ELSE 0 END) as medium,
+                        SUM(CASE WHEN Priority = 'Low' THEN 1 ELSE 0 END) as low
+                    FROM RCV_InspectionActionItems
+                    WHERE InspectionId = @auditId
+                `);
+            findingsStats = findingsResult.recordset[0];
+        }
+        
+        // Build email content
+        const auditData = {
+            documentNumber: audit.DocumentNumber,
+            storeName: audit.StoreName,
+            storeCode: audit.StoreCode,
+            brandCode: audit.BrandCode,
+            inspectionDate: audit.InspectionDate,
+            auditDate: audit.InspectionDate,
+            inspectorName: audit.Inspectors,
+            auditors: audit.Inspectors,
+            totalScore: audit.TotalScore,
+            status: audit.Status,
+            cycle: audit.Cycle,
+            year: audit.Year,
+            passingGrade: 80
+        };
+        
+        const emailContent = await emailTemplateBuilder.buildEmailFromDB('RCV', reportType, auditData, reportUrl, findingsStats);
+        
+        // Build CC string
+        const ccEmails = cc && cc.length > 0 ? cc.map(c => c.email).join(',') : null;
+        
+        // Get fresh access token for the current user
+        let accessToken;
+        try {
+            accessToken = await getFreshAccessToken(req.currentUser);
+        } catch (tokenError) {
+            console.error('[RCV] Token refresh failed:', tokenError.message);
+            return res.status(401).json({ 
+                success: false, 
+                error: 'Your session has expired. Please log out and log in again.',
+                needsRelogin: true 
+            });
+        }
+        
+        // Send email from the logged-in user's account
+        const emailResult = await emailService.sendEmail({
+            to: toRecipient.email,
+            subject: emailContent.subject,
+            body: emailContent.body,
+            cc: ccEmails,
+            accessToken: accessToken
+        });
+        
+        // Log the email
+        await pool.request()
+            .input('auditId', sql.Int, auditId)
+            .input('documentNumber', sql.NVarChar, audit.DocumentNumber)
+            .input('module', sql.NVarChar, 'RCV')
+            .input('reportType', sql.NVarChar, reportType)
+            .input('sentBy', sql.Int, req.currentUser?.userId || 0)
+            .input('sentByEmail', sql.NVarChar, req.currentUser?.email || 'Unknown')
+            .input('sentByName', sql.NVarChar, req.currentUser?.displayName || 'Unknown')
+            .input('sentTo', sql.NVarChar, JSON.stringify([toRecipient]))
+            .input('ccRecipients', sql.NVarChar, cc ? JSON.stringify(cc) : null)
+            .input('subject', sql.NVarChar, emailContent.subject)
+            .input('reportUrl', sql.NVarChar, reportUrl)
+            .input('status', sql.NVarChar, emailResult.success ? 'sent' : 'failed')
+            .input('errorMessage', sql.NVarChar, emailResult.error || null)
+            .input('storeId', sql.Int, audit.StoreId)
+            .input('storeName', sql.NVarChar, audit.StoreName)
+            .input('brandId', sql.Int, audit.BrandId)
+            .input('brandName', sql.NVarChar, audit.BrandName)
+            .query(`
+                INSERT INTO ReportEmailLog 
+                (AuditId, DocumentNumber, Module, ReportType, SentBy, SentByEmail, SentByName, 
+                 SentTo, CcRecipients, Subject, ReportUrl, Status, ErrorMessage, 
+                 StoreId, StoreName, BrandId, BrandName, SentAt)
+                VALUES 
+                (@auditId, @documentNumber, @module, @reportType, @sentBy, @sentByEmail, @sentByName,
+                 @sentTo, @ccRecipients, @subject, @reportUrl, @status, @errorMessage,
+                 @storeId, @storeName, @brandId, @brandName, GETDATE())
+            `);
+        
+        if (emailResult.success) {
+            console.log(`✅ RCV Report email sent: ${audit.DocumentNumber} to ${toRecipient.email}`);
+            res.json({ success: true, message: 'Email sent successfully' });
+        } else {
+            console.error(`❌ RCV Report email failed: ${audit.DocumentNumber}`, emailResult.error);
+            res.status(500).json({ success: false, error: emailResult.error || 'Failed to send email' });
+        }
+    } catch (error) {
+        console.error('Error sending report email:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });

@@ -168,6 +168,7 @@
     <div class="action-bar">
         <button class="btn-back" onclick="goBack()">← Back</button>
         <button class="btn-pdf" onclick="exportToPDF()">📄 PDF</button>
+        <button class="btn-email" onclick="openEmailModal('full')">📧 Send Report</button>
         <button class="btn-print" onclick="window.print()">🖨️ Print</button>
     </div>
 
@@ -189,7 +190,54 @@
         }
         function openLightbox(src) { document.getElementById('lightbox-img').src = src; document.getElementById('lightbox').classList.add('active'); }
         function closeLightbox() { document.getElementById('lightbox').classList.remove('active'); }
+        
+        const auditId = 2;
+        
+        async function openEmailModal(reportType) {
+            try {
+                const btn = document.querySelector('.btn-email');
+                const originalText = btn.innerHTML;
+                btn.innerHTML = '⏳ Loading...';
+                btn.disabled = true;
+                
+                const recipientsRes = await fetch('/receiving-audit/api/audits/' + auditId + '/email-recipients?reportType=' + reportType);
+                const recipientsData = await recipientsRes.json();
+                
+                if (!recipientsData.success) {
+                    throw new Error(recipientsData.error || 'Failed to load recipients');
+                }
+                
+                const previewRes = await fetch('/receiving-audit/api/audits/' + auditId + '/email-preview?reportType=' + reportType);
+                const previewData = await previewRes.json();
+                
+                if (!previewData.success) {
+                    throw new Error(previewData.error || 'Failed to generate preview');
+                }
+                
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                
+                EmailModal.show({
+                    module: 'RCV',
+                    from: recipientsData.from,
+                    to: recipientsData.to,
+                    ccSuggestions: recipientsData.ccSuggestions,
+                    subject: previewData.subject,
+                    bodyHtml: previewData.bodyHtml,
+                    reportType: reportType,
+                    auditId: auditId,
+                    sendUrl: '/receiving-audit/api/audits/' + auditId + '/send-report-email',
+                    searchEndpoint: '/operational-excellence/api/users'
+                });
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error preparing email: ' + error.message);
+                const btn = document.querySelector('.btn-email');
+                if (btn) { btn.innerHTML = '📧 Send Report'; btn.disabled = false; }
+            }
+        }
     </script>
+    <script src="/js/email-modal.js"></script>
 
     <div class="container">
         <!-- Filter Toolbar -->
@@ -280,7 +328,7 @@
         </div>
 
         <div class="footer">
-            Report generated on 4/21/2026, 1:30:46 PM | Receiving Audit System
+            Report generated on 4/21/2026, 2:09:34 PM | Receiving Audit System
         </div>
     </div>
 
