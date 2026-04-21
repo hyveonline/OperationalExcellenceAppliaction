@@ -80,36 +80,216 @@
 
         .filters-bar {
             background: white;
-            padding: 20px 30px;
-            border-radius: 16px;
+            padding: 16px 24px;
+            border-radius: 12px;
             margin-bottom: 20px;
             display: flex;
-            gap: 20px;
+            gap: 12px;
             flex-wrap: wrap;
-            align-items: center;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            align-items: flex-end;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
         }
 
         .filter-group {
             display: flex;
             flex-direction: column;
-            gap: 4px;
+            gap: 6px;
+            flex: 0 0 auto;
         }
 
         .filter-group label {
-            font-size: 12px;
+            font-size: 11px;
             color: #6b7280;
             font-weight: 600;
             text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         .filter-group select,
         .filter-group input {
-            padding: 10px 14px;
+            padding: 8px 12px;
             border: 1px solid #e5e7eb;
-            border-radius: 8px;
-            font-size: 14px;
-            min-width: 150px;
+            border-radius: 6px;
+            font-size: 13px;
+            min-width: 130px;
+            height: 38px;
+            background: #fafafa;
+            transition: all 0.2s;
+        }
+
+        .filter-group select:hover,
+        .filter-group input:hover {
+            border-color: #10b981;
+            background: white;
+        }
+
+        .filter-group select:focus,
+        .filter-group input:focus {
+            outline: none;
+            border-color: #10b981;
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+            background: white;
+        }
+
+        /* Multi-select dropdown */
+        .multi-select {
+            position: relative;
+            min-width: 160px;
+        }
+
+        .multi-select-trigger {
+            padding: 8px 12px;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            font-size: 13px;
+            background: #fafafa;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+            height: 38px;
+            transition: all 0.2s;
+        }
+
+        .multi-select-trigger:hover {
+            border-color: #10b981;
+            background: white;
+        }
+
+        .multi-select.open .multi-select-trigger {
+            border-color: #10b981;
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+            background: white;
+        }
+
+        .multi-select-trigger .selected-text {
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: #374151;
+        }
+
+        .multi-select-trigger .selected-text.has-selection {
+            color: #10b981;
+            font-weight: 600;
+        }
+
+        .multi-select-trigger .arrow {
+            font-size: 10px;
+            color: #9ca3af;
+            transition: transform 0.2s;
+        }
+
+        .multi-select.open .multi-select-trigger .arrow {
+            transform: rotate(180deg);
+            color: #10b981;
+        }
+
+        .multi-select-dropdown {
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            min-width: 240px;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+            z-index: 1000;
+            display: none;
+            max-height: 320px;
+            overflow: hidden;
+        }
+
+        .multi-select.open .multi-select-dropdown {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .multi-select-search {
+            padding: 10px 12px;
+            border-bottom: 1px solid #f3f4f6;
+            background: #fafafa;
+        }
+
+        .multi-select-search input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            font-size: 13px;
+            background: white;
+            min-width: auto;
+            height: auto;
+        }
+
+        .multi-select-search input:focus {
+            outline: none;
+            border-color: #10b981;
+        }
+
+        .multi-select-actions {
+            display: flex;
+            gap: 6px;
+            padding: 8px 12px;
+            border-bottom: 1px solid #f3f4f6;
+            background: #fafafa;
+        }
+
+        .multi-select-actions button {
+            flex: 1;
+            padding: 6px 12px;
+            border: none;
+            border-radius: 5px;
+            background: #e5e7eb;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: #4b5563;
+        }
+
+        .multi-select-actions button:hover {
+            background: #10b981;
+            color: white;
+        }
+
+        .multi-select-options {
+            padding: 6px 0;
+            overflow-y: auto;
+            max-height: 220px;
+        }
+
+        .multi-select-option {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 14px;
+            cursor: pointer;
+            transition: background 0.1s;
+        }
+
+        .multi-select-option:hover {
+            background: #ecfdf5;
+        }
+
+        .multi-select-option input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+            accent-color: #10b981;
+        }
+
+        .multi-select-option label {
+            cursor: pointer;
+            flex: 1;
+            font-size: 13px;
+            color: #374151;
+        }
+
+        .multi-select-option.hidden {
+            display: none;
         }
 
         .stats-row {
@@ -741,15 +921,41 @@
             </div>
             <div class="filter-group">
                 <label>Brand</label>
-                <select id="brandFilter" onchange="applyFilters()">
-                    <option value="">All Brands</option>
-                </select>
+                <div class="multi-select" id="brandMultiSelect">
+                    <div class="multi-select-trigger" onclick="toggleMultiSelect('brandMultiSelect')">
+                        <span class="selected-text">All Brands</span>
+                        <span class="arrow">▼</span>
+                    </div>
+                    <div class="multi-select-dropdown">
+                        <div class="multi-select-search">
+                            <input type="text" placeholder="Search brands..." oninput="filterMultiSelectOptions('brandMultiSelect', this.value)">
+                        </div>
+                        <div class="multi-select-actions">
+                            <button onclick="selectAllMulti('brandMultiSelect')">Select All</button>
+                            <button onclick="clearAllMulti('brandMultiSelect')">Clear All</button>
+                        </div>
+                        <div class="multi-select-options" id="brandOptions"></div>
+                    </div>
+                </div>
             </div>
             <div class="filter-group">
                 <label>Store</label>
-                <select id="storeFilter" onchange="applyFilters()">
-                    <option value="">All Stores</option>
-                </select>
+                <div class="multi-select" id="storeMultiSelect">
+                    <div class="multi-select-trigger" onclick="toggleMultiSelect('storeMultiSelect')">
+                        <span class="selected-text">All Stores</span>
+                        <span class="arrow">▼</span>
+                    </div>
+                    <div class="multi-select-dropdown">
+                        <div class="multi-select-search">
+                            <input type="text" placeholder="Search stores..." oninput="filterMultiSelectOptions('storeMultiSelect', this.value)">
+                        </div>
+                        <div class="multi-select-actions">
+                            <button onclick="selectAllMulti('storeMultiSelect')">Select All</button>
+                            <button onclick="clearAllMulti('storeMultiSelect')">Clear All</button>
+                        </div>
+                        <div class="multi-select-options" id="storeOptions"></div>
+                    </div>
+                </div>
             </div>
             <div class="filter-group">
                 <label>Year</label>
@@ -848,25 +1054,25 @@
         }
 
         function populateFilters() {
-            // Populate brands
+            // Populate brands (multi-select)
             const brands = [...new Set(allAudits.map(a => a.BrandName).filter(Boolean))].sort();
-            const brandSelect = document.getElementById('brandFilter');
-            brands.forEach(brand => {
-                const option = document.createElement('option');
-                option.value = brand;
-                option.textContent = brand;
-                brandSelect.appendChild(option);
-            });
+            const brandOptions = document.getElementById('brandOptions');
+            brandOptions.innerHTML = brands.map(brand => `
+                <div class="multi-select-option" data-value="${brand}">
+                    <input type="checkbox" id="brand_${brand.replace(/[^a-zA-Z0-9]/g, '_')}" value="${brand}" onchange="updateMultiSelectDisplay('brandMultiSelect'); applyFilters()">
+                    <label for="brand_${brand.replace(/[^a-zA-Z0-9]/g, '_')}">${brand}</label>
+                </div>
+            `).join('');
 
-            // Populate stores
+            // Populate stores (multi-select)
             const stores = [...new Set(allAudits.map(a => a.StoreName).filter(Boolean))].sort();
-            const storeSelect = document.getElementById('storeFilter');
-            stores.forEach(store => {
-                const option = document.createElement('option');
-                option.value = store;
-                option.textContent = store;
-                storeSelect.appendChild(option);
-            });
+            const storeOptions = document.getElementById('storeOptions');
+            storeOptions.innerHTML = stores.map(store => `
+                <div class="multi-select-option" data-value="${store}">
+                    <input type="checkbox" id="store_${store.replace(/[^a-zA-Z0-9]/g, '_')}" value="${store}" onchange="updateMultiSelectDisplay('storeMultiSelect'); applyFilters()">
+                    <label for="store_${store.replace(/[^a-zA-Z0-9]/g, '_')}">${store}</label>
+                </div>
+            `).join('');
 
             // Populate years
             const years = [...new Set(allAudits.map(a => a.AuditYear).filter(Boolean))].sort((a, b) => b - a);
@@ -895,18 +1101,98 @@
             document.getElementById('avgScore').textContent = avgScore !== '-' ? avgScore + '%' : '-';
         }
 
+        // Multi-select helper functions
+        function toggleMultiSelect(containerId) {
+            const container = document.getElementById(containerId);
+            const wasOpen = container.classList.contains('open');
+            
+            // Close all other multi-selects
+            document.querySelectorAll('.multi-select.open').forEach(el => {
+                if (el.id !== containerId) el.classList.remove('open');
+            });
+            
+            container.classList.toggle('open');
+            
+            // Focus search input when opening
+            if (!wasOpen) {
+                const searchInput = container.querySelector('.multi-select-search input');
+                if (searchInput) setTimeout(() => searchInput.focus(), 100);
+            }
+        }
+
+        function filterMultiSelectOptions(containerId, searchText) {
+            const container = document.getElementById(containerId);
+            const options = container.querySelectorAll('.multi-select-option');
+            const lowerSearch = searchText.toLowerCase();
+            
+            options.forEach(opt => {
+                const value = opt.dataset.value.toLowerCase();
+                opt.classList.toggle('hidden', !value.includes(lowerSearch));
+            });
+        }
+
+        function selectAllMulti(containerId) {
+            const container = document.getElementById(containerId);
+            container.querySelectorAll('.multi-select-option:not(.hidden) input[type="checkbox"]').forEach(cb => {
+                cb.checked = true;
+            });
+            updateMultiSelectDisplay(containerId);
+            applyFilters();
+        }
+
+        function clearAllMulti(containerId) {
+            const container = document.getElementById(containerId);
+            container.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                cb.checked = false;
+            });
+            updateMultiSelectDisplay(containerId);
+            applyFilters();
+        }
+
+        function updateMultiSelectDisplay(containerId) {
+            const container = document.getElementById(containerId);
+            const checkboxes = container.querySelectorAll('input[type="checkbox"]:checked');
+            const textSpan = container.querySelector('.selected-text');
+            
+            if (checkboxes.length === 0) {
+                textSpan.textContent = containerId === 'brandMultiSelect' ? 'All Brands' : 'All Stores';
+                textSpan.classList.remove('has-selection');
+            } else if (checkboxes.length === 1) {
+                textSpan.textContent = checkboxes[0].value;
+                textSpan.classList.add('has-selection');
+            } else {
+                textSpan.textContent = `${checkboxes.length} selected`;
+                textSpan.classList.add('has-selection');
+            }
+        }
+
+        function getSelectedValues(containerId) {
+            const container = document.getElementById(containerId);
+            const checkboxes = container.querySelectorAll('input[type="checkbox"]:checked');
+            return Array.from(checkboxes).map(cb => cb.value);
+        }
+
+        // Close multi-select when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.multi-select')) {
+                document.querySelectorAll('.multi-select.open').forEach(el => {
+                    el.classList.remove('open');
+                });
+            }
+        });
+
         function applyFilters() {
             const status = document.getElementById('statusFilter').value;
-            const brand = document.getElementById('brandFilter').value;
-            const store = document.getElementById('storeFilter').value;
+            const selectedBrands = getSelectedValues('brandMultiSelect');
+            const selectedStores = getSelectedValues('storeMultiSelect');
             const year = document.getElementById('yearFilter').value;
             const cycle = document.getElementById('cycleFilter').value;
             const search = document.getElementById('searchInput').value.toLowerCase();
 
             filteredAudits = allAudits.filter(audit => {
                 if (status && audit.Status !== status) return false;
-                if (brand && audit.BrandName !== brand) return false;
-                if (store && audit.StoreName !== store) return false;
+                if (selectedBrands.length > 0 && !selectedBrands.includes(audit.BrandName)) return false;
+                if (selectedStores.length > 0 && !selectedStores.includes(audit.StoreName)) return false;
                 if (year && audit.AuditYear != year) return false;
                 if (cycle && audit.AuditCycle !== cycle) return false;
                 if (search) {
