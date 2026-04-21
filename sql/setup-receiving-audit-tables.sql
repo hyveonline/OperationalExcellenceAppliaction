@@ -270,3 +270,59 @@ END
 GO
 
 PRINT 'Receiving Audit tables created successfully!';
+GO
+
+-- 12. Fridge Readings Table
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'RCV_FridgeReadings')
+BEGIN
+    CREATE TABLE RCV_FridgeReadings (
+        Id INT PRIMARY KEY IDENTITY(1,1),
+        InspectionId INT REFERENCES RCV_Inspections(Id),
+        ItemId INT REFERENCES RCV_InspectionItems(Id),
+        DisplayTemp DECIMAL(10,2),
+        ProbeTemp DECIMAL(10,2),
+        Issue NVARCHAR(MAX),
+        IsCompliant BIT DEFAULT 1,
+        Picture NVARCHAR(500),
+        CreatedAt DATETIME2 DEFAULT GETDATE()
+    );
+
+    CREATE INDEX IX_RCV_FridgeReadings_InspectionId ON RCV_FridgeReadings(InspectionId);
+END
+GO
+
+-- 13. Gallery Table
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'RCV_InspectionGallery')
+BEGIN
+    CREATE TABLE RCV_InspectionGallery (
+        Id INT PRIMARY KEY IDENTITY(1,1),
+        InspectionId INT REFERENCES RCV_Inspections(Id),
+        FileName NVARCHAR(500),
+        FilePath NVARCHAR(500),
+        OriginalName NVARCHAR(500),
+        FileSize INT,
+        UploadedBy NVARCHAR(255),
+        UploadedAt DATETIME2 DEFAULT GETDATE()
+    );
+
+    CREATE INDEX IX_RCV_InspectionGallery_InspectionId ON RCV_InspectionGallery(InspectionId);
+END
+GO
+
+-- 14. Gallery Links Table
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'RCV_InspectionGalleryLinks')
+BEGIN
+    CREATE TABLE RCV_InspectionGalleryLinks (
+        Id INT PRIMARY KEY IDENTITY(1,1),
+        GalleryPictureId INT REFERENCES RCV_InspectionGallery(Id),
+        ResponseId INT REFERENCES RCV_InspectionItems(Id),
+        PictureType NVARCHAR(50) DEFAULT 'Finding',
+        AssignedAt DATETIME2 DEFAULT GETDATE()
+    );
+
+    CREATE INDEX IX_RCV_GalleryLinks_GalleryPictureId ON RCV_InspectionGalleryLinks(GalleryPictureId);
+    CREATE INDEX IX_RCV_GalleryLinks_ResponseId ON RCV_InspectionGalleryLinks(ResponseId);
+END
+GO
+
+PRINT 'Gallery and Fridge tables created successfully!';

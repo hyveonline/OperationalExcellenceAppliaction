@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maintenance Department Report - GMRL-RCV-0003</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f5f5f5; color: #333; line-height: 1.6; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%); color: white; padding: 20px 25px; border-radius: 12px; margin-bottom: 20px; text-align: center; }
+        .header h1 { font-size: 22px; margin-bottom: 8px; }
+        .header p { opacity: 0.9; font-size: 14px; }
+        .dept-badge { display: inline-block; background: rgba(255,255,255,0.2); padding: 8px 20px; border-radius: 50px; font-size: 16px; font-weight: 700; margin-top: 10px; }
+        .stats { display: flex; gap: 15px; margin-bottom: 20px; justify-content: center; }
+        .stat-card { background: white; border-radius: 10px; padding: 15px 25px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.08); flex: 0 1 200px; }
+        .stat-value { font-size: 28px; font-weight: bold; color: #7c3aed; }
+        .stat-label { font-size: 12px; color: #64748b; text-transform: uppercase; }
+        .items-section { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.08); margin-bottom: 20px; }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: #7c3aed; color: white; padding: 12px 10px; text-align: left; font-size: 12px; text-transform: uppercase; font-weight: 600; }
+        td { padding: 10px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: middle; }
+        tr:hover { background: #f8fafc; }
+        .empty-state { text-align: center; padding: 40px; color: #94a3b8; font-size: 16px; }
+        .footer { text-align: center; padding: 20px; color: #64748b; font-size: 12px; }
+        .action-bar { position: fixed; top: 20px; right: 20px; display: flex; gap: 10px; z-index: 1000; }
+        .action-bar button { padding: 10px 18px; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
+        .btn-back { background: linear-gradient(135deg, #64748b 0%, #475569 100%); color: white; }
+        .btn-print { background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); color: white; }
+        .lightbox { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 9999; justify-content: center; align-items: center; }
+        .lightbox.active { display: flex; }
+        .lightbox img { max-width: 90%; max-height: 90%; border-radius: 8px; }
+        .lightbox-close { position: absolute; top: 20px; right: 30px; color: white; font-size: 40px; cursor: pointer; }
+        @media print {
+            @page { size: landscape; margin: 10mm; }
+            body { background: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .action-bar { display: none !important; }
+            .lightbox { display: none !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="action-bar">
+        <button class="btn-back" onclick="history.back()">← Back</button>
+        <button class="btn-print" onclick="window.print()">🖨️ Print</button>
+    </div>
+    <div class="lightbox" id="lightbox" onclick="closeLightbox()">
+        <span class="lightbox-close">&times;</span>
+        <img id="lightbox-img" src="" alt="Full size image">
+    </div>
+    <script>
+        function openLightbox(src) { document.getElementById('lightbox-img').src = src; document.getElementById('lightbox').classList.add('active'); }
+        function closeLightbox() { document.getElementById('lightbox').classList.remove('active'); }
+    </script>
+    <div class="container">
+        <div class="header">
+            <h1>📦 Department Escalation Report</h1>
+            <p>GMRL-RCV-0003 | Spinneys Achrafieh Mar Mitr | 4/21/2026</p>
+            <div class="dept-badge">🏢 Maintenance</div>
+        </div>
+        <div class="stats">
+            <div class="stat-card"><div class="stat-value">0</div><div class="stat-label">Escalated Items</div></div>
+            <div class="stat-card"><div class="stat-value">0</div><div class="stat-label">Critical</div></div>
+            <div class="stat-card"><div class="stat-value">0</div><div class="stat-label">High Priority</div></div>
+        </div>
+        <div class="items-section">
+            <table>
+                <thead><tr>
+                    <th>Ref</th><th>Section</th><th>Question</th><th>Answer</th><th>Finding</th><th>Priority</th><th>Pictures</th>
+                </tr></thead>
+                <tbody><tr><td colspan="7" class="empty-state">No escalated items for this department</td></tr></tbody>
+            </table>
+        </div>
+        <div class="footer">Generated on 4/21/2026, 12:28:26 PM | Receiving Audit System</div>
+    </div>
+</body>
+</html>

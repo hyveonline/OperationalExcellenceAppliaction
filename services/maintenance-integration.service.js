@@ -7,7 +7,7 @@ const axios = require('axios').default;
 
 class MaintenanceIntegrationService {
     constructor() {
-        this.baseUrl = process.env.MAINTENANCE_API_URL || 'https://mtuat.gmrlapps.com:3001';
+        this.baseUrl = process.env.MAINTENANCE_API_URL || 'https://fsm-uat.gmrlapps.com';
         this.apiKey = process.env.MAINTENANCE_API_KEY;
     }
 

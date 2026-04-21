@@ -403,6 +403,41 @@
             color: #9ca3af;
         }
 
+        /* Action Plan Status Styles */
+        .action-plan-status {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 2px;
+        }
+        .ap-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .ap-badge.ap-complete {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        .ap-badge.ap-partial {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        .ap-badge.ap-pending {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        .ap-badge.ap-none {
+            background: #f3f4f6;
+            color: #6b7280;
+        }
+        .ap-date {
+            font-size: 10px;
+            color: #6b7280;
+        }
+
         .score-label {
             font-size: 12px;
             color: #6b7280;
@@ -705,6 +740,12 @@
                 </select>
             </div>
             <div class="filter-group">
+                <label>Brand</label>
+                <select id="brandFilter" onchange="applyFilters()">
+                    <option value="">All Brands</option>
+                </select>
+            </div>
+            <div class="filter-group">
                 <label>Store</label>
                 <select id="storeFilter" onchange="applyFilters()">
                     <option value="">All Stores</option>
@@ -807,8 +848,18 @@
         }
 
         function populateFilters() {
+            // Populate brands
+            const brands = [...new Set(allAudits.map(a => a.BrandName).filter(Boolean))].sort();
+            const brandSelect = document.getElementById('brandFilter');
+            brands.forEach(brand => {
+                const option = document.createElement('option');
+                option.value = brand;
+                option.textContent = brand;
+                brandSelect.appendChild(option);
+            });
+
             // Populate stores
-            const stores = [...new Set(allAudits.map(a => a.StoreName).filter(Boolean))];
+            const stores = [...new Set(allAudits.map(a => a.StoreName).filter(Boolean))].sort();
             const storeSelect = document.getElementById('storeFilter');
             stores.forEach(store => {
                 const option = document.createElement('option');
@@ -846,6 +897,7 @@
 
         function applyFilters() {
             const status = document.getElementById('statusFilter').value;
+            const brand = document.getElementById('brandFilter').value;
             const store = document.getElementById('storeFilter').value;
             const year = document.getElementById('yearFilter').value;
             const cycle = document.getElementById('cycleFilter').value;
@@ -853,6 +905,7 @@
 
             filteredAudits = allAudits.filter(audit => {
                 if (status && audit.Status !== status) return false;
+                if (brand && audit.BrandName !== brand) return false;
                 if (store && audit.StoreName !== store) return false;
                 if (year && audit.AuditYear != year) return false;
                 if (cycle && audit.AuditCycle !== cycle) return false;
@@ -932,6 +985,14 @@
                                 <span class="info-label">📊 Score</span>
                                 <span class="info-value score-value score-${scoreClass}">${score !== null ? score + '%' : '—'}</span>
                             </div>
+                            ${audit.Status === 'Completed' ? `
+                            <div class="info-row">
+                                <span class="info-label">📝 Action Plan</span>
+                                <span class="info-value action-plan-status ${getActionPlanClass(audit)}">
+                                    ${renderActionPlanStatus(audit)}
+                                </span>
+                            </div>
+                            ` : ''}
                             <div class="info-row checklist-info-row">
                                 <span class="info-label">📋 Checklist</span>
                                 <span class="info-value checklist-meta">
@@ -970,6 +1031,34 @@
             const passingGrade = audit.PassingGrade || 83;
             const cssClass = score >= passingGrade ? 'pass' : 'fail';
             return `<div class="score-circle ${cssClass}">${score}%</div>`;
+        }
+
+        function getActionPlanClass(audit) {
+            if (!audit.ActionItemsTotal || audit.ActionItemsTotal === 0) return 'ap-none';
+            if (audit.ActionItemsFilled === audit.ActionItemsTotal) return 'ap-complete';
+            if (audit.ActionItemsFilled > 0) return 'ap-partial';
+            return 'ap-pending';
+        }
+
+        function renderActionPlanStatus(audit) {
+            const total = audit.ActionItemsTotal || 0;
+            const filled = audit.ActionItemsFilled || 0;
+            
+            if (total === 0) {
+                return '<span class="ap-badge ap-none">No items</span>';
+            }
+            
+            const lastUpdated = audit.ActionPlanLastUpdated 
+                ? formatDate(audit.ActionPlanLastUpdated) 
+                : '';
+            
+            if (filled === total) {
+                return `<span class="ap-badge ap-complete">✓ Complete (${filled}/${total})</span>${lastUpdated ? `<br><small class="ap-date">Updated: ${lastUpdated}</small>` : ''}`;
+            } else if (filled > 0) {
+                return `<span class="ap-badge ap-partial">⏳ ${filled}/${total} filled</span>${lastUpdated ? `<br><small class="ap-date">Updated: ${lastUpdated}</small>` : ''}`;
+            } else {
+                return `<span class="ap-badge ap-pending">⚠️ Not started (${total} items)</span>`;
+            }
         }
 
         function renderActions(audit) {

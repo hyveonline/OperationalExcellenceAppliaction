@@ -30,8 +30,8 @@ class ReportGenerator {
         
         // DB config for standalone use
         this.dbConfig = options.dbConfig || {
-            server: process.env.SQL_SERVER || 'PowerApps-Repor',
-            database: process.env.SQL_DATABASE || 'FoodSafetyDB',
+            server: process.env.SQL_SERVER || 'localhost',
+            database: process.env.SQL_DATABASE || 'OEApp_UAT',
             user: process.env.SQL_USER || 'sa',
             password: process.env.SQL_PASSWORD || 'Kokowawa123@@',
             options: {

@@ -94,8 +94,9 @@ router.post('/create-wr', async (req, res) => {
         // If successful, update the OE database to track the WR link
         if (result.success && result.data?.wrNumber && sourceId) {
             try {
-                const pool = await sql.connect(dbConfig);
-                await pool.request()
+                const localPool = new sql.ConnectionPool(dbConfig);
+                await localPool.connect();
+                await localPool.request()
                     .input('responseId', sql.Int, sourceId)
                     .input('wrNumber', sql.NVarChar, result.data.wrNumber)
                     .input('userId', sql.Int, req.session?.user?.id || null)
@@ -107,7 +108,7 @@ router.post('/create-wr', async (req, res) => {
                             LinkedByUserId = @userId
                         WHERE Id = @responseId
                     `);
-                await pool.close();
+                await localPool.close();
             } catch (dbError) {
                 console.error('Error updating OE database with WR link:', dbError);
                 // Don't fail the whole request for this
@@ -146,8 +147,9 @@ router.post('/link-wr', async (req, res) => {
         // If successful, update the OE database to track the WR link
         if (result.success) {
             try {
-                const pool = await sql.connect(dbConfig);
-                await pool.request()
+                const localPool = new sql.ConnectionPool(dbConfig);
+                await localPool.connect();
+                await localPool.request()
                     .input('responseId', sql.Int, sourceId)
                     .input('wrNumber', sql.NVarChar, wrNumber)
                     .input('userId', sql.Int, req.session?.user?.id || null)
@@ -159,7 +161,7 @@ router.post('/link-wr', async (req, res) => {
                             LinkedByUserId = @userId
                         WHERE Id = @responseId
                     `);
-                await pool.close();
+                await localPool.close();
             } catch (dbError) {
                 console.error('Error updating OE database with WR link:', dbError);
                 // Don't fail the whole request for this
@@ -208,8 +210,9 @@ router.post('/action-plan/maintenance-link', async (req, res) => {
             });
         }
         
-        const pool = await sql.connect(dbConfig);
-        await pool.request()
+        const localPool = new sql.ConnectionPool(dbConfig);
+        await localPool.connect();
+        await localPool.request()
             .input('responseId', sql.Int, responseId)
             .input('wrNumber', sql.NVarChar, wrNumber)
             .input('userId', sql.Int, req.session?.user?.id || null)
@@ -221,7 +224,7 @@ router.post('/action-plan/maintenance-link', async (req, res) => {
                     LinkedByUserId = @userId
                 WHERE Id = @responseId
             `);
-        await pool.close();
+        await localPool.close();
         
         res.json({ success: true });
     } catch (error) {

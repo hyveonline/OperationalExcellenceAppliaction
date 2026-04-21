@@ -76,9 +76,10 @@ const dbConfig = {
 // Shared pool - do NOT close per-request
 let _pool = null;
 async function getPool() {
-    if (!_pool) {
-        _pool = await sql.connect(dbConfig);
-        _pool.on('error', err => { console.error('SQL pool error:', err); _pool = null; });
+    if (!_pool || !_pool.connected) {
+        _pool = new sql.ConnectionPool(dbConfig);
+        _pool.on('error', err => { console.error('RCV SQL pool error:', err); _pool = null; });
+        await _pool.connect();
     }
     return _pool;
 }
@@ -837,12 +838,50 @@ router.post('/api/inspections', async (req, res) => {
 });
 
 // List audits (must be before :auditId route)
+// List audits (must be before :auditId route)
 router.get('/api/audits/list', async (req, res) => {
     try {
         const pool = await getPool();
-        const result = await pool.request().query(`SELECT Id, DocumentNumber, StoreName, InspectionDate, Inspectors, Status, Score, Cycle, Year, CreatedAt FROM RCV_Inspections ORDER BY CreatedAt DESC`);
-        res.json({ success: true, data: result.recordset });
+        const result = await pool.request().query(`
+            SELECT 
+                i.Id as AuditID, 
+                i.DocumentNumber, 
+                i.StoreName, 
+                i.InspectionDate, 
+                i.Inspectors as Auditors, 
+                i.Status, 
+                i.Score as TotalScore, 
+                i.Cycle as AuditCycle, 
+                i.Year as AuditYear, 
+                i.CreatedAt,
+                t.TemplateName as ChecklistEdition,
+                b.BrandName,
+                (SELECT COUNT(*) FROM RCV_InspectionActionItems a WHERE a.InspectionId = i.Id) as ActionItemsTotal,
+                (SELECT COUNT(*) FROM RCV_InspectionActionItems a WHERE a.InspectionId = i.Id AND a.Action IS NOT NULL AND a.Action != '') as ActionItemsFilled,
+                (SELECT MAX(a.UpdatedAt) FROM RCV_InspectionActionItems a WHERE a.InspectionId = i.Id AND a.Action IS NOT NULL AND a.Action != '') as ActionPlanLastUpdated
+            FROM RCV_Inspections i
+            LEFT JOIN RCV_InspectionTemplates t ON i.TemplateId = t.Id
+            LEFT JOIN Stores s ON i.StoreId = s.Id
+            LEFT JOIN Brands b ON s.BrandId = b.Id
+            ORDER BY i.CreatedAt DESC
+        `);
+        res.json({ audits: result.recordset });
     } catch (error) { res.json({ success: false, error: error.message }); }
+});
+
+// Serve report files (must be before :auditId route)
+router.get('/api/audits/reports/:fileName', (req, res) => {
+    const { fileName } = req.params;
+    const reportsDir = path.join(__dirname, '..', '..', 'reports', 'receiving-audit');
+    const filePath = path.join(reportsDir, fileName);
+    if (!filePath.startsWith(reportsDir)) {
+        return res.status(403).json({ error: 'Access denied' });
+    }
+    if (fs.existsSync(filePath)) {
+        res.sendFile(filePath);
+    } else {
+        res.status(404).json({ error: 'Report not found' });
+    }
 });
 
 // Get audit details
@@ -866,7 +905,7 @@ router.get('/api/audits/:auditId', async (req, res) => {
             section.items = itemsResult.recordset;
             sections.push(section);
         }
-        res.json({ success: true, data: { auditId: audit.Id, documentNumber: audit.DocumentNumber, storeId: audit.StoreId, storeCode: audit.StoreCode || '', storeName: audit.StoreName, auditDate: audit.InspectionDate, auditors: audit.Inspectors, accompaniedBy: audit.AccompaniedBy, cycle: audit.Cycle, year: audit.Year, status: audit.Status, score: audit.Score, templateId: audit.TemplateId, sections } });
+        res.json({ success: true, data: { auditId: audit.Id, documentNumber: audit.DocumentNumber, storeId: audit.StoreId, storeCode: audit.StoreCode || '', storeName: audit.StoreName, auditDate: audit.InspectionDate, auditors: audit.Inspectors, accompaniedBy: audit.AccompaniedBy, cycle: audit.Cycle, year: audit.Year, status: audit.Status, totalScore: audit.Score, templateId: audit.TemplateId, sections } });
     } catch (error) { console.error('Error fetching audit:', error); res.status(500).json({ success: false, error: error.message }); }
 });
 
@@ -976,7 +1015,7 @@ router.post('/api/audits/:auditId/complete', async (req, res) => {
                 actionItemsCreated++;
             }
         }
-        res.json({ success: true, data: { score: totalScore, actionItemsCreated } });
+        res.json({ success: true, data: { totalScore, actionItemsCreated } });
     } catch (error) { console.error('Error completing audit:', error); res.status(500).json({ success: false, error: error.message }); }
 });
 
@@ -993,7 +1032,75 @@ router.delete('/api/audits/:auditId', async (req, res) => {
     } catch (error) { res.json({ success: false, error: error.message }); }
 });
 
-// Action plan
+// Action plan by document number (must be before :inspectionId route)
+router.get('/api/action-plan/by-doc/:documentNumber', async (req, res) => {
+    try {
+        const { documentNumber } = req.params;
+        const pool = await getPool();
+        const result = await pool.request()
+            .input('documentNumber', sql.NVarChar, documentNumber)
+            .query(`
+                SELECT 
+                    a.Id, a.ReferenceValue, a.SectionName, a.Finding, 
+                    a.SuggestedAction, a.Action as ActionTaken, a.Responsible as PersonInCharge, 
+                    a.Deadline, a.Priority, a.Status, a.Department,
+                    a.CompletionDate, a.CompletionNotes, a.BeforeImageUrl, a.AfterImageUrl
+                FROM RCV_InspectionActionItems a
+                INNER JOIN RCV_Inspections i ON a.InspectionId = i.Id
+                WHERE i.DocumentNumber = @documentNumber
+                ORDER BY a.Priority DESC, a.ReferenceValue
+            `);
+        res.json({ success: true, actions: result.recordset });
+    } catch (error) {
+        console.error('Error fetching action plan by doc:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Save action plan
+router.post('/api/action-plan/save', async (req, res) => {
+    try {
+        const { documentNumber, actions } = req.body;
+        const pool = await getPool();
+        
+        // Get inspection ID from document number
+        const inspResult = await pool.request()
+            .input('documentNumber', sql.NVarChar, documentNumber)
+            .query('SELECT Id FROM RCV_Inspections WHERE DocumentNumber = @documentNumber');
+        
+        if (inspResult.recordset.length === 0) {
+            return res.status(404).json({ success: false, error: 'Audit not found' });
+        }
+        const inspectionId = inspResult.recordset[0].Id;
+        
+        // Update each action item
+        for (const action of actions) {
+            await pool.request()
+                .input('inspectionId', sql.Int, inspectionId)
+                .input('referenceValue', sql.NVarChar, action.referenceValue)
+                .input('action', sql.NVarChar, action.actionTaken || null)
+                .input('responsible', sql.NVarChar, action.personInCharge || null)
+                .input('deadline', sql.Date, action.deadline || null)
+                .input('status', sql.NVarChar, action.status || 'Pending')
+                .query(`
+                    UPDATE RCV_InspectionActionItems 
+                    SET Action = @action, 
+                        Responsible = @responsible, 
+                        Deadline = @deadline, 
+                        Status = @status,
+                        UpdatedAt = GETDATE()
+                    WHERE InspectionId = @inspectionId AND ReferenceValue = @referenceValue
+                `);
+        }
+        
+        res.json({ success: true, message: 'Action plan saved successfully' });
+    } catch (error) {
+        console.error('Error saving action plan:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Action plan by inspection ID
 router.get('/api/action-plan/:inspectionId', async (req, res) => {
     try {
         const pool = await getPool();
@@ -1001,6 +1108,1174 @@ router.get('/api/action-plan/:inspectionId', async (req, res) => {
             .query('SELECT Id, ReferenceValue, SectionName, Finding, SuggestedAction, Action, Responsible, Department, Deadline, Priority, Status, CompletionDate, CompletionNotes, BeforeImageUrl, AfterImageUrl, CreatedAt FROM RCV_InspectionActionItems WHERE InspectionId = @inspectionId ORDER BY Priority DESC, ReferenceValue');
         res.json({ success: true, data: result.recordset });
     } catch (error) { res.json({ success: false, error: error.message }); }
+});
+
+// ==========================================
+// Report APIs
+// ==========================================
+
+// Check for published report
+router.get('/api/audits/:auditId/published-report', async (req, res) => {
+    try {
+        const { auditId } = req.params;
+        const reportsDir = path.join(__dirname, '..', '..', 'reports', 'receiving-audit');
+        if (fs.existsSync(reportsDir)) {
+            const files = fs.readdirSync(reportsDir);
+            const reportFile = files.find(f => f.includes(`audit-${auditId}`) && f.endsWith('.html'));
+            if (reportFile) {
+                return res.json({ success: true, fileName: reportFile });
+            }
+        }
+        res.json({ success: false, message: 'No published report found' });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Generate full report
+router.post('/api/audits/:auditId/generate-report', async (req, res) => {
+    try {
+        const { auditId } = req.params;
+        const pool = await getPool();
+
+        // 1. Get audit header
+        const auditResult = await pool.request().input('auditId', sql.Int, auditId)
+            .query(`SELECT i.*, t.TemplateName FROM RCV_Inspections i LEFT JOIN RCV_InspectionTemplates t ON i.TemplateId = t.Id WHERE i.Id = @auditId`);
+        if (auditResult.recordset.length === 0) return res.status(404).json({ success: false, error: 'Audit not found' });
+        const audit = auditResult.recordset[0];
+
+        // 2. Get all items
+        const itemsResult = await pool.request().input('auditId', sql.Int, auditId)
+            .query('SELECT * FROM RCV_InspectionItems WHERE InspectionId = @auditId ORDER BY SectionOrder, ItemOrder');
+
+        // 3. Group by section
+        const sectionMap = new Map();
+        for (const item of itemsResult.recordset) {
+            const sectionName = item.SectionName || 'General';
+            if (!sectionMap.has(sectionName)) {
+                sectionMap.set(sectionName, { SectionName: sectionName, SectionOrder: item.SectionOrder || 0, items: [], earnedScore: 0, maxScore: 0 });
+            }
+            const section = sectionMap.get(sectionName);
+            section.items.push(item);
+            if (item.Answer && item.Answer !== 'NA') {
+                section.maxScore += parseFloat(item.Coefficient || 0);
+                section.earnedScore += parseFloat(item.Score || 0);
+            }
+        }
+        const sections = Array.from(sectionMap.values()).sort((a, b) => a.SectionOrder - b.SectionOrder);
+
+        // Sort items within sections
+        for (const section of sections) {
+            section.items.sort((a, b) => {
+                const partsA = (a.ReferenceValue || '').split('.').map(p => parseInt(p) || 0);
+                const partsB = (b.ReferenceValue || '').split('.').map(p => parseInt(p) || 0);
+                for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
+                    if ((partsA[i] || 0) !== (partsB[i] || 0)) return (partsA[i] || 0) - (partsB[i] || 0);
+                }
+                return 0;
+            });
+        }
+
+        // 4. Findings
+        const findings = itemsResult.recordset.filter(item => item.Answer === 'No' || item.Answer === 'Partially' || item.Finding);
+
+        // 5. Pictures (direct uploads + gallery links)
+        const picturesResult = await pool.request().input('auditId', sql.Int, auditId)
+            .query('SELECT p.Id, p.ItemId, p.FileName, p.PictureType, p.FilePath, p.OriginalName FROM RCV_InspectionPictures p WHERE p.InspectionId = @auditId ORDER BY p.ItemId, p.Id');
+        const galleryResult = await pool.request().input('auditId', sql.Int, auditId)
+            .query('SELECT l.ResponseId as ItemId, l.PictureType, g.Id, g.FileName, g.FilePath, g.OriginalName FROM RCV_InspectionGalleryLinks l INNER JOIN RCV_InspectionGallery g ON g.Id = l.GalleryPictureId WHERE g.InspectionId = @auditId ORDER BY l.ResponseId');
+
+        // Build pictures by item
+        const picturesByItem = {};
+        for (const pic of picturesResult.recordset) {
+            if (!picturesByItem[pic.ItemId]) picturesByItem[pic.ItemId] = [];
+            picturesByItem[pic.ItemId].push({ id: pic.Id, fileName: pic.OriginalName || pic.FileName, pictureType: pic.PictureType || 'issue', dataUrl: pic.FilePath });
+        }
+        for (const pic of galleryResult.recordset) {
+            if (!picturesByItem[pic.ItemId]) picturesByItem[pic.ItemId] = [];
+            picturesByItem[pic.ItemId].push({ id: 'gallery-' + pic.Id, fileName: pic.OriginalName || pic.FileName, pictureType: pic.PictureType || 'Finding', dataUrl: pic.FilePath, isGallery: true });
+        }
+
+        // 6. Fridge readings
+        const fridgeResult = await pool.request().input('auditId', sql.Int, auditId)
+            .query(`SELECT fr.Id, fr.ItemId, fr.DisplayTemp, fr.ProbeTemp, fr.Issue, fr.IsCompliant, fr.Picture,
+                    i.SectionName, i.ReferenceValue
+                    FROM RCV_FridgeReadings fr LEFT JOIN RCV_InspectionItems i ON fr.ItemId = i.Id
+                    WHERE fr.InspectionId = @auditId AND fr.ItemId IS NOT NULL ORDER BY fr.Id`);
+
+        // 7. Calculate overall score
+        const totalEarned = sections.reduce((sum, s) => sum + s.earnedScore, 0);
+        const totalMax = sections.reduce((sum, s) => sum + s.maxScore, 0);
+        const overallScore = totalMax > 0 ? Math.round((totalEarned / totalMax) * 100) : 0;
+
+        // 8. Get settings for threshold
+        const settingsResult = await pool.request().input('templateId', sql.Int, audit.TemplateId)
+            .query(`SELECT ISNULL(s.SettingValue, '80') as PassingGrade FROM RCV_InspectionSettings s
+                    WHERE s.SettingKey = 'PASSING_SCORE_' + CAST(@templateId AS VARCHAR)
+                    UNION ALL SELECT ISNULL(s.SettingValue, '80') FROM RCV_InspectionSettings s WHERE s.SettingKey = 'PASSING_SCORE'`);
+        const threshold = settingsResult.recordset.length > 0
+            ? parseInt(settingsResult.recordset[0].PassingGrade) || 80 : 80;
+
+        // 9. Section-level passing grades
+        const sectionGradesResult = await pool.request().input('templateId', sql.Int, audit.TemplateId)
+            .query(`SELECT SectionName, ISNULL(PassingGrade, 80) as PassingGrade FROM RCV_InspectionTemplateSections WHERE TemplateId = @templateId`);
+        const sectionPassingGrades = {};
+        for (const sg of sectionGradesResult.recordset) sectionPassingGrades[sg.SectionName] = sg.PassingGrade;
+        for (const section of sections) section.PassingGrade = sectionPassingGrades[section.SectionName] || threshold;
+
+        // 10. Historical audits for cycle comparison
+        const historicalResult = await pool.request().input('storeId', sql.Int, audit.StoreId).input('currentAuditId', sql.Int, auditId)
+            .query(`SELECT i.Id, i.DocumentNumber, i.InspectionDate, i.CompletedAt,
+                    CAST(ROUND((i.TotalPoints / NULLIF(i.MaxPoints, 0)) * 100, 0) AS INT) as TotalScore
+                    FROM RCV_Inspections i WHERE i.StoreId = @storeId AND i.Status = 'Completed'
+                    ORDER BY i.CompletedAt ASC, i.Id ASC`);
+
+        const historicalAuditsWithCycles = [];
+        let cycleNumber = 0;
+        for (const ha of historicalResult.recordset) {
+            cycleNumber++;
+            const sectionScoresResult = await pool.request().input('inspectionId', sql.Int, ha.Id)
+                .query(`SELECT SectionName, SUM(Score) as EarnedScore,
+                        SUM(CASE WHEN Answer != 'NA' THEN Coefficient ELSE 0 END) as MaxScore,
+                        CAST(ROUND((SUM(Score) / NULLIF(SUM(CASE WHEN Answer != 'NA' THEN Coefficient ELSE 0 END), 0)) * 100, 0) AS INT) as Percentage
+                        FROM RCV_InspectionItems WHERE InspectionId = @inspectionId GROUP BY SectionName`);
+            const sectionScores = {};
+            for (const ss of sectionScoresResult.recordset) sectionScores[ss.SectionName] = ss.Percentage || 0;
+            historicalAuditsWithCycles.push({
+                auditId: ha.Id, documentNumber: ha.DocumentNumber, inspectionDate: ha.InspectionDate,
+                totalScore: ha.TotalScore || 0, cycle: cycleNumber, cycleLabel: `C${cycleNumber} (1/1)`,
+                sectionScores, isCurrent: ha.Id === parseInt(auditId)
+            });
+        }
+        const currentIndex = historicalAuditsWithCycles.findIndex(a => a.isCurrent);
+        const startIdx = Math.max(0, currentIndex - 5);
+        const cycleAudits = historicalAuditsWithCycles.slice(startIdx, currentIndex + 1);
+
+        // Build report data
+        const reportData = {
+            audit,
+            sections: sections.map(s => ({ ...s, Percentage: s.maxScore > 0 ? Math.round((s.earnedScore / s.maxScore) * 100) : 0 })),
+            findings, pictures: picturesByItem,
+            fridgeReadings: fridgeResult.recordset,
+            overallScore, threshold, cycleAudits,
+            generatedAt: new Date().toISOString()
+        };
+
+        // Generate HTML
+        const html = generateRcvReportHTML(reportData);
+
+        // Save
+        const reportsDir = path.join(__dirname, '..', '..', 'reports', 'receiving-audit');
+        if (!fs.existsSync(reportsDir)) fs.mkdirSync(reportsDir, { recursive: true });
+        const fileName = `RCV_Report_audit-${auditId}_${audit.DocumentNumber}_${new Date().toISOString().split('T')[0]}.html`;
+        fs.writeFileSync(path.join(reportsDir, fileName), html, 'utf8');
+
+        // Update audit with report info
+        await pool.request().input('auditId', sql.Int, auditId).input('fileName', sql.NVarChar, fileName)
+            .query(`UPDATE RCV_Inspections SET ReportFileName = @fileName, ReportGeneratedAt = GETDATE() WHERE Id = @auditId`);
+
+        console.log(`✅ RCV Report generated: ${fileName}`);
+        res.json({ success: true, fileName, overallScore });
+    } catch (error) {
+        console.error('Error generating report:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Department report
+router.get('/api/audits/:auditId/department-report/:department', async (req, res) => {
+    try {
+        const { auditId, department } = req.params;
+        const pool = await getPool();
+        const auditResult = await pool.request().input('auditId', sql.Int, auditId)
+            .query('SELECT * FROM RCV_Inspections WHERE Id = @auditId');
+        if (auditResult.recordset.length === 0) return res.status(404).json({ success: false, error: 'Audit not found' });
+        const audit = auditResult.recordset[0];
+
+        const itemsResult = await pool.request().input('auditId', sql.Int, auditId).input('department', sql.NVarChar, department)
+            .query('SELECT * FROM RCV_InspectionItems WHERE InspectionId = @auditId AND Department = @department AND Escalate = 1 ORDER BY SectionOrder, ItemOrder');
+
+        const picturesResult = await pool.request().input('auditId', sql.Int, auditId)
+            .query('SELECT p.ItemId, p.PictureType, p.FilePath, p.OriginalName FROM RCV_InspectionPictures p WHERE p.InspectionId = @auditId');
+        const picturesByItem = {};
+        for (const pic of picturesResult.recordset) {
+            if (!picturesByItem[pic.ItemId]) picturesByItem[pic.ItemId] = [];
+            picturesByItem[pic.ItemId].push(pic);
+        }
+
+        const html = generateDeptReportHTML(audit, department, itemsResult.recordset, picturesByItem);
+        const reportsDir = path.join(__dirname, '..', '..', 'reports', 'receiving-audit');
+        if (!fs.existsSync(reportsDir)) fs.mkdirSync(reportsDir, { recursive: true });
+        const fileName = `RCV_Dept_${department}_audit-${auditId}_${new Date().toISOString().split('T')[0]}.html`;
+        fs.writeFileSync(path.join(reportsDir, fileName), html, 'utf8');
+        res.json({ success: true, fileName });
+    } catch (error) {
+        console.error('Error generating dept report:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Report HTML generator - Full featured (matching OE Inspection report)
+function generateRcvReportHTML(data) {
+    const { audit, sections, findings, pictures, fridgeReadings, overallScore, threshold, cycleAudits, generatedAt } = data;
+    const passedClass = overallScore >= threshold ? 'pass' : 'fail';
+    const passedText = overallScore >= threshold ? 'PASS ✅' : 'FAIL ❌';
+
+    // Collect all pictures for galleries
+    const goodObsItems = [];
+    const findingPicItems = [];
+
+    sections.forEach(section => {
+        (section.items || []).forEach(item => {
+            const itemPics = pictures[item.Id] || [];
+            itemPics.forEach(pic => {
+                if (pic.pictureType === 'Good') {
+                    goodObsItems.push({ ref: item.ReferenceValue || 'N/A', section: section.SectionName, question: item.Question, dataUrl: pic.dataUrl, fileName: pic.fileName });
+                } else if (item.Answer === 'No' || item.Answer === 'Partially') {
+                    findingPicItems.push({ ref: item.ReferenceValue || 'N/A', section: section.SectionName, question: item.Question, answer: item.Answer, finding: item.Finding, dataUrl: pic.dataUrl, fileName: pic.fileName, pictureType: pic.pictureType });
+                }
+            });
+        });
+    });
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Receiving Audit Report - ${audit.DocumentNumber}</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f5f5f5; color: #333; line-height: 1.6; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%); color: white; padding: 15px 20px; border-radius: 10px; margin-bottom: 15px; }
+        .header h1 { font-size: 20px; margin-bottom: 8px; }
+        .header-info { display: flex; flex-wrap: wrap; gap: 10px; }
+        .header-item { background: rgba(255,255,255,0.1); padding: 6px 12px; border-radius: 6px; }
+        .header-item label { font-size: 10px; opacity: 0.8; display: block; }
+        .header-item span { font-size: 13px; font-weight: 600; }
+        .score-card { background: white; border-radius: 10px; padding: 12px 25px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); display: flex; align-items: center; justify-content: center; gap: 20px; }
+        .score-value { font-size: 36px; font-weight: bold; }
+        .score-value.pass { color: #10b981; }
+        .score-value.fail { color: #ef4444; }
+        .score-label { font-size: 18px; font-weight: 600; }
+        .score-label.pass { color: #10b981; }
+        .score-label.fail { color: #ef4444; }
+        .score-threshold { color: #64748b; font-size: 14px; border-left: 1px solid #e2e8f0; padding-left: 20px; }
+
+        .summary-section { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 25px; overflow: hidden; }
+        .summary-title { background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%); color: white; margin: 0; padding: 15px 20px; font-size: 18px; font-weight: 600; }
+        .summary-table { width: 100%; border-collapse: collapse; }
+        .summary-table th, .summary-table td { padding: 10px 15px; }
+        .summary-table th { background: #64748b; color: white; text-align: left; font-size: 12px; text-transform: uppercase; font-weight: 600; border-bottom: 2px solid #475569; }
+        .summary-table td { border-bottom: 1px solid #e2e8f0; vertical-align: middle; }
+        .summary-table tr:hover { background: #f8fafc; }
+        .summary-table .total-row { background: #f1f5f9; border-top: 2px solid #64748b; }
+        .summary-table .current-cycle { background: #ede9fe; }
+        .score-pass { color: #10b981; font-weight: 600; }
+        .score-fail { color: #ef4444; font-weight: 600; }
+
+        .chart-section { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 25px; overflow: hidden; }
+        .chart-title { background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%); color: white; margin: 0; padding: 15px 20px; font-size: 18px; font-weight: 600; }
+        .chart-simple { padding: 20px; }
+        .chart-row { display: flex; align-items: center; margin-bottom: 8px; gap: 10px; }
+        .chart-row-label { width: 200px; font-size: 12px; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+        .chart-row-bar-container { flex: 1; height: 20px; background: #e2e8f0; border-radius: 4px; position: relative; overflow: visible; }
+        .chart-row-bar { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
+        .chart-row-bar.bar-pass { background: linear-gradient(90deg, #10b981 0%, #059669 100%); }
+        .chart-row-bar.bar-fail { background: linear-gradient(90deg, #ef4444 0%, #dc2626 100%); }
+        .chart-row-threshold { position: absolute; top: -2px; bottom: -2px; width: 2px; background: #f59e0b; }
+        .chart-row-value { width: 50px; font-size: 13px; font-weight: 700; text-align: right; }
+        .chart-row-value.bar-pass { color: #10b981; }
+        .chart-row-value.bar-fail { color: #ef4444; }
+        .chart-legend { display: flex; gap: 20px; justify-content: center; padding: 15px; border-top: 1px solid #e2e8f0; background: #f8fafc; }
+        .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #475569; }
+        .legend-color { width: 14px; height: 14px; border-radius: 3px; }
+        .legend-color.pass { background: #10b981; }
+        .legend-color.fail { background: #ef4444; }
+        .legend-line { width: 20px; height: 2px; background: #f59e0b; }
+
+        .toggle-controls { display: flex; gap: 10px; margin-bottom: 20px; justify-content: flex-end; }
+        .toggle-btn { background: #7c3aed; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; transition: background 0.2s; }
+        .toggle-btn:hover { background: #6d28d9; }
+
+        .section-card { background: white; border-radius: 12px; margin-bottom: 20px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .section-header { background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%); color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; }
+        .section-header:hover { filter: brightness(1.05); }
+        .section-title { font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+        .section-score { font-size: 20px; font-weight: bold; display: flex; align-items: center; gap: 10px; }
+        .collapse-icon { font-size: 20px; transition: transform 0.3s ease; }
+        .collapse-icon.collapsed { transform: rotate(-90deg); }
+        .section-content { padding: 0; transition: max-height 0.3s ease, padding 0.3s ease, opacity 0.3s ease; overflow: hidden; }
+        .section-content.collapsed { max-height: 0 !important; padding: 0; opacity: 0; }
+
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #e2e8f0; font-size: 13px; }
+        th { background: #f8fafc; font-weight: 600; font-size: 11px; text-transform: uppercase; color: #64748b; }
+        tr:hover { background: #f8fafc; }
+        .choice-yes { color: #10b981; font-weight: 600; }
+        .choice-no { color: #ef4444; font-weight: 600; }
+        .choice-partial { color: #f59e0b; font-weight: 600; }
+        .choice-na { color: #94a3b8; }
+
+        .section-findings { background: #fef2f2; border-top: 2px solid #fecaca; padding: 12px 15px; }
+        .section-findings-title { color: #dc2626; font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+        .finding-item { background: white; border-radius: 8px; padding: 12px; margin-bottom: 8px; border-left: 4px solid #ef4444; }
+        .finding-ref { font-weight: 600; color: #7c3aed; font-size: 12px; }
+        .finding-question { margin: 5px 0; font-size: 14px; }
+        .finding-detail { color: #64748b; font-size: 13px; }
+        .finding-cr { background: #ecfdf5; border-left: 4px solid #10b981; padding: 10px; margin-top: 8px; border-radius: 4px; font-size: 13px; color: #065f46; }
+        .finding-pictures { margin-top: 10px; padding-top: 10px; border-top: 1px solid #e2e8f0; }
+        .pictures-wrapper { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 5px; }
+
+        .fridge-section { background: white; border-radius: 12px; margin-bottom: 20px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .fridge-header { background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%); color: white; padding: 15px 20px; }
+        .fridge-title { font-size: 18px; font-weight: 600; }
+
+        .gallery-section { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 25px; overflow: hidden; }
+        .gallery-title { margin: 0; padding: 15px 20px; font-size: 18px; font-weight: 600; color: white; }
+        .gallery-title.good { background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%); }
+        .gallery-title.findings { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); }
+        .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; padding: 20px; }
+        .gallery-card { background: #f8fafc; border-radius: 10px; overflow: hidden; border: 1px solid #e2e8f0; transition: transform 0.2s, box-shadow 0.2s; }
+        .gallery-card:hover { transform: translateY(-3px); box-shadow: 0 4px 15px rgba(0,0,0,0.15); }
+        .gallery-card.good { border-left: 4px solid #6b7280; }
+        .gallery-card.finding { border-left: 4px solid #ef4444; }
+        .gallery-img { width: 100%; height: 180px; object-fit: cover; cursor: pointer; background: #e2e8f0; }
+        .gallery-info { padding: 12px; }
+        .gallery-ref { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
+        .gallery-ref.good { color: #4b5563; }
+        .gallery-ref.finding { color: #dc2626; }
+        .gallery-section-name { font-size: 12px; color: #64748b; margin-bottom: 4px; }
+        .gallery-type { font-size: 11px; padding: 2px 8px; border-radius: 10px; display: inline-block; }
+        .gallery-type.good { background: #e5e7eb; color: #374151; }
+        .gallery-type.issue { background: #fee2e2; color: #991b1b; }
+        .gallery-type.corrective { background: #d1fae5; color: #065f46; }
+        .gallery-empty { text-align: center; padding: 40px 20px; color: #94a3b8; font-size: 16px; }
+
+        .lightbox { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 9999; justify-content: center; align-items: center; }
+        .lightbox.active { display: flex; }
+        .lightbox img { max-width: 90%; max-height: 90%; border-radius: 8px; box-shadow: 0 4px 30px rgba(0,0,0,0.5); }
+        .lightbox-close { position: absolute; top: 20px; right: 30px; color: white; font-size: 40px; font-weight: bold; cursor: pointer; transition: color 0.2s; }
+        .lightbox-close:hover { color: #7c3aed; }
+
+        .filter-toolbar {
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            border: 1px solid #cbd5e1; border-radius: 12px; padding: 12px 20px; margin-bottom: 20px;
+            display: flex; align-items: center; flex-wrap: wrap; gap: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05); position: sticky; top: 80px; z-index: 100;
+        }
+        .filter-toolbar-title { font-weight: 600; color: #475569; font-size: 14px; }
+        .filter-group { display: flex; gap: 8px; }
+        .filter-btn {
+            padding: 6px 14px; border: 2px solid #cbd5e1; border-radius: 20px; background: white;
+            cursor: pointer; font-size: 12px; font-weight: 500; transition: all 0.2s ease;
+            display: flex; align-items: center; gap: 4px;
+        }
+        .filter-btn:hover { background: #f1f5f9; }
+        .filter-btn.active { border-color: #7c3aed; background: #f5f3ff; color: #6d28d9; }
+        .filter-btn.filter-yes.active { border-color: #10b981; background: #ecfdf5; color: #059669; }
+        .filter-btn.filter-partial.active { border-color: #f59e0b; background: #fffbeb; color: #d97706; }
+        .filter-btn.filter-no.active { border-color: #ef4444; background: #fef2f2; color: #dc2626; }
+        .filter-btn.filter-na.active { border-color: #64748b; background: #f1f5f9; color: #475569; }
+        .filter-divider { width: 1px; height: 30px; background: #cbd5e1; }
+        .hidden-by-filter { display: none !important; }
+        .section-hidden { display: none !important; }
+
+        .action-bar { position: fixed; top: 20px; right: 20px; display: flex; gap: 10px; z-index: 1000; }
+        .action-bar button { padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); transition: transform 0.2s, box-shadow 0.2s; }
+        .action-bar button:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+        .btn-email { background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; }
+        .btn-print { background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); color: white; }
+        .btn-pdf { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; }
+        .btn-back { background: linear-gradient(135deg, #64748b 0%, #475569 100%); color: white; }
+
+        .footer { text-align: center; padding: 20px; color: #64748b; font-size: 14px; }
+
+        @media print {
+            @page { size: landscape; margin: 10mm; }
+            body { background: white; font-size: 11px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .container { max-width: 100%; padding: 0; }
+            .action-bar { display: none !important; }
+            .filter-toolbar { display: none !important; }
+            .section-card { break-inside: avoid; page-break-inside: avoid; }
+            .gallery-section { break-before: page; }
+            .lightbox { display: none !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="action-bar">
+        <button class="btn-back" onclick="goBack()">← Back</button>
+        <button class="btn-pdf" onclick="exportToPDF()">📄 PDF</button>
+        <button class="btn-print" onclick="window.print()">🖨️ Print</button>
+    </div>
+
+    <div class="lightbox" id="lightbox" onclick="closeLightbox()">
+        <span class="lightbox-close">&times;</span>
+        <img id="lightbox-img" src="" alt="Full size image">
+    </div>
+
+    <script>
+        function goBack() {
+            if (document.referrer && document.referrer.includes(window.location.hostname)) { history.back(); }
+            else { window.location.href = '/receiving-audit/list'; }
+        }
+        function exportToPDF() {
+            const overlay = document.createElement('div');
+            overlay.innerHTML = '<div style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);display:flex;justify-content:center;align-items:center;z-index:10000;"><div style="background:white;padding:30px 50px;border-radius:12px;text-align:center;"><h3 style="margin:0 0 15px 0;">📄 Export to PDF</h3><p style="margin:0 0 20px 0;color:#666;">In the print dialog, select <strong>"Save as PDF"</strong> as the destination.</p></div></div>';
+            document.body.appendChild(overlay);
+            setTimeout(() => { overlay.remove(); window.print(); }, 2000);
+        }
+        function openLightbox(src) { document.getElementById('lightbox-img').src = src; document.getElementById('lightbox').classList.add('active'); }
+        function closeLightbox() { document.getElementById('lightbox').classList.remove('active'); }
+    </script>
+
+    <div class="container">
+        <!-- Filter Toolbar -->
+        <div class="filter-toolbar">
+            <span class="filter-toolbar-title">🔍 Filter:</span>
+            <div class="filter-group">
+                <button class="filter-btn filter-yes active" onclick="toggleFilter('yes', this)" title="Show/Hide Yes answers">✓ Yes</button>
+                <button class="filter-btn filter-partial active" onclick="toggleFilter('partial', this)" title="Show/Hide Partially answers">◐ Partially</button>
+                <button class="filter-btn filter-no active" onclick="toggleFilter('no', this)" title="Show/Hide No answers">✗ No</button>
+                <button class="filter-btn filter-na active" onclick="toggleFilter('na', this)" title="Show/Hide N/A answers">— N/A</button>
+            </div>
+            <div class="filter-divider"></div>
+            <div class="filter-group">
+                <button class="filter-btn" onclick="showOnlyFindings()" title="Show only items with findings">⚠️ Findings Only</button>
+                <button class="filter-btn" onclick="resetFilters()" title="Reset all filters">🔄 Reset</button>
+            </div>
+        </div>
+
+        <div class="header">
+            <h1>📦 Receiving Audit Report</h1>
+            <div class="header-info">
+                <div class="header-item"><label>Document #</label><span>${audit.DocumentNumber}</span></div>
+                <div class="header-item"><label>Store</label><span>${audit.StoreName || 'N/A'}</span></div>
+                <div class="header-item"><label>Date</label><span>${audit.InspectionDate ? new Date(audit.InspectionDate).toLocaleDateString() : 'N/A'}</span></div>
+                <div class="header-item"><label>Auditors</label><span>${audit.Inspectors || 'N/A'}</span></div>
+                <div class="header-item"><label>Accompanied By</label><span>${audit.AccompaniedBy || 'N/A'}</span></div>
+                <div class="header-item"><label>Cycle</label><span>${audit.Cycle || '-'} / ${audit.Year || '-'}</span></div>
+                <div class="header-item"><label>Status</label><span>${audit.Status}</span></div>
+            </div>
+        </div>
+
+        <div class="score-card">
+            <div class="score-value ${passedClass}">${overallScore}%</div>
+            <div class="score-label ${passedClass}">${passedText}</div>
+            <div class="score-threshold">Threshold: ${threshold}%</div>
+        </div>
+
+        <!-- Summary Table with Historical Cycles -->
+        <div class="summary-section">
+            <h2 class="summary-title">📊 Audit Summary</h2>
+            <table class="summary-table">
+                <thead>
+                    <tr>
+                        <th>Section</th>
+                        ${cycleAudits.map(ca => '<th style="text-align:center;">' + ca.cycleLabel + '</th>').join('')}
+                    </tr>
+                </thead>
+                <tbody>
+                    ${sections.map(section => {
+                        const sectionThreshold = section.PassingGrade || threshold;
+                        return '<tr><td><strong>' + section.SectionName + '</strong></td>' +
+                            cycleAudits.map(ca => {
+                                const score = ca.sectionScores[section.SectionName] || 0;
+                                const isPassed = score >= sectionThreshold;
+                                const scoreClass = isPassed ? 'score-pass' : 'score-fail';
+                                const currentClass = ca.isCurrent ? ' current-cycle' : '';
+                                return '<td style="text-align:center;" class="' + currentClass + '"><strong class="' + scoreClass + '">' + score + '%</strong></td>';
+                            }).join('') + '</tr>';
+                    }).join('')}
+                    <tr class="total-row">
+                        <td><strong>TOTAL</strong></td>
+                        ${cycleAudits.map(ca => {
+                            const isPassed = ca.totalScore >= threshold;
+                            const scoreClass = isPassed ? 'score-pass' : 'score-fail';
+                            const currentClass = ca.isCurrent ? ' current-cycle' : '';
+                            return '<td style="text-align:center;" class="' + currentClass + '"><strong class="' + scoreClass + '">' + ca.totalScore + '%</strong></td>';
+                        }).join('')}
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Section Scores Chart -->
+        <div class="chart-section">
+            <h2 class="chart-title">📊 Section Scores Overview</h2>
+            <div class="chart-simple">
+                ${sections.map(section => {
+                    const sectionThreshold = section.PassingGrade || threshold;
+                    const barClass = section.Percentage >= sectionThreshold ? 'bar-pass' : 'bar-fail';
+                    return '<div class="chart-row">' +
+                        '<div class="chart-row-label">' + section.SectionName + '</div>' +
+                        '<div class="chart-row-bar-container">' +
+                        '<div class="chart-row-bar ' + barClass + '" style="width: ' + section.Percentage + '%;"></div>' +
+                        '<div class="chart-row-threshold" style="left: ' + sectionThreshold + '%;"></div>' +
+                        '</div>' +
+                        '<div class="chart-row-value ' + barClass + '">' + section.Percentage + '%</div>' +
+                        '</div>';
+                }).join('')}
+            </div>
+            <div class="chart-legend">
+                <span class="legend-item"><span class="legend-color pass"></span> Pass (≥threshold)</span>
+                <span class="legend-item"><span class="legend-color fail"></span> Fail (&lt;threshold)</span>
+                <span class="legend-item"><span class="legend-line"></span> Section Threshold</span>
+            </div>
+        </div>
+
+        <div class="toggle-controls">
+            <button class="toggle-btn" onclick="expandAll()">📂 Expand All</button>
+            <button class="toggle-btn" onclick="collapseAll()">📁 Collapse All</button>
+        </div>
+
+        ${sections.map((section, sectionIdx) => {
+            const sectionFindings = (section.items || []).filter(item => item.Answer === 'No' || item.Answer === 'Partially');
+            return '<div class="section-card">' +
+                '<div class="section-header" onclick="toggleSection(' + sectionIdx + ')">' +
+                '<div class="section-title"><span class="collapse-icon" id="icon-' + sectionIdx + '">▼</span>' + section.SectionName + '</div>' +
+                '<div class="section-score">' + section.Percentage + '%</div>' +
+                '</div>' +
+                '<div class="section-content" id="section-' + sectionIdx + '">' +
+                '<table><thead><tr>' +
+                '<th style="width:60px">#</th><th>Question</th><th style="width:80px">Answer</th><th style="width:80px">Score</th><th style="width:90px">Observation</th>' +
+                '</tr></thead><tbody>' +
+                (section.items || []).map(item => {
+                    const answerType = item.Answer === 'Yes' ? 'Yes' : item.Answer === 'No' ? 'No' : item.Answer === 'Partially' ? 'Partially' : 'NA';
+                    const itemPics = pictures[item.Id] || [];
+                    const goodPics = itemPics.filter(p => p.pictureType === 'Good');
+                    const goodPicsHtml = goodPics.length > 0
+                        ? goodPics.map(p => '<img src="' + p.dataUrl + '" alt="Good" title="Good Observation" style="max-width:50px;max-height:40px;border-radius:4px;cursor:pointer;border:2px solid #10b981;object-fit:cover;" onclick="openLightbox(this.src)">').join('')
+                        : '-';
+                    return '<tr data-answer="' + answerType + '">' +
+                        '<td>' + (item.ReferenceValue || '-') + '</td>' +
+                        '<td>' + (item.Question || '-') + '</td>' +
+                        '<td class="' + (item.Answer === 'Yes' ? 'choice-yes' : item.Answer === 'No' ? 'choice-no' : item.Answer === 'Partially' ? 'choice-partial' : 'choice-na') + '">' + (item.Answer || '-') + '</td>' +
+                        '<td>' + (item.Score != null ? item.Score : '-') + ' / ' + (item.Coefficient || 0) + '</td>' +
+                        '<td>' + goodPicsHtml + '</td>' +
+                        '</tr>';
+                }).join('') +
+                '</tbody></table>' +
+                (sectionFindings.length > 0 ? '<div class="section-findings">' +
+                    '<div class="section-findings-title">⚠️ Findings (' + sectionFindings.length + ')</div>' +
+                    sectionFindings.map(f => {
+                        const itemPics = pictures[f.Id] || [];
+                        const correctiveHtml = f.CorrectedAction ? '<div class="finding-cr">✅ Corrective Action: ' + f.CorrectedAction + '</div>' : '';
+                        const picsHtml = itemPics.length > 0
+                            ? '<div class="finding-pictures"><strong>Photos:</strong><div class="pictures-wrapper">' +
+                              itemPics.map(p => '<img src="' + p.dataUrl + '" alt="' + (p.fileName || 'Photo') + '" title="' + (p.pictureType || 'Photo') + '" style="max-width:100px;max-height:75px;border-radius:4px;cursor:pointer;border:2px solid ' + (p.pictureType === 'Good' || p.pictureType === 'corrective' ? '#10b981' : '#ef4444') + ';" onclick="openLightbox(this.src)">').join('') +
+                              '</div></div>' : '';
+                        return '<div class="finding-item">' +
+                            '<div class="finding-ref">[' + (f.ReferenceValue || 'N/A') + ']</div>' +
+                            '<div class="finding-question">' + f.Question + '</div>' +
+                            '<div class="finding-detail">Answer: <strong class="' + (f.Answer === 'No' ? 'choice-no' : 'choice-partial') + '">' + f.Answer + '</strong> | Finding: ' + (f.Finding || 'N/A') + '</div>' +
+                            correctiveHtml + picsHtml +
+                            '</div>';
+                    }).join('') +
+                    '</div>' : '') +
+                // Fridge readings for this section
+                (() => {
+                    const sectionFridgeReadings = fridgeReadings.filter(r => r.SectionName === section.SectionName);
+                    if (sectionFridgeReadings.length === 0) return '';
+                    return '<div class="section-findings" style="margin-top:10px;background:#ecfeff;border-top:2px solid #99f6e4;">' +
+                        '<div class="section-findings-title" style="color:#0891b2;">🌡️ Fridge Temperature Readings (' + sectionFridgeReadings.length + ')</div>' +
+                        '<table><thead><tr><th>Ref</th><th>Display (°C)</th><th>Probe (°C)</th><th>Status</th><th>Issue</th><th>Photo</th></tr></thead><tbody>' +
+                        sectionFridgeReadings.map(r =>
+                            '<tr><td>' + (r.ReferenceValue || 'N/A') + '</td>' +
+                            '<td>' + (r.DisplayTemp != null ? r.DisplayTemp : 'N/A') + '</td>' +
+                            '<td>' + (r.ProbeTemp != null ? r.ProbeTemp : 'N/A') + '</td>' +
+                            '<td>' + (r.IsCompliant ? '✅ OK' : '❌ Issue') + '</td>' +
+                            '<td>' + (r.Issue || '-') + '</td>' +
+                            '<td>' + (r.Picture ? '<img src="' + r.Picture + '" alt="Fridge" style="max-width:80px;max-height:60px;border-radius:4px;cursor:pointer;object-fit:cover;" onclick="openLightbox(this.src)">' : '-') + '</td></tr>'
+                        ).join('') +
+                        '</tbody></table></div>';
+                })() +
+                '</div></div>';
+        }).join('')}
+
+        <!-- Observation Gallery -->
+        <div class="gallery-section">
+            <h2 class="gallery-title good">📷 Observation Gallery (${goodObsItems.length})</h2>
+            ${goodObsItems.length > 0 ? '<div class="gallery-grid">' +
+                goodObsItems.map(item =>
+                    '<div class="gallery-card good">' +
+                    '<img src="' + item.dataUrl + '" alt="Observation" class="gallery-img" onclick="openLightbox(this.src)">' +
+                    '<div class="gallery-info">' +
+                    '<div class="gallery-ref good">[' + item.ref + ']</div>' +
+                    '<div class="gallery-section-name">📋 ' + item.section + '</div>' +
+                    '<span class="gallery-type good">📷 Observation</span>' +
+                    '</div></div>'
+                ).join('') + '</div>'
+            : '<div class="gallery-empty">No observations captured</div>'}
+        </div>
+
+        <!-- Findings Gallery -->
+        <div class="gallery-section">
+            <h2 class="gallery-title findings">⚠️ Findings Gallery (${findingPicItems.length})</h2>
+            ${findingPicItems.length > 0 ? '<div class="gallery-grid">' +
+                findingPicItems.map(item =>
+                    '<div class="gallery-card finding">' +
+                    '<img src="' + item.dataUrl + '" alt="Finding" class="gallery-img" onclick="openLightbox(this.src)">' +
+                    '<div class="gallery-info">' +
+                    '<div class="gallery-ref finding">[' + item.ref + ']</div>' +
+                    '<div class="gallery-section-name">📋 ' + item.section + '</div>' +
+                    '<span class="gallery-type ' + (item.pictureType === 'corrective' ? 'corrective' : 'issue') + '">' + (item.pictureType === 'corrective' ? '✅ Corrective' : '⚠️ Issue') + '</span>' +
+                    '</div></div>'
+                ).join('') + '</div>'
+            : '<div class="gallery-empty">No finding photos captured</div>'}
+        </div>
+
+        <div class="footer">
+            Report generated on ${new Date(generatedAt).toLocaleString()} | Receiving Audit System
+        </div>
+    </div>
+
+    <script>
+        // Section collapse/expand
+        function toggleSection(index) {
+            const content = document.getElementById('section-' + index);
+            const icon = document.getElementById('icon-' + index);
+            if (content.classList.contains('collapsed')) { content.classList.remove('collapsed'); icon.classList.remove('collapsed'); }
+            else { content.classList.add('collapsed'); icon.classList.add('collapsed'); }
+        }
+        function expandAll() {
+            document.querySelectorAll('.section-content').forEach(el => el.classList.remove('collapsed'));
+            document.querySelectorAll('.collapse-icon').forEach(el => el.classList.remove('collapsed'));
+        }
+        function collapseAll() {
+            document.querySelectorAll('.section-content').forEach(el => el.classList.add('collapsed'));
+            document.querySelectorAll('.collapse-icon').forEach(el => el.classList.add('collapsed'));
+        }
+
+        // Filter functionality
+        const filters = { yes: true, partial: true, no: true, na: true };
+        function toggleFilter(type, btn) { filters[type] = !filters[type]; btn.classList.toggle('active', filters[type]); applyFilters(); }
+        function applyFilters() {
+            document.querySelectorAll('tr[data-answer]').forEach(row => {
+                const answer = row.dataset.answer;
+                let show = false;
+                if (answer === 'Yes' && filters.yes) show = true;
+                if (answer === 'Partially' && filters.partial) show = true;
+                if (answer === 'No' && filters.no) show = true;
+                if (answer === 'NA' && filters.na) show = true;
+                row.classList.toggle('hidden-by-filter', !show);
+            });
+            document.querySelectorAll('.section-card').forEach(section => {
+                const visibleRows = section.querySelectorAll('tr[data-answer]:not(.hidden-by-filter)');
+                section.classList.toggle('section-hidden', visibleRows.length === 0);
+            });
+        }
+        function showOnlyFindings() {
+            filters.yes = false; filters.na = false; filters.partial = true; filters.no = true;
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                if (btn.classList.contains('filter-yes')) btn.classList.remove('active');
+                if (btn.classList.contains('filter-na')) btn.classList.remove('active');
+                if (btn.classList.contains('filter-partial')) btn.classList.add('active');
+                if (btn.classList.contains('filter-no')) btn.classList.add('active');
+            });
+            applyFilters();
+        }
+        function resetFilters() {
+            filters.yes = true; filters.partial = true; filters.no = true; filters.na = true;
+            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.add('active'));
+            document.querySelectorAll('tr[data-answer]').forEach(row => row.classList.remove('hidden-by-filter'));
+            document.querySelectorAll('.section-card').forEach(section => section.classList.remove('section-hidden'));
+        }
+    </script>
+</body>
+</html>`;
+}
+
+function generateDeptReportHTML(audit, department, items, picturesByItem) {
+    const itemsHTML = items.map(item => {
+        const itemPics = picturesByItem[item.Id] || [];
+        const picsHtml = itemPics.length > 0
+            ? itemPics.map(p => '<img src="' + p.FilePath + '" style="max-width:150px;max-height:100px;border-radius:6px;cursor:pointer;margin:3px;border:2px solid ' + (p.PictureType === 'corrective' ? '#10b981' : '#ef4444') + ';" onclick="openLightbox(this.src)" alt="">').join('')
+            : '-';
+        return '<tr>' +
+            '<td>' + (item.ReferenceValue || '') + '</td>' +
+            '<td>' + (item.SectionName || '') + '</td>' +
+            '<td>' + (item.Question || '') + '</td>' +
+            '<td style="font-weight:600;color:' + (item.Answer === 'No' ? '#ef4444' : '#f59e0b') + ';">' + (item.Answer || '-') + '</td>' +
+            '<td>' + (item.Finding || '') + '</td>' +
+            '<td><span style="padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;background:' +
+            (item.Priority === 'Critical' ? '#fef2f2;color:#dc2626' : item.Priority === 'High' ? '#fff7ed;color:#ea580c' : '#f0fdf4;color:#16a34a') + ';">' + (item.Priority || 'Medium') + '</span></td>' +
+            '<td>' + picsHtml + '</td></tr>';
+    }).join('');
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${department} Department Report - ${audit.DocumentNumber}</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f5f5f5; color: #333; line-height: 1.6; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%); color: white; padding: 20px 25px; border-radius: 12px; margin-bottom: 20px; text-align: center; }
+        .header h1 { font-size: 22px; margin-bottom: 8px; }
+        .header p { opacity: 0.9; font-size: 14px; }
+        .dept-badge { display: inline-block; background: rgba(255,255,255,0.2); padding: 8px 20px; border-radius: 50px; font-size: 16px; font-weight: 700; margin-top: 10px; }
+        .stats { display: flex; gap: 15px; margin-bottom: 20px; justify-content: center; }
+        .stat-card { background: white; border-radius: 10px; padding: 15px 25px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.08); flex: 0 1 200px; }
+        .stat-value { font-size: 28px; font-weight: bold; color: #7c3aed; }
+        .stat-label { font-size: 12px; color: #64748b; text-transform: uppercase; }
+        .items-section { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.08); margin-bottom: 20px; }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: #7c3aed; color: white; padding: 12px 10px; text-align: left; font-size: 12px; text-transform: uppercase; font-weight: 600; }
+        td { padding: 10px; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: middle; }
+        tr:hover { background: #f8fafc; }
+        .empty-state { text-align: center; padding: 40px; color: #94a3b8; font-size: 16px; }
+        .footer { text-align: center; padding: 20px; color: #64748b; font-size: 12px; }
+        .action-bar { position: fixed; top: 20px; right: 20px; display: flex; gap: 10px; z-index: 1000; }
+        .action-bar button { padding: 10px 18px; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
+        .btn-back { background: linear-gradient(135deg, #64748b 0%, #475569 100%); color: white; }
+        .btn-print { background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); color: white; }
+        .lightbox { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 9999; justify-content: center; align-items: center; }
+        .lightbox.active { display: flex; }
+        .lightbox img { max-width: 90%; max-height: 90%; border-radius: 8px; }
+        .lightbox-close { position: absolute; top: 20px; right: 30px; color: white; font-size: 40px; cursor: pointer; }
+        @media print {
+            @page { size: landscape; margin: 10mm; }
+            body { background: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .action-bar { display: none !important; }
+            .lightbox { display: none !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="action-bar">
+        <button class="btn-back" onclick="history.back()">← Back</button>
+        <button class="btn-print" onclick="window.print()">🖨️ Print</button>
+    </div>
+    <div class="lightbox" id="lightbox" onclick="closeLightbox()">
+        <span class="lightbox-close">&times;</span>
+        <img id="lightbox-img" src="" alt="Full size image">
+    </div>
+    <script>
+        function openLightbox(src) { document.getElementById('lightbox-img').src = src; document.getElementById('lightbox').classList.add('active'); }
+        function closeLightbox() { document.getElementById('lightbox').classList.remove('active'); }
+    </script>
+    <div class="container">
+        <div class="header">
+            <h1>📦 Department Escalation Report</h1>
+            <p>${audit.DocumentNumber} | ${audit.StoreName || 'N/A'} | ${audit.InspectionDate ? new Date(audit.InspectionDate).toLocaleDateString() : 'N/A'}</p>
+            <div class="dept-badge">🏢 ${department}</div>
+        </div>
+        <div class="stats">
+            <div class="stat-card"><div class="stat-value">${items.length}</div><div class="stat-label">Escalated Items</div></div>
+            <div class="stat-card"><div class="stat-value">${items.filter(i => i.Priority === 'Critical').length}</div><div class="stat-label">Critical</div></div>
+            <div class="stat-card"><div class="stat-value">${items.filter(i => i.Priority === 'High').length}</div><div class="stat-label">High Priority</div></div>
+        </div>
+        <div class="items-section">
+            <table>
+                <thead><tr>
+                    <th>Ref</th><th>Section</th><th>Question</th><th>Answer</th><th>Finding</th><th>Priority</th><th>Pictures</th>
+                </tr></thead>
+                <tbody>${itemsHTML || '<tr><td colspan="7" class="empty-state">No escalated items for this department</td></tr>'}</tbody>
+            </table>
+        </div>
+        <div class="footer">Generated on ${new Date().toLocaleString()} | Receiving Audit System</div>
+    </div>
+</body>
+</html>`;
+}
+
+// ==========================================
+// Fridge Readings APIs
+// ==========================================
+
+function saveFridgePicture(base64Data, auditId) {
+    const fridgeDir = path.join(__dirname, '..', '..', 'uploads', 'receiving-audit', 'fridge');
+    if (!fs.existsSync(fridgeDir)) fs.mkdirSync(fridgeDir, { recursive: true });
+    const matches = base64Data.match(/^data:image\/(png|jpeg|jpg|gif|webp);base64,(.+)$/);
+    if (!matches) return null;
+    const ext = matches[1] === 'jpeg' ? 'jpg' : matches[1];
+    const fileName = `fridge-${auditId}-${Date.now()}-${Math.round(Math.random() * 1E9)}.${ext}`;
+    const filePath = path.join(fridgeDir, fileName);
+    fs.writeFileSync(filePath, Buffer.from(matches[2], 'base64'));
+    return '/uploads/receiving-audit/fridge/' + fileName;
+}
+
+// Save fridge readings
+router.post('/api/audits/:auditId/fridge-readings', async (req, res) => {
+    try {
+        const { auditId } = req.params;
+        const { goodReadings, badReadings } = req.body;
+        const pool = await getPool();
+
+        // Get existing picture file paths before deleting
+        const existingPics = await pool.request()
+            .input('auditId', sql.Int, auditId)
+            .query('SELECT Picture FROM RCV_FridgeReadings WHERE InspectionId = @auditId AND Picture IS NOT NULL');
+
+        // Collect paths of pictures being re-submitted
+        const reusedPaths = new Set();
+        for (const r of [...(goodReadings || []), ...(badReadings || [])]) {
+            if (r.picture && !r.picture.startsWith('data:')) reusedPaths.add(r.picture);
+        }
+
+        // Delete orphan picture files
+        for (const row of existingPics.recordset) {
+            if (row.Picture && !reusedPaths.has(row.Picture)) {
+                const filePath = path.join(__dirname, '..', '..', row.Picture);
+                if (fs.existsSync(filePath)) {
+                    try { fs.unlinkSync(filePath); } catch (e) { /* ignore */ }
+                }
+            }
+        }
+
+        // Delete existing readings
+        await pool.request().input('auditId', sql.Int, auditId)
+            .query('DELETE FROM RCV_FridgeReadings WHERE InspectionId = @auditId');
+
+        // Insert good readings
+        for (const reading of (goodReadings || [])) {
+            const itemId = parseInt(reading.responseId);
+            if (!itemId) continue;
+            const displayVal = parseFloat(reading.displayTemp || reading.display);
+            const probeVal = parseFloat(reading.probeTemp || reading.probe);
+            let picturePath = null;
+            if (reading.picture) {
+                picturePath = reading.picture.startsWith('data:') ? saveFridgePicture(reading.picture, auditId) : reading.picture;
+            }
+            await pool.request()
+                .input('auditId', sql.Int, auditId).input('itemId', sql.Int, itemId)
+                .input('displayTemp', sql.Decimal(10,2), isNaN(displayVal) ? null : displayVal)
+                .input('probeTemp', sql.Decimal(10,2), isNaN(probeVal) ? null : probeVal)
+                .input('isCompliant', sql.Bit, 1).input('picture', sql.NVarChar, picturePath)
+                .query('INSERT INTO RCV_FridgeReadings (InspectionId, ItemId, DisplayTemp, ProbeTemp, IsCompliant, Picture, CreatedAt) VALUES (@auditId, @itemId, @displayTemp, @probeTemp, @isCompliant, @picture, GETDATE())');
+        }
+
+        // Insert bad readings
+        for (const reading of (badReadings || [])) {
+            const itemId = parseInt(reading.responseId);
+            if (!itemId) continue;
+            const displayVal = parseFloat(reading.displayTemp || reading.display);
+            const probeVal = parseFloat(reading.probeTemp || reading.probe);
+            let picturePath = null;
+            if (reading.picture) {
+                picturePath = reading.picture.startsWith('data:') ? saveFridgePicture(reading.picture, auditId) : reading.picture;
+            }
+            await pool.request()
+                .input('auditId', sql.Int, auditId).input('itemId', sql.Int, itemId)
+                .input('displayTemp', sql.Decimal(10,2), isNaN(displayVal) ? null : displayVal)
+                .input('probeTemp', sql.Decimal(10,2), isNaN(probeVal) ? null : probeVal)
+                .input('issue', sql.NVarChar, reading.issue || null)
+                .input('isCompliant', sql.Bit, 0).input('picture', sql.NVarChar, picturePath)
+                .query('INSERT INTO RCV_FridgeReadings (InspectionId, ItemId, DisplayTemp, ProbeTemp, Issue, IsCompliant, Picture, CreatedAt) VALUES (@auditId, @itemId, @displayTemp, @probeTemp, @issue, @isCompliant, @picture, GETDATE())');
+        }
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Error saving fridge readings:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Get fridge readings
+router.get('/api/audits/:auditId/fridge-readings', async (req, res) => {
+    try {
+        const { auditId } = req.params;
+        const pool = await getPool();
+
+        const result = await pool.request().input('auditId', sql.Int, auditId)
+            .query(`
+                SELECT fr.Id, fr.ItemId, fr.DisplayTemp, fr.ProbeTemp, fr.Issue, fr.IsCompliant, fr.Picture,
+                       i.SectionName
+                FROM RCV_FridgeReadings fr
+                LEFT JOIN RCV_InspectionItems i ON fr.ItemId = i.Id
+                WHERE fr.InspectionId = @auditId
+                ORDER BY fr.CreatedAt
+            `);
+
+        // Auto-detect which sections have fridge readings
+        const enabledSectionsResult = await pool.request().input('auditId', sql.Int, auditId)
+            .query(`
+                SELECT DISTINCT sec.Id as sectionId
+                FROM RCV_FridgeReadings fr
+                INNER JOIN RCV_InspectionItems i ON fr.ItemId = i.Id AND i.InspectionId = @auditId
+                INNER JOIN RCV_InspectionSections sec ON sec.InspectionId = @auditId AND sec.SectionName = i.SectionName
+                WHERE fr.InspectionId = @auditId
+            `);
+
+        const enabledSections = {};
+        for (const row of enabledSectionsResult.recordset) {
+            enabledSections[row.sectionId] = true;
+        }
+
+        const mapped = result.recordset.filter(r => r.ItemId != null).map(r => ({
+            id: r.Id,
+            responseId: r.ItemId,
+            section: r.SectionName || '',
+            displayTemp: r.DisplayTemp != null ? String(r.DisplayTemp) : '',
+            probeTemp: r.ProbeTemp != null ? String(r.ProbeTemp) : '',
+            issue: r.Issue || '',
+            picture: r.Picture || null,
+            isCompliant: r.IsCompliant
+        }));
+
+        const goodReadings = mapped.filter(r => r.isCompliant === true || r.isCompliant === 1);
+        const badReadings = mapped.filter(r => r.isCompliant === false || r.isCompliant === 0);
+
+        res.json({ success: true, data: { goodReadings, badReadings, enabledSections } });
+    } catch (error) {
+        console.error('Error fetching fridge readings:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ==========================================
+// Gallery APIs
+// ==========================================
+
+const galleryUploadDir = path.join(__dirname, '..', '..', 'uploads', 'receiving-audit', 'gallery');
+if (!fs.existsSync(galleryUploadDir)) {
+    fs.mkdirSync(galleryUploadDir, { recursive: true });
+}
+
+const galleryStorage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, galleryUploadDir),
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, 'rcv-gallery-' + uniqueSuffix + path.extname(file.originalname));
+    }
+});
+
+const galleryUpload = multer({
+    storage: galleryStorage,
+    limits: { fileSize: 15 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = /jpeg|jpg|png|gif|webp/;
+        const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+        const mimetype = allowedTypes.test(file.mimetype);
+        if (extname && mimetype) return cb(null, true);
+        cb(new Error('Only image files are allowed'));
+    }
+});
+
+// Upload multiple pictures to gallery
+router.post('/api/gallery/:auditId/upload-multiple', galleryUpload.array('pictures', 20), async (req, res) => {
+    try {
+        const { auditId } = req.params;
+        if (!req.files || req.files.length === 0) {
+            return res.status(400).json({ success: false, error: 'No files uploaded' });
+        }
+        const pool = await getPool();
+        const uploadedPictures = [];
+        for (const file of req.files) {
+            await compressImage(file.path);
+            const stats = fs.statSync(file.path);
+            const result = await pool.request()
+                .input('auditId', sql.Int, auditId)
+                .input('fileName', sql.NVarChar, file.filename)
+                .input('filePath', sql.NVarChar, '/uploads/receiving-audit/gallery/' + file.filename)
+                .input('originalName', sql.NVarChar, file.originalname)
+                .input('fileSize', sql.Int, stats.size)
+                .input('uploadedBy', sql.NVarChar, req.currentUser?.displayName || 'Unknown')
+                .query('INSERT INTO RCV_InspectionGallery (InspectionId, FileName, FilePath, OriginalName, FileSize, UploadedBy) OUTPUT INSERTED.Id, INSERTED.FileName, INSERTED.FilePath, INSERTED.OriginalName, INSERTED.FileSize, INSERTED.UploadedAt VALUES (@auditId, @fileName, @filePath, @originalName, @fileSize, @uploadedBy)');
+            uploadedPictures.push(result.recordset[0]);
+        }
+        res.json({ success: true, data: uploadedPictures, count: uploadedPictures.length });
+    } catch (error) {
+        console.error('Error uploading to gallery:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Get all gallery pictures for an audit
+router.get('/api/gallery/:auditId', async (req, res) => {
+    try {
+        const { auditId } = req.params;
+        const pool = await getPool();
+        const result = await pool.request().input('auditId', sql.Int, auditId)
+            .query(`
+                SELECT g.Id, g.FileName, g.FilePath, g.OriginalName, g.FileSize, g.UploadedBy, g.UploadedAt,
+                    (SELECT COUNT(*) FROM RCV_InspectionGalleryLinks WHERE GalleryPictureId = g.Id) as AssignmentCount
+                FROM RCV_InspectionGallery g
+                WHERE g.InspectionId = @auditId
+                ORDER BY g.UploadedAt DESC
+            `);
+        res.json({ success: true, data: result.recordset });
+    } catch (error) {
+        console.error('Error fetching gallery:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Delete picture from gallery
+router.delete('/api/gallery/picture/:pictureId', async (req, res) => {
+    try {
+        const { pictureId } = req.params;
+        const pool = await getPool();
+        const fileResult = await pool.request().input('id', sql.Int, pictureId)
+            .query('SELECT FilePath FROM RCV_InspectionGallery WHERE Id = @id');
+        if (fileResult.recordset.length === 0) {
+            return res.status(404).json({ success: false, error: 'Picture not found' });
+        }
+        // Delete links first, then gallery record
+        await pool.request().input('id', sql.Int, pictureId)
+            .query('DELETE FROM RCV_InspectionGalleryLinks WHERE GalleryPictureId = @id');
+        await pool.request().input('id', sql.Int, pictureId)
+            .query('DELETE FROM RCV_InspectionGallery WHERE Id = @id');
+        // Delete file from disk
+        const filePath = path.join(__dirname, '..', '..', fileResult.recordset[0].FilePath);
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Error deleting gallery picture:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Assign gallery picture to item
+router.post('/api/gallery/assign', async (req, res) => {
+    try {
+        const { galleryPictureId, responseId, pictureType } = req.body;
+        if (!galleryPictureId || !responseId || !pictureType) {
+            return res.status(400).json({ success: false, error: 'Missing required fields' });
+        }
+        const pool = await getPool();
+        // Check if already assigned
+        const existing = await pool.request()
+            .input('galleryPictureId', sql.Int, galleryPictureId)
+            .input('responseId', sql.Int, responseId)
+            .input('pictureType', sql.NVarChar, pictureType)
+            .query('SELECT Id FROM RCV_InspectionGalleryLinks WHERE GalleryPictureId = @galleryPictureId AND ResponseId = @responseId AND PictureType = @pictureType');
+        if (existing.recordset.length > 0) {
+            return res.json({ success: true, message: 'Already assigned' });
+        }
+        const result = await pool.request()
+            .input('galleryPictureId', sql.Int, galleryPictureId)
+            .input('responseId', sql.Int, responseId)
+            .input('pictureType', sql.NVarChar, pictureType)
+            .query('INSERT INTO RCV_InspectionGalleryLinks (GalleryPictureId, ResponseId, PictureType) OUTPUT INSERTED.Id VALUES (@galleryPictureId, @responseId, @pictureType)');
+        // Update HasPicture flag
+        await pool.request().input('responseId', sql.Int, responseId)
+            .query('UPDATE RCV_InspectionItems SET HasPicture = 1 WHERE Id = @responseId');
+        res.json({ success: true, linkId: result.recordset[0].Id });
+    } catch (error) {
+        console.error('Error assigning gallery picture:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Unassign gallery picture from item
+router.delete('/api/gallery/unassign/:linkId', async (req, res) => {
+    try {
+        const { linkId } = req.params;
+        const pool = await getPool();
+        const linkResult = await pool.request().input('id', sql.Int, linkId)
+            .query('SELECT ResponseId FROM RCV_InspectionGalleryLinks WHERE Id = @id');
+        if (linkResult.recordset.length === 0) {
+            return res.status(404).json({ success: false, error: 'Link not found' });
+        }
+        const responseId = linkResult.recordset[0].ResponseId;
+        await pool.request().input('id', sql.Int, linkId)
+            .query('DELETE FROM RCV_InspectionGalleryLinks WHERE Id = @id');
+        // Check if item still has pictures
+        const pictureCheck = await pool.request().input('responseId', sql.Int, responseId)
+            .query(`SELECT (SELECT COUNT(*) FROM RCV_InspectionPictures WHERE ItemId = @responseId) + (SELECT COUNT(*) FROM RCV_InspectionGalleryLinks WHERE ResponseId = @responseId) as TotalPictures`);
+        if (pictureCheck.recordset[0].TotalPictures === 0) {
+            await pool.request().input('responseId', sql.Int, responseId)
+                .query('UPDATE RCV_InspectionItems SET HasPicture = 0 WHERE Id = @responseId');
+        }
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Error unassigning gallery picture:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Get assignments for a gallery picture
+router.get('/api/gallery/picture/:pictureId/assignments', async (req, res) => {
+    try {
+        const { pictureId } = req.params;
+        const pool = await getPool();
+        const result = await pool.request().input('pictureId', sql.Int, pictureId)
+            .query(`
+                SELECT l.Id as LinkId, l.PictureType, l.AssignedAt,
+                       i.Id as ResponseId, i.ReferenceValue, i.Question, i.SectionName
+                FROM RCV_InspectionGalleryLinks l
+                INNER JOIN RCV_InspectionItems i ON i.Id = l.ResponseId
+                WHERE l.GalleryPictureId = @pictureId
+                ORDER BY l.AssignedAt DESC
+            `);
+        res.json({ success: true, data: result.recordset });
+    } catch (error) {
+        console.error('Error fetching picture assignments:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Get gallery pictures assigned to a response/item
+router.get('/api/gallery/item/:responseId', async (req, res) => {
+    try {
+        const { responseId } = req.params;
+        const pool = await getPool();
+        const result = await pool.request().input('responseId', sql.Int, responseId)
+            .query(`
+                SELECT l.Id as LinkId, l.PictureType, l.AssignedAt,
+                       g.Id as GalleryPictureId, g.FileName, g.FilePath, g.OriginalName
+                FROM RCV_InspectionGalleryLinks l
+                INNER JOIN RCV_InspectionGallery g ON g.Id = l.GalleryPictureId
+                WHERE l.ResponseId = @responseId
+                ORDER BY l.AssignedAt DESC
+            `);
+        res.json({ success: true, data: result.recordset });
+    } catch (error) {
+        console.error('Error fetching item gallery pictures:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Get unassigned pictures for an audit
+router.get('/api/gallery/:auditId/unassigned', async (req, res) => {
+    try {
+        const { auditId } = req.params;
+        const pool = await getPool();
+        const result = await pool.request().input('auditId', sql.Int, auditId)
+            .query(`
+                SELECT g.Id, g.FileName, g.FilePath, g.OriginalName, g.UploadedAt
+                FROM RCV_InspectionGallery g
+                WHERE g.InspectionId = @auditId
+                AND NOT EXISTS (SELECT 1 FROM RCV_InspectionGalleryLinks l WHERE l.GalleryPictureId = g.Id)
+                ORDER BY g.UploadedAt DESC
+            `);
+        res.json({ success: true, data: result.recordset, count: result.recordset.length });
+    } catch (error) {
+        console.error('Error fetching unassigned pictures:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Delete all unassigned pictures for an audit
+router.delete('/api/gallery/:auditId/unassigned', async (req, res) => {
+    try {
+        const { auditId } = req.params;
+        const pool = await getPool();
+        const files = await pool.request().input('auditId', sql.Int, auditId)
+            .query(`
+                SELECT g.Id, g.FilePath FROM RCV_InspectionGallery g
+                WHERE g.InspectionId = @auditId
+                AND NOT EXISTS (SELECT 1 FROM RCV_InspectionGalleryLinks l WHERE l.GalleryPictureId = g.Id)
+            `);
+        for (const file of files.recordset) {
+            await pool.request().input('id', sql.Int, file.Id)
+                .query('DELETE FROM RCV_InspectionGallery WHERE Id = @id');
+            const filePath = path.join(__dirname, '..', '..', file.FilePath);
+            if (fs.existsSync(filePath)) {
+                try { fs.unlinkSync(filePath); } catch (e) { /* ignore */ }
+            }
+        }
+        res.json({ success: true, deleted: files.recordset.length });
+    } catch (error) {
+        console.error('Error deleting unassigned pictures:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
 });
 
 module.exports = router;

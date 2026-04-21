@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Receiving Audit Report - GMRL-RCV-0002</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f5f5f5; color: #333; line-height: 1.6; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%); color: white; padding: 15px 20px; border-radius: 10px; margin-bottom: 15px; }
+        .header h1 { font-size: 20px; margin-bottom: 8px; }
+        .header-info { display: flex; flex-wrap: wrap; gap: 10px; }
+        .header-item { background: rgba(255,255,255,0.1); padding: 6px 12px; border-radius: 6px; }
+        .header-item label { font-size: 10px; opacity: 0.8; display: block; }
+        .header-item span { font-size: 13px; font-weight: 600; }
+        .score-card { background: white; border-radius: 10px; padding: 12px 25px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); display: flex; align-items: center; justify-content: center; gap: 20px; }
+        .score-value { font-size: 36px; font-weight: bold; }
+        .score-value.pass { color: #10b981; }
+        .score-value.fail { color: #ef4444; }
+        .score-label { font-size: 18px; font-weight: 600; }
+        .score-label.pass { color: #10b981; }
+        .score-label.fail { color: #ef4444; }
+        .score-threshold { color: #64748b; font-size: 14px; border-left: 1px solid #e2e8f0; padding-left: 20px; }
+
+        .summary-section { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 25px; overflow: hidden; }
+        .summary-title { background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%); color: white; margin: 0; padding: 15px 20px; font-size: 18px; font-weight: 600; }
+        .summary-table { width: 100%; border-collapse: collapse; }
+        .summary-table th, .summary-table td { padding: 10px 15px; }
+        .summary-table th { background: #64748b; color: white; text-align: left; font-size: 12px; text-transform: uppercase; font-weight: 600; border-bottom: 2px solid #475569; }
+        .summary-table td { border-bottom: 1px solid #e2e8f0; vertical-align: middle; }
+        .summary-table tr:hover { background: #f8fafc; }
+        .summary-table .total-row { background: #f1f5f9; border-top: 2px solid #64748b; }
+        .summary-table .current-cycle { background: #ede9fe; }
+        .score-pass { color: #10b981; font-weight: 600; }
+        .score-fail { color: #ef4444; font-weight: 600; }
+
+        .chart-section { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 25px; overflow: hidden; }
+        .chart-title { background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%); color: white; margin: 0; padding: 15px 20px; font-size: 18px; font-weight: 600; }
+        .chart-simple { padding: 20px; }
+        .chart-row { display: flex; align-items: center; margin-bottom: 8px; gap: 10px; }
+        .chart-row-label { width: 200px; font-size: 12px; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+        .chart-row-bar-container { flex: 1; height: 20px; background: #e2e8f0; border-radius: 4px; position: relative; overflow: visible; }
+        .chart-row-bar { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
+        .chart-row-bar.bar-pass { background: linear-gradient(90deg, #10b981 0%, #059669 100%); }
+        .chart-row-bar.bar-fail { background: linear-gradient(90deg, #ef4444 0%, #dc2626 100%); }
+        .chart-row-threshold { position: absolute; top: -2px; bottom: -2px; width: 2px; background: #f59e0b; }
+        .chart-row-value { width: 50px; font-size: 13px; font-weight: 700; text-align: right; }
+        .chart-row-value.bar-pass { color: #10b981; }
+        .chart-row-value.bar-fail { color: #ef4444; }
+        .chart-legend { display: flex; gap: 20px; justify-content: center; padding: 15px; border-top: 1px solid #e2e8f0; background: #f8fafc; }
+        .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #475569; }
+        .legend-color { width: 14px; height: 14px; border-radius: 3px; }
+        .legend-color.pass { background: #10b981; }
+        .legend-color.fail { background: #ef4444; }
+        .legend-line { width: 20px; height: 2px; background: #f59e0b; }
+
+        .toggle-controls { display: flex; gap: 10px; margin-bottom: 20px; justify-content: flex-end; }
+        .toggle-btn { background: #7c3aed; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; transition: background 0.2s; }
+        .toggle-btn:hover { background: #6d28d9; }
+
+        .section-card { background: white; border-radius: 12px; margin-bottom: 20px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .section-header { background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%); color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; }
+        .section-header:hover { filter: brightness(1.05); }
+        .section-title { font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+        .section-score { font-size: 20px; font-weight: bold; display: flex; align-items: center; gap: 10px; }
+        .collapse-icon { font-size: 20px; transition: transform 0.3s ease; }
+        .collapse-icon.collapsed { transform: rotate(-90deg); }
+        .section-content { padding: 0; transition: max-height 0.3s ease, padding 0.3s ease, opacity 0.3s ease; overflow: hidden; }
+        .section-content.collapsed { max-height: 0 !important; padding: 0; opacity: 0; }
+
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #e2e8f0; font-size: 13px; }
+        th { background: #f8fafc; font-weight: 600; font-size: 11px; text-transform: uppercase; color: #64748b; }
+        tr:hover { background: #f8fafc; }
+        .choice-yes { color: #10b981; font-weight: 600; }
+        .choice-no { color: #ef4444; font-weight: 600; }
+        .choice-partial { color: #f59e0b; font-weight: 600; }
+        .choice-na { color: #94a3b8; }
+
+        .section-findings { background: #fef2f2; border-top: 2px solid #fecaca; padding: 12px 15px; }
+        .section-findings-title { color: #dc2626; font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+        .finding-item { background: white; border-radius: 8px; padding: 12px; margin-bottom: 8px; border-left: 4px solid #ef4444; }
+        .finding-ref { font-weight: 600; color: #7c3aed; font-size: 12px; }
+        .finding-question { margin: 5px 0; font-size: 14px; }
+        .finding-detail { color: #64748b; font-size: 13px; }
+        .finding-cr { background: #ecfdf5; border-left: 4px solid #10b981; padding: 10px; margin-top: 8px; border-radius: 4px; font-size: 13px; color: #065f46; }
+        .finding-pictures { margin-top: 10px; padding-top: 10px; border-top: 1px solid #e2e8f0; }
+        .pictures-wrapper { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 5px; }
+
+        .fridge-section { background: white; border-radius: 12px; margin-bottom: 20px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .fridge-header { background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%); color: white; padding: 15px 20px; }
+        .fridge-title { font-size: 18px; font-weight: 600; }
+
+        .gallery-section { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 25px; overflow: hidden; }
+        .gallery-title { margin: 0; padding: 15px 20px; font-size: 18px; font-weight: 600; color: white; }
+        .gallery-title.good { background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%); }
+        .gallery-title.findings { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); }
+        .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; padding: 20px; }
+        .gallery-card { background: #f8fafc; border-radius: 10px; overflow: hidden; border: 1px solid #e2e8f0; transition: transform 0.2s, box-shadow 0.2s; }
+        .gallery-card:hover { transform: translateY(-3px); box-shadow: 0 4px 15px rgba(0,0,0,0.15); }
+        .gallery-card.good { border-left: 4px solid #6b7280; }
+        .gallery-card.finding { border-left: 4px solid #ef4444; }
+        .gallery-img { width: 100%; height: 180px; object-fit: cover; cursor: pointer; background: #e2e8f0; }
+        .gallery-info { padding: 12px; }
+        .gallery-ref { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
+        .gallery-ref.good { color: #4b5563; }
+        .gallery-ref.finding { color: #dc2626; }
+        .gallery-section-name { font-size: 12px; color: #64748b; margin-bottom: 4px; }
+        .gallery-type { font-size: 11px; padding: 2px 8px; border-radius: 10px; display: inline-block; }
+        .gallery-type.good { background: #e5e7eb; color: #374151; }
+        .gallery-type.issue { background: #fee2e2; color: #991b1b; }
+        .gallery-type.corrective { background: #d1fae5; color: #065f46; }
+        .gallery-empty { text-align: center; padding: 40px 20px; color: #94a3b8; font-size: 16px; }
+
+        .lightbox { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 9999; justify-content: center; align-items: center; }
+        .lightbox.active { display: flex; }
+        .lightbox img { max-width: 90%; max-height: 90%; border-radius: 8px; box-shadow: 0 4px 30px rgba(0,0,0,0.5); }
+        .lightbox-close { position: absolute; top: 20px; right: 30px; color: white; font-size: 40px; font-weight: bold; cursor: pointer; transition: color 0.2s; }
+        .lightbox-close:hover { color: #7c3aed; }
+
+        .filter-toolbar {
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            border: 1px solid #cbd5e1; border-radius: 12px; padding: 12px 20px; margin-bottom: 20px;
+            display: flex; align-items: center; flex-wrap: wrap; gap: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05); position: sticky; top: 80px; z-index: 100;
+        }
+        .filter-toolbar-title { font-weight: 600; color: #475569; font-size: 14px; }
+        .filter-group { display: flex; gap: 8px; }
+        .filter-btn {
+            padding: 6px 14px; border: 2px solid #cbd5e1; border-radius: 20px; background: white;
+            cursor: pointer; font-size: 12px; font-weight: 500; transition: all 0.2s ease;
+            display: flex; align-items: center; gap: 4px;
+        }
+        .filter-btn:hover { background: #f1f5f9; }
+        .filter-btn.active { border-color: #7c3aed; background: #f5f3ff; color: #6d28d9; }
+        .filter-btn.filter-yes.active { border-color: #10b981; background: #ecfdf5; color: #059669; }
+        .filter-btn.filter-partial.active { border-color: #f59e0b; background: #fffbeb; color: #d97706; }
+        .filter-btn.filter-no.active { border-color: #ef4444; background: #fef2f2; color: #dc2626; }
+        .filter-btn.filter-na.active { border-color: #64748b; background: #f1f5f9; color: #475569; }
+        .filter-divider { width: 1px; height: 30px; background: #cbd5e1; }
+        .hidden-by-filter { display: none !important; }
+        .section-hidden { display: none !important; }
+
+        .action-bar { position: fixed; top: 20px; right: 20px; display: flex; gap: 10px; z-index: 1000; }
+        .action-bar button { padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); transition: transform 0.2s, box-shadow 0.2s; }
+        .action-bar button:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+        .btn-email { background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; }
+        .btn-print { background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); color: white; }
+        .btn-pdf { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; }
+        .btn-back { background: linear-gradient(135deg, #64748b 0%, #475569 100%); color: white; }
+
+        .footer { text-align: center; padding: 20px; color: #64748b; font-size: 14px; }
+
+        @media print {
+            @page { size: landscape; margin: 10mm; }
+            body { background: white; font-size: 11px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .container { max-width: 100%; padding: 0; }
+            .action-bar { display: none !important; }
+            .filter-toolbar { display: none !important; }
+            .section-card { break-inside: avoid; page-break-inside: avoid; }
+            .gallery-section { break-before: page; }
+            .lightbox { display: none !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="action-bar">
+        <button class="btn-back" onclick="goBack()">← Back</button>
+        <button class="btn-pdf" onclick="exportToPDF()">📄 PDF</button>
+        <button class="btn-print" onclick="window.print()">🖨️ Print</button>
+    </div>
+
+    <div class="lightbox" id="lightbox" onclick="closeLightbox()">
+        <span class="lightbox-close">&times;</span>
+        <img id="lightbox-img" src="" alt="Full size image">
+    </div>
+
+    <script>
+        function goBack() {
+            if (document.referrer && document.referrer.includes(window.location.hostname)) { history.back(); }
+            else { window.location.href = '/receiving-audit/list'; }
+        }
+        function exportToPDF() {
+            const overlay = document.createElement('div');
+            overlay.innerHTML = '<div style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);display:flex;justify-content:center;align-items:center;z-index:10000;"><div style="background:white;padding:30px 50px;border-radius:12px;text-align:center;"><h3 style="margin:0 0 15px 0;">📄 Export to PDF</h3><p style="margin:0 0 20px 0;color:#666;">In the print dialog, select <strong>"Save as PDF"</strong> as the destination.</p></div></div>';
+            document.body.appendChild(overlay);
+            setTimeout(() => { overlay.remove(); window.print(); }, 2000);
+        }
+        function openLightbox(src) { document.getElementById('lightbox-img').src = src; document.getElementById('lightbox').classList.add('active'); }
+        function closeLightbox() { document.getElementById('lightbox').classList.remove('active'); }
+    </script>
+
+    <div class="container">
+        <!-- Filter Toolbar -->
+        <div class="filter-toolbar">
+            <span class="filter-toolbar-title">🔍 Filter:</span>
+            <div class="filter-group">
+                <button class="filter-btn filter-yes active" onclick="toggleFilter('yes', this)" title="Show/Hide Yes answers">✓ Yes</button>
+                <button class="filter-btn filter-partial active" onclick="toggleFilter('partial', this)" title="Show/Hide Partially answers">◐ Partially</button>
+                <button class="filter-btn filter-no active" onclick="toggleFilter('no', this)" title="Show/Hide No answers">✗ No</button>
+                <button class="filter-btn filter-na active" onclick="toggleFilter('na', this)" title="Show/Hide N/A answers">— N/A</button>
+            </div>
+            <div class="filter-divider"></div>
+            <div class="filter-group">
+                <button class="filter-btn" onclick="showOnlyFindings()" title="Show only items with findings">⚠️ Findings Only</button>
+                <button class="filter-btn" onclick="resetFilters()" title="Reset all filters">🔄 Reset</button>
+            </div>
+        </div>
+
+        <div class="header">
+            <h1>📦 Receiving Audit Report</h1>
+            <div class="header-info">
+                <div class="header-item"><label>Document #</label><span>GMRL-RCV-0002</span></div>
+                <div class="header-item"><label>Store</label><span>GNG Awkar</span></div>
+                <div class="header-item"><label>Date</label><span>4/21/2026</span></div>
+                <div class="header-item"><label>Auditors</label><span>test Ahmad</span></div>
+                <div class="header-item"><label>Accompanied By</label><span>N/A</span></div>
+                <div class="header-item"><label>Cycle</label><span>2 / 2026</span></div>
+                <div class="header-item"><label>Status</label><span>Completed</span></div>
+            </div>
+        </div>
+
+        <div class="score-card">
+            <div class="score-value fail">50%</div>
+            <div class="score-label fail">FAIL ❌</div>
+            <div class="score-threshold">Threshold: 80%</div>
+        </div>
+
+        <!-- Summary Table with Historical Cycles -->
+        <div class="summary-section">
+            <h2 class="summary-title">📊 Audit Summary</h2>
+            <table class="summary-table">
+                <thead>
+                    <tr>
+                        <th>Section</th>
+                        <th style="text-align:center;">C1 (1/1)</th><th style="text-align:center;">C2 (1/1)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td><strong>Cleanliness and Organization</strong></td><td style="text-align:center;" class=""><strong class="score-fail">0%</strong></td><td style="text-align:center;" class=" current-cycle"><strong class="score-fail">50%</strong></td></tr><tr><td><strong>Retrun and Damage proccess</strong></td><td style="text-align:center;" class=""><strong class="score-fail">0%</strong></td><td style="text-align:center;" class=" current-cycle"><strong class="score-fail">50%</strong></td></tr>
+                    <tr class="total-row">
+                        <td><strong>TOTAL</strong></td>
+                        <td style="text-align:center;" class=""><strong class="score-fail">50%</strong></td><td style="text-align:center;" class=" current-cycle"><strong class="score-fail">50%</strong></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Section Scores Chart -->
+        <div class="chart-section">
+            <h2 class="chart-title">📊 Section Scores Overview</h2>
+            <div class="chart-simple">
+                <div class="chart-row"><div class="chart-row-label">Cleanliness and Organization</div><div class="chart-row-bar-container"><div class="chart-row-bar bar-fail" style="width: 50%;"></div><div class="chart-row-threshold" style="left: 80%;"></div></div><div class="chart-row-value bar-fail">50%</div></div><div class="chart-row"><div class="chart-row-label">Retrun and Damage proccess</div><div class="chart-row-bar-container"><div class="chart-row-bar bar-fail" style="width: 50%;"></div><div class="chart-row-threshold" style="left: 80%;"></div></div><div class="chart-row-value bar-fail">50%</div></div>
+            </div>
+            <div class="chart-legend">
+                <span class="legend-item"><span class="legend-color pass"></span> Pass (≥threshold)</span>
+                <span class="legend-item"><span class="legend-color fail"></span> Fail (&lt;threshold)</span>
+                <span class="legend-item"><span class="legend-line"></span> Section Threshold</span>
+            </div>
+        </div>
+
+        <div class="toggle-controls">
+            <button class="toggle-btn" onclick="expandAll()">📂 Expand All</button>
+            <button class="toggle-btn" onclick="collapseAll()">📁 Collapse All</button>
+        </div>
+
+        <div class="section-card"><div class="section-header" onclick="toggleSection(0)"><div class="section-title"><span class="collapse-icon" id="icon-0">▼</span>Cleanliness and Organization</div><div class="section-score">50%</div></div><div class="section-content" id="section-0"><table><thead><tr><th style="width:60px">#</th><th>Question</th><th style="width:80px">Answer</th><th style="width:80px">Score</th><th style="width:90px">Observation</th></tr></thead><tbody><tr data-answer="Partially"><td>1.1</td><td>Clean yard</td><td class="choice-partial">Partially</td><td>1.5 / 3</td><td>-</td></tr></tbody></table><div class="section-findings"><div class="section-findings-title">⚠️ Findings (1)</div><div class="finding-item"><div class="finding-ref">[1.1]</div><div class="finding-question">Clean yard</div><div class="finding-detail">Answer: <strong class="choice-partial">Partially</strong> | Finding: testewt</div><div class="finding-pictures"><strong>Photos:</strong><div class="pictures-wrapper"><img src="/uploads/receiving-audit/gallery/rcv-gallery-1776761162634-290879650.png" alt="Screenshot 2026-04-04 152346.png" title="Finding" style="max-width:100px;max-height:75px;border-radius:4px;cursor:pointer;border:2px solid #ef4444;" onclick="openLightbox(this.src)"><img src="/uploads/receiving-audit/gallery/rcv-gallery-1776761162562-325685094.png" alt="Screenshot 2026-04-03 235148.png" title="Finding" style="max-width:100px;max-height:75px;border-radius:4px;cursor:pointer;border:2px solid #ef4444;" onclick="openLightbox(this.src)"><img src="/uploads/receiving-audit/gallery/rcv-gallery-1776761162542-272815349.png" alt="Screenshot 2026-03-25 131243.png" title="Finding" style="max-width:100px;max-height:75px;border-radius:4px;cursor:pointer;border:2px solid #ef4444;" onclick="openLightbox(this.src)"></div></div></div></div></div></div><div class="section-card"><div class="section-header" onclick="toggleSection(1)"><div class="section-title"><span class="collapse-icon" id="icon-1">▼</span>Retrun and Damage proccess</div><div class="section-score">50%</div></div><div class="section-content" id="section-1"><table><thead><tr><th style="width:60px">#</th><th>Question</th><th style="width:80px">Answer</th><th style="width:80px">Score</th><th style="width:90px">Observation</th></tr></thead><tbody><tr data-answer="Partially"><td>2.1</td><td>Damage Room</td><td class="choice-partial">Partially</td><td>2 / 4</td><td>-</td></tr><tr data-answer="NA"><td>2.2</td><td>RSBL</td><td class="choice-na">-</td><td>- / 5</td><td>-</td></tr></tbody></table><div class="section-findings"><div class="section-findings-title">⚠️ Findings (1)</div><div class="finding-item"><div class="finding-ref">[2.1]</div><div class="finding-question">Damage Room</div><div class="finding-detail">Answer: <strong class="choice-partial">Partially</strong> | Finding: N/A</div></div></div></div></div>
+
+        <!-- Observation Gallery -->
+        <div class="gallery-section">
+            <h2 class="gallery-title good">📷 Observation Gallery (0)</h2>
+            <div class="gallery-empty">No observations captured</div>
+        </div>
+
+        <!-- Findings Gallery -->
+        <div class="gallery-section">
+            <h2 class="gallery-title findings">⚠️ Findings Gallery (3)</h2>
+            <div class="gallery-grid"><div class="gallery-card finding"><img src="/uploads/receiving-audit/gallery/rcv-gallery-1776761162634-290879650.png" alt="Finding" class="gallery-img" onclick="openLightbox(this.src)"><div class="gallery-info"><div class="gallery-ref finding">[1.1]</div><div class="gallery-section-name">📋 Cleanliness and Organization</div><span class="gallery-type issue">⚠️ Issue</span></div></div><div class="gallery-card finding"><img src="/uploads/receiving-audit/gallery/rcv-gallery-1776761162562-325685094.png" alt="Finding" class="gallery-img" onclick="openLightbox(this.src)"><div class="gallery-info"><div class="gallery-ref finding">[1.1]</div><div class="gallery-section-name">📋 Cleanliness and Organization</div><span class="gallery-type issue">⚠️ Issue</span></div></div><div class="gallery-card finding"><img src="/uploads/receiving-audit/gallery/rcv-gallery-1776761162542-272815349.png" alt="Finding" class="gallery-img" onclick="openLightbox(this.src)"><div class="gallery-info"><div class="gallery-ref finding">[1.1]</div><div class="gallery-section-name">📋 Cleanliness and Organization</div><span class="gallery-type issue">⚠️ Issue</span></div></div></div>
+        </div>
+
+        <div class="footer">
+            Report generated on 4/21/2026, 12:34:17 PM | Receiving Audit System
+        </div>
+    </div>
+
+    <script>
+        // Section collapse/expand
+        function toggleSection(index) {
+            const content = document.getElementById('section-' + index);
+            const icon = document.getElementById('icon-' + index);
+            if (content.classList.contains('collapsed')) { content.classList.remove('collapsed'); icon.classList.remove('collapsed'); }
+            else { content.classList.add('collapsed'); icon.classList.add('collapsed'); }
+        }
+        function expandAll() {
+            document.querySelectorAll('.section-content').forEach(el => el.classList.remove('collapsed'));
+            document.querySelectorAll('.collapse-icon').forEach(el => el.classList.remove('collapsed'));
+        }
+        function collapseAll() {
+            document.querySelectorAll('.section-content').forEach(el => el.classList.add('collapsed'));
+            document.querySelectorAll('.collapse-icon').forEach(el => el.classList.add('collapsed'));
+        }
+
+        // Filter functionality
+        const filters = { yes: true, partial: true, no: true, na: true };
+        function toggleFilter(type, btn) { filters[type] = !filters[type]; btn.classList.toggle('active', filters[type]); applyFilters(); }
+        function applyFilters() {
+            document.querySelectorAll('tr[data-answer]').forEach(row => {
+                const answer = row.dataset.answer;
+                let show = false;
+                if (answer === 'Yes' && filters.yes) show = true;
+                if (answer === 'Partially' && filters.partial) show = true;
+                if (answer === 'No' && filters.no) show = true;
+                if (answer === 'NA' && filters.na) show = true;
+                row.classList.toggle('hidden-by-filter', !show);
+            });
+            document.querySelectorAll('.section-card').forEach(section => {
+                const visibleRows = section.querySelectorAll('tr[data-answer]:not(.hidden-by-filter)');
+                section.classList.toggle('section-hidden', visibleRows.length === 0);
+            });
+        }
+        function showOnlyFindings() {
+            filters.yes = false; filters.na = false; filters.partial = true; filters.no = true;
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                if (btn.classList.contains('filter-yes')) btn.classList.remove('active');
+                if (btn.classList.contains('filter-na')) btn.classList.remove('active');
+                if (btn.classList.contains('filter-partial')) btn.classList.add('active');
+                if (btn.classList.contains('filter-no')) btn.classList.add('active');
+            });
+            applyFilters();
+        }
+        function resetFilters() {
+            filters.yes = true; filters.partial = true; filters.no = true; filters.na = true;
+            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.add('active'));
+            document.querySelectorAll('tr[data-answer]').forEach(row => row.classList.remove('hidden-by-filter'));
+            document.querySelectorAll('.section-card').forEach(section => section.classList.remove('section-hidden'));
+        }
+    </script>
+</body>
+</html>
