@@ -537,10 +537,12 @@ router.get('/api/job-monitor/dry-run-all', async (req, res) => {
         
         const oeSettings = await getSettings('OE_EscalationSettings');
         const ohsSettings = await getSettings('OHS_EscalationSettings');
+        const rcvSettings = await getSettings('RCV_EscalationSettings');
         
         const results = {
             oe: { reminders: [], overdue: [] },
-            ohs: { reminders: [], overdue: [] }
+            ohs: { reminders: [], overdue: [] },
+            rcv: { reminders: [], overdue: [] }
         };
         
         // OE Reminders
@@ -627,6 +629,51 @@ router.get('/api/job-monitor/dry-run-all', async (req, res) => {
                 ORDER BY i.ActionPlanDeadline
             `);
         results.ohs.overdue = ohsOverdue.recordset.map(r => ({
+            documentNumber: r.DocumentNumber,
+            storeName: r.StoreName,
+            daysOverdue: r.DaysOverdue,
+            recipientEmail: r.RecipientEmail
+        }));
+        
+        // RCV Reminders
+        const rcvReminders = await pool.request()
+            .input('reminderDays', sql.Int, rcvSettings.reminderDays)
+            .query(`
+                SELECT TOP 20
+                    i.DocumentNumber, i.StoreName, i.ActionPlanDeadline,
+                    DATEDIFF(DAY, GETDATE(), i.ActionPlanDeadline) as DaysUntilDeadline,
+                    ISNULL(u.Email, 'N/A') as RecipientEmail
+                FROM RCV_Inspections i
+                LEFT JOIN StoreManagerAssignments sma ON sma.StoreId = i.StoreId AND sma.IsPrimary = 1
+                LEFT JOIN Users u ON sma.UserId = u.Id
+                WHERE i.ActionPlanDeadline IS NOT NULL
+                  AND i.ActionPlanCompletedAt IS NULL
+                  AND DATEDIFF(DAY, GETDATE(), i.ActionPlanDeadline) BETWEEN 0 AND @reminderDays
+                ORDER BY i.ActionPlanDeadline
+            `);
+        results.rcv.reminders = rcvReminders.recordset.map(r => ({
+            documentNumber: r.DocumentNumber,
+            storeName: r.StoreName,
+            daysUntilDeadline: r.DaysUntilDeadline,
+            recipientEmail: r.RecipientEmail
+        }));
+        
+        // RCV Overdue
+        const rcvOverdue = await pool.request()
+            .query(`
+                SELECT TOP 20
+                    i.DocumentNumber, i.StoreName, i.ActionPlanDeadline,
+                    DATEDIFF(DAY, i.ActionPlanDeadline, GETDATE()) as DaysOverdue,
+                    ISNULL(u.Email, 'N/A') as RecipientEmail
+                FROM RCV_Inspections i
+                LEFT JOIN StoreManagerAssignments sma ON sma.StoreId = i.StoreId AND sma.IsPrimary = 1
+                LEFT JOIN Users u ON sma.UserId = u.Id
+                WHERE i.ActionPlanDeadline IS NOT NULL
+                  AND i.ActionPlanCompletedAt IS NULL
+                  AND i.ActionPlanDeadline < GETDATE()
+                ORDER BY i.ActionPlanDeadline
+            `);
+        results.rcv.overdue = rcvOverdue.recordset.map(r => ({
             documentNumber: r.DocumentNumber,
             storeName: r.StoreName,
             daysOverdue: r.DaysOverdue,
@@ -6002,6 +6049,7 @@ router.get('/email-templates', async (req, res) => {
         // Group templates by module
         const oeTemplates = templates.filter(t => t.Module === 'OE');
         const ohsTemplates = templates.filter(t => t.Module === 'OHS');
+        const rcvTemplates = templates.filter(t => t.Module === 'RCV');
         const storesTemplates = templates.filter(t => t.Module === 'Stores');
         const facilityTemplates = templates.filter(t => t.Module === 'Facility Management');
         const securityTemplates = templates.filter(t => t.Module === 'Security');
@@ -6077,6 +6125,7 @@ router.get('/email-templates', async (req, res) => {
                     .module-badge { padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; }
                     .module-badge.oe { background: linear-gradient(135deg, #e8f5e9, #c8e6c9); color: #2e7d32; }
                     .module-badge.ohs { background: linear-gradient(135deg, #ffebee, #ffcdd2); color: #c62828; }
+                    .module-badge.rcv { background: linear-gradient(135deg, #e8eaf6, #c5cae9); color: #3949ab; }
                     .module-badge.stores { background: linear-gradient(135deg, #fff3e0, #ffe0b2); color: #e65100; }
                     .module-badge.facility { background: linear-gradient(135deg, #e0f7fa, #b2ebf2); color: #00838f; }
                     .module-badge.security { background: linear-gradient(135deg, #ede7f6, #d1c4e9); color: #4527a0; }
@@ -6158,6 +6207,18 @@ router.get('/email-templates', async (req, res) => {
                         </div>
                         <div class="templates-grid">
                             ${ohsTemplates.map(renderCard).join('')}
+                        </div>
+                    </div>
+                    
+                    <!-- Receiving Audit Templates Section -->
+                    <div class="module-section">
+                        <div class="module-header">
+                            <span class="module-badge rcv">RCV</span>
+                            <h2>Receiving Audit Templates</h2>
+                            <span class="template-count">${rcvTemplates.length} templates</span>
+                        </div>
+                        <div class="templates-grid">
+                            ${rcvTemplates.map(renderCard).join('')}
                         </div>
                     </div>
                     
@@ -6686,6 +6747,7 @@ router.get('/job-monitor', async (req, res) => {
         const templates = templatesResult.recordset;
         const oeTemplates = templates.filter(t => t.Module === 'OE');
         const ohsTemplates = templates.filter(t => t.Module === 'OHS');
+        const rcvTemplates = templates.filter(t => t.Module === 'RCV');
         
         // Get OE Inspections with action plan tracking
         const oeInspectionsResult = await pool.request().query(`
@@ -6726,6 +6788,26 @@ router.get('/job-monitor', async (req, res) => {
             ORDER BY CASE WHEN i.ActionPlanDeadline < GETDATE() THEN 0 ELSE 1 END, i.ActionPlanDeadline
         `);
         const ohsInspections = ohsInspectionsResult.recordset;
+        
+        // Get RCV Inspections with action plan tracking
+        const rcvInspectionsResult = await pool.request().query(`
+            SELECT i.Id, i.StoreId, i.DocumentNumber, i.StoreName, i.InspectionDate, i.Status, i.ActionPlanDeadline, i.ActionPlanCompletedAt,
+                ISNULL(u.DisplayName, 'Unknown') as CreatedByName,
+                CASE WHEN i.ActionPlanCompletedAt IS NOT NULL THEN 'Completed'
+                     WHEN i.ActionPlanDeadline IS NULL THEN 'No Deadline'
+                     WHEN i.ActionPlanDeadline < GETDATE() THEN 'Overdue'
+                     WHEN DATEDIFF(DAY, GETDATE(), i.ActionPlanDeadline) <= 3 THEN 'Due Soon'
+                     ELSE 'On Track' END as ActionPlanStatus,
+                CASE WHEN i.ActionPlanDeadline IS NOT NULL AND i.ActionPlanCompletedAt IS NULL AND i.ActionPlanDeadline < GETDATE() 
+                     THEN DATEDIFF(DAY, i.ActionPlanDeadline, GETDATE()) ELSE NULL END as DaysOverdue,
+                CASE WHEN i.ActionPlanDeadline IS NOT NULL AND i.ActionPlanCompletedAt IS NULL AND i.ActionPlanDeadline >= GETDATE() 
+                     THEN DATEDIFF(DAY, GETDATE(), i.ActionPlanDeadline) ELSE NULL END as DaysUntilDeadline
+            FROM RCV_Inspections i
+            LEFT JOIN Users u ON i.CreatedBy = u.Id
+            WHERE i.Status = 'Completed' AND i.ActionPlanCompletedAt IS NULL
+            ORDER BY CASE WHEN i.ActionPlanDeadline < GETDATE() THEN 0 ELSE 1 END, i.ActionPlanDeadline
+        `);
+        const rcvInspections = rcvInspectionsResult.recordset;
         
         // Get Theft Incidents with email log
         const theftIncidentsResult = await pool.request().query(`
@@ -6794,6 +6876,9 @@ router.get('/job-monitor', async (req, res) => {
         const ohsOverdue = ohsInspections.filter(i => i.ActionPlanStatus === 'Overdue').length;
         const ohsDueSoon = ohsInspections.filter(i => i.ActionPlanStatus === 'Due Soon').length;
         const ohsNoDeadline = ohsInspections.filter(i => i.ActionPlanStatus === 'No Deadline').length;
+        const rcvOverdue = rcvInspections.filter(i => i.ActionPlanStatus === 'Overdue').length;
+        const rcvDueSoon = rcvInspections.filter(i => i.ActionPlanStatus === 'Due Soon').length;
+        const rcvNoDeadline = rcvInspections.filter(i => i.ActionPlanStatus === 'No Deadline').length;
         
         // Render helper for inspection rows
         const renderRow = (i, idx, arr, module) => {
@@ -6871,6 +6956,7 @@ router.get('/job-monitor', async (req, res) => {
                     .summary-card .badge { padding: 4px 10px; border-radius: 15px; font-size: 11px; font-weight: 600; }
                     .summary-card .badge.oe { background: #e8f5e9; color: #2e7d32; }
                     .summary-card .badge.ohs { background: #ffebee; color: #c62828; }
+                    .summary-card .badge.rcv { background: #e8eaf6; color: #3949ab; }
                     .summary-card .badge.theft { background: #fff3e0; color: #e65100; }
                     .summary-stats { display: flex; gap: 20px; }
                     .summary-stat { text-align: center; flex: 1; }
@@ -7043,6 +7129,14 @@ router.get('/job-monitor', async (req, res) => {
                             </div>
                         </div>
                         <div class="summary-card">
+                            <h3><span class="badge rcv">📦</span> Receiving Audit</h3>
+                            <div class="summary-stats">
+                                <div class="summary-stat overdue"><div class="value">${rcvOverdue}</div><div class="label">🔴 Overdue</div></div>
+                                <div class="summary-stat due-soon"><div class="value">${rcvDueSoon}</div><div class="label">🟡 Due Soon</div></div>
+                                <div class="summary-stat pending"><div class="value">${rcvNoDeadline}</div><div class="label">⚪ No Deadline</div></div>
+                            </div>
+                        </div>
+                        <div class="summary-card">
                             <h3><span class="badge theft">🚨</span> Theft Incidents</h3>
                             <div class="summary-stats">
                                 <div class="summary-stat" style="color: #e65100;"><div class="value">${theftToday}</div><div class="label">📅 Today</div></div>
@@ -7058,6 +7152,7 @@ router.get('/job-monitor', async (req, res) => {
                         <div class="tab" data-tab="oe-dept-esc-tab">🏢 OE Dept Esc</div>
                         <div class="tab" data-tab="ohs-tab">📋 OHS Inspections (${ohsInspections.length})</div>
                         <div class="tab" data-tab="ohs-dept-esc-tab">🏢 OHS Dept Esc</div>
+                        <div class="tab" data-tab="rcv-tab">📦 RCV Audits (${rcvInspections.length})</div>
                         <div class="tab" data-tab="theft-tab">🚨 Theft Incidents (${theftIncidents.length})</div>
                         <div class="tab" data-tab="workflow-emails-tab">📬 Workflow Emails</div>
                         <div class="tab" data-tab="fivedays-tab">📅 5 Days Reminders</div>
@@ -7171,6 +7266,19 @@ router.get('/job-monitor', async (req, res) => {
                             <div id="dept-contacts-container">
                                 <div class="empty-state"><div class="icon">⏳</div><p>Loading...</p></div>
                             </div>
+                        </div>
+                    </div>
+                    
+                    <!-- RCV Receiving Audit Tab -->
+                    <div class="tab-content" id="rcv-tab">
+                        <div class="section">
+                            <div class="section-header"><h2><span class="badge rcv">📦</span> Pending Action Plans</h2></div>
+                            ${rcvInspections.length > 0 ? `
+                                <table class="tracking-table">
+                                    <thead><tr><th>Document #</th><th>Store</th><th>Audit Date</th><th>Deadline</th><th>Status</th><th>Created By</th><th>Actions</th></tr></thead>
+                                    <tbody>${rcvInspections.map((i, idx, arr) => renderRow(i, idx, arr, 'RCV')).join('')}</tbody>
+                                </table>
+                            ` : `<div class="empty-state"><div class="icon">✅</div><p>No pending action plans</p></div>`}
                         </div>
                     </div>
                     
@@ -7620,7 +7728,7 @@ router.get('/job-monitor', async (req, res) => {
                             const res = await fetch('/admin/api/job-monitor/dry-run-all');
                             const data = await res.json();
                             if (data.success) {
-                                const results = data.results || { oe: { reminders: [], overdue: [] }, ohs: { reminders: [], overdue: [] } };
+                                const results = data.results || { oe: { reminders: [], overdue: [] }, ohs: { reminders: [], overdue: [] }, rcv: { reminders: [], overdue: [] } };
                                 let html = '';
                                 
                                 // OE Section
@@ -7649,6 +7757,20 @@ router.get('/job-monitor', async (req, res) => {
                                 }
                                 if (results.ohs.overdue.length === 0 && results.ohs.reminders.length === 0) {
                                     html += '<div class="dryrun-empty" style="padding: 15px;">✅ No pending OHS notifications</div>';
+                                }
+                                
+                                // RCV Section
+                                html += '<h4 style="margin: 20px 0 10px; color: #333;">📦 Receiving Audits</h4>';
+                                if (results.rcv && results.rcv.overdue.length > 0) {
+                                    html += '<div style="margin-bottom: 10px;"><strong style="color: #dc3545;">🔴 Overdue (' + results.rcv.overdue.length + ')</strong></div>';
+                                    html += results.rcv.overdue.map(i => '<div class="dryrun-item" style="border-left-color: #dc3545;"><h4>' + i.storeName + ' - ' + i.documentNumber + '</h4><p><strong>Days Overdue:</strong> ' + (i.daysOverdue || 0) + '</p><p><strong>To:</strong> ' + (i.recipientEmail || 'N/A') + '</p></div>').join('');
+                                }
+                                if (results.rcv && results.rcv.reminders.length > 0) {
+                                    html += '<div style="margin-bottom: 10px;"><strong style="color: #ffc107;">🟡 Reminders (' + results.rcv.reminders.length + ')</strong></div>';
+                                    html += results.rcv.reminders.map(i => '<div class="dryrun-item" style="border-left-color: #ffc107;"><h4>' + i.storeName + ' - ' + i.documentNumber + '</h4><p><strong>Days Until Deadline:</strong> ' + (i.daysUntilDeadline || 0) + '</p><p><strong>To:</strong> ' + (i.recipientEmail || 'N/A') + '</p></div>').join('');
+                                }
+                                if (!results.rcv || (results.rcv.overdue.length === 0 && results.rcv.reminders.length === 0)) {
+                                    html += '<div class="dryrun-empty" style="padding: 15px;">✅ No pending RCV notifications</div>';
                                 }
                                 
                                 document.getElementById('dryrunResults').innerHTML = html || '<div class="dryrun-empty">✅ No pending notifications</div>';

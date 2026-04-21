@@ -39,6 +39,12 @@ class EmailTemplateBuilder {
                 icon: '🦺',
                 actionPlanIcon: '⚠️',
                 passingGrade: 80
+            },
+            'RCV': {
+                name: 'Receiving Audit',
+                icon: '📦',
+                actionPlanIcon: '📦',
+                passingGrade: 80
             }
         };
     }
@@ -751,6 +757,236 @@ class EmailTemplateBuilder {
     }
 
     /**
+     * Build Receiving Audit Full Report Email
+     * @param {Object} auditData - Audit details
+     * @param {string} reportUrl - URL to view the full report
+     * @returns {Object} { subject, body }
+     */
+    buildRCVFullReportEmail(auditData, reportUrl) {
+        const {
+            documentNumber,
+            storeName,
+            storeCode,
+            brandCode,
+            inspectionDate,
+            inspectorName,
+            totalScore,
+            passingGrade = 80,
+            status
+        } = auditData;
+
+        const colors = this.getBrandColors(brandCode);
+        const isPassing = totalScore >= passingGrade;
+        const formattedDate = inspectionDate ? new Date(inspectionDate).toLocaleDateString('en-GB', { 
+            day: '2-digit', month: 'short', year: 'numeric' 
+        }) : 'N/A';
+
+        const subject = `📦 Receiving Audit Report - ${storeName} - ${documentNumber} (${totalScore}%)`;
+
+        const body = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>${this.getBaseStyles()}</style>
+</head>
+<body>
+    <div style="padding: 20px; background-color: #f5f5f5;">
+        <div class="container">
+            <div class="header" style="background: ${colors.gradient};">
+                <h1>📦 Receiving Audit Report</h1>
+                <p class="subtitle">${storeName}</p>
+            </div>
+            <div class="content">
+                <p style="margin-top: 0;">Dear Store Manager,</p>
+                <p>Please find below the summary of the Receiving Audit conducted at your store:</p>
+                
+                <div style="text-align: center;">
+                    <div class="score-badge ${isPassing ? 'score-pass' : 'score-fail'}">
+                        ${isPassing ? '✅' : '❌'} Score: ${totalScore}% ${isPassing ? '(PASS)' : '(FAIL)'}
+                    </div>
+                </div>
+
+                <table class="details-table">
+                    <tr>
+                        <td class="label">Document Number</td>
+                        <td class="value">${documentNumber || 'N/A'}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Store</td>
+                        <td class="value">${storeName}${storeCode ? ` (${storeCode})` : ''}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Audit Date</td>
+                        <td class="value">${formattedDate}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Auditor</td>
+                        <td class="value">${inspectorName || 'N/A'}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Status</td>
+                        <td class="value">${status || 'Completed'}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Passing Grade</td>
+                        <td class="value">${passingGrade}%</td>
+                    </tr>
+                </table>
+
+                <div class="btn-container">
+                    <a href="${reportUrl}" class="btn btn-primary" style="background: ${colors.primary};">
+                        📄 View Full Report
+                    </a>
+                </div>
+
+                <p style="color: #666; font-size: 14px; margin-top: 25px;">
+                    Please review the report and address any findings promptly.
+                    Maintaining proper receiving procedures ensures product quality and safety.
+                </p>
+            </div>
+            <div class="footer">
+                <p>This is an automated message from the Operational Excellence Application.</p>
+                <p>Please do not reply to this email.</p>
+                <p style="margin-top: 10px; color: #aaa;">© ${new Date().getFullYear()} GMRL Group</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+        `;
+
+        return { subject, body };
+    }
+
+    /**
+     * Build Receiving Audit Action Plan Email
+     * @param {Object} auditData - Audit details
+     * @param {string} reportUrl - URL to view the action plan
+     * @param {Object} findingsStats - { total, high, medium, low }
+     * @returns {Object} { subject, body }
+     */
+    buildRCVActionPlanEmail(auditData, reportUrl, findingsStats) {
+        const {
+            documentNumber,
+            storeName,
+            storeCode,
+            brandCode,
+            inspectionDate,
+            inspectorName,
+            totalScore,
+            deadline
+        } = auditData;
+
+        const colors = this.getBrandColors(brandCode);
+        const { total = 0, high = 0, medium = 0, low = 0 } = findingsStats || {};
+        
+        const formattedDate = inspectionDate ? new Date(inspectionDate).toLocaleDateString('en-GB', { 
+            day: '2-digit', month: 'short', year: 'numeric' 
+        }) : 'N/A';
+        
+        const formattedDeadline = deadline ? new Date(deadline).toLocaleDateString('en-GB', { 
+            day: '2-digit', month: 'short', year: 'numeric' 
+        }) : 'Immediate Action Required';
+
+        const subject = `📦 Receiving Audit Action Plan - ${storeName} - ${total} Findings (${high} High)`;
+
+        const body = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>${this.getBaseStyles()}</style>
+</head>
+<body>
+    <div style="padding: 20px; background-color: #f5f5f5;">
+        <div class="container">
+            <div class="header" style="background: ${colors.gradient};">
+                <h1>📦 Receiving Audit Action Plan</h1>
+                <p class="subtitle">${storeName} - ${documentNumber}</p>
+            </div>
+            <div class="content">
+                <p style="margin-top: 0;">Dear Store Manager,</p>
+                <p>Following the Receiving Audit at your store, the following findings require your <strong>attention</strong>:</p>
+                
+                <div class="findings-summary" style="display: table; width: 100%;">
+                    <div class="finding-stat" style="display: table-cell; text-align: center; padding: 15px;">
+                        <div class="count total">${total}</div>
+                        <div class="label">Total Findings</div>
+                    </div>
+                    <div class="finding-stat" style="display: table-cell; text-align: center; padding: 15px;">
+                        <div class="count high">${high}</div>
+                        <div class="label">High Priority</div>
+                    </div>
+                    <div class="finding-stat" style="display: table-cell; text-align: center; padding: 15px;">
+                        <div class="count medium">${medium}</div>
+                        <div class="label">Medium Priority</div>
+                    </div>
+                    <div class="finding-stat" style="display: table-cell; text-align: center; padding: 15px;">
+                        <div class="count low">${low}</div>
+                        <div class="label">Low Priority</div>
+                    </div>
+                </div>
+
+                <table class="details-table">
+                    <tr>
+                        <td class="label">Document Number</td>
+                        <td class="value">${documentNumber || 'N/A'}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Store</td>
+                        <td class="value">${storeName}${storeCode ? ` (${storeCode})` : ''}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Audit Date</td>
+                        <td class="value">${formattedDate}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Auditor</td>
+                        <td class="value">${inspectorName || 'N/A'}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Overall Score</td>
+                        <td class="value">${totalScore ? `${totalScore}%` : 'N/A'}</td>
+                    </tr>
+                    <tr>
+                        <td class="label" style="color: #dc3545; font-weight: 700;">📅 Action Required By</td>
+                        <td class="value" style="color: #dc3545; font-weight: 700;">${formattedDeadline}</td>
+                    </tr>
+                </table>
+
+                <div class="btn-container">
+                    <a href="${reportUrl}" class="btn btn-primary" style="background: ${colors.primary};">
+                        📋 View Action Plan
+                    </a>
+                </div>
+
+                <div style="background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 15px; margin-top: 25px;">
+                    <strong>⚠️ Important:</strong>
+                    <p style="margin: 10px 0 0 0; color: #856404;">
+                        High-priority findings must be addressed <strong>promptly</strong>.
+                        Proper receiving procedures ensure product quality and food safety.
+                        Escalation to Area Manager will occur if findings remain unresolved.
+                    </p>
+                </div>
+            </div>
+            <div class="footer">
+                <p>This is an automated message from the Operational Excellence Application.</p>
+                <p>Please do not reply to this email.</p>
+                <p style="margin-top: 10px; color: #aaa;">© ${new Date().getFullYear()} GMRL Group</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+        `;
+
+        return { subject, body };
+    }
+
+    /**
      * Build email based on module and report type
      * @param {string} module - 'OE' or 'OHS'
      * @param {string} reportType - 'full' or 'action-plan'
@@ -771,6 +1007,12 @@ class EmailTemplateBuilder {
                 return this.buildOHSFullReportEmail(auditData, reportUrl);
             } else if (reportType === 'action-plan') {
                 return this.buildOHSActionPlanEmail(auditData, reportUrl, findingsStats);
+            }
+        } else if (module.toUpperCase() === 'RCV') {
+            if (reportType === 'full') {
+                return this.buildRCVFullReportEmail(auditData, reportUrl);
+            } else if (reportType === 'action-plan') {
+                return this.buildRCVActionPlanEmail(auditData, reportUrl, findingsStats);
             }
         }
         
