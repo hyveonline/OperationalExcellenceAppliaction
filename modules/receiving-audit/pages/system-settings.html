@@ -1068,8 +1068,8 @@
                 const response = await fetch('/receiving-audit/api/schemas');
                 if (!response.ok) throw new Error('Failed to load schemas');
                 
-                const data = await response.json();
-                schemas = data.schemas || [];
+                const result = await response.json();
+                schemas = result.data || result.schemas || [];
 
                 if (schemas.length === 0) {
                     document.getElementById('schemaTabsContainer').innerHTML = `
@@ -1085,7 +1085,7 @@
                 }
 
                 renderTabs();
-                selectSchema(schemas[0].SchemaID);
+                selectSchema(schemas[0].schemaId);
 
             } catch (error) {
                 console.error('Error loading schemas:', error);
@@ -1105,8 +1105,8 @@
             const tabsHtml = `
                 <div class="schema-tabs" id="schemaTabs">
                     ${schemas.map(schema => `
-                        <button class="schema-tab" data-schema-id="${schema.SchemaID}" onclick="selectSchema(${schema.SchemaID})">
-                            📋 ${schema.SchemaName}
+                        <button class="schema-tab" data-schema-id="${schema.schemaId}" onclick="selectSchema(${schema.schemaId})">
+                            📋 ${schema.schemaName}
                         </button>
                     `).join('')}
                 </div>
@@ -1141,7 +1141,7 @@
                 tab.classList.toggle('active', parseInt(tab.dataset.schemaId) === schemaId);
             });
 
-            const schema = schemas.find(s => s.SchemaID === schemaId);
+            const schema = schemas.find(s => s.schemaId === schemaId);
             if (!schema) return;
 
             // Store original values for grades
@@ -1150,7 +1150,7 @@
                 sections: {}
             };
             schema.sections.forEach(s => {
-                originalValues.sections[s.SectionID] = s.PassingGrade;
+                originalValues.sections[s.sectionId] = s.passingGrade;
             });
             currentValues = JSON.parse(JSON.stringify(originalValues));
 
@@ -1321,7 +1321,7 @@
                             <div class="label">
                                 <div class="icon">🏆</div>
                                 <div>
-                                    <h4>${schema.SchemaName}</h4>
+                                    <h4>${schema.schemaName}</h4>
                                     <p>Minimum overall score required to pass the audit</p>
                                 </div>
                             </div>
@@ -1351,22 +1351,22 @@
                             ${schema.sections.map(section => `
                                 <div class="section-card">
                                     <div class="section-info">
-                                        <span class="section-icon">${section.SectionIcon || '📄'}</span>
+                                        <span class="section-icon">${section.sectionIcon || '📄'}</span>
                                         <div>
-                                            <div class="section-name">${section.SectionName}</div>
-                                            <div class="section-number">Section ${section.SectionNumber}</div>
+                                            <div class="section-name">${section.sectionName}</div>
+                                            <div class="section-number">Section ${section.sectionOrder}</div>
                                         </div>
                                     </div>
                                     <div class="grade-input-group">
                                         <input type="number" 
                                                class="section-grade-input" 
-                                               data-section-id="${section.SectionID}"
-                                               data-section-name="${section.SectionName}"
-                                               value="${section.PassingGrade}" 
+                                               data-section-id="${section.sectionId}"
+                                               data-section-name="${section.sectionName}"
+                                               value="${section.passingGrade}" 
                                                min="0" 
                                                max="100"
-                                               onchange="updateSectionGrade(${section.SectionID}, this.value)"
-                                               oninput="markSectionChanged(this, ${section.SectionID})">
+                                               onchange="updateSectionGrade(${section.sectionId}, this.value)"
+                                               oninput="markSectionChanged(this, ${section.sectionId})">
                                         <span style="font-size: 12px; color: #6b7280;">%</span>
                                     </div>
                                 </div>
@@ -1558,15 +1558,15 @@
                         
                         <div class="icon-picker-grid">
                             ${schema.sections.map(section => `
-                                <div class="section-icon-card" id="iconCard-${section.SectionID}">
+                                <div class="section-icon-card" id="iconCard-${section.sectionId}">
                                     <div class="current-icon-display" 
-                                         onclick="openIconPicker(${section.SectionID}, '${section.SectionName.replace(/'/g, "\\'")}', '${section.SectionIcon || '📋'}')"
-                                         id="iconDisplay-${section.SectionID}">
-                                        ${section.SectionIcon || '📋'}
+                                         onclick="openIconPicker(${section.sectionId}, '${section.sectionName.replace(/'/g, "\\'")}', '${section.sectionIcon || '📋'}')"
+                                         id="iconDisplay-${section.sectionId}">
+                                        ${section.sectionIcon || '📋'}
                                     </div>
                                     <div class="section-icon-info">
-                                        <div class="section-icon-name">${section.SectionName}</div>
-                                        <div class="section-icon-number">Section ${section.SectionNumber}</div>
+                                        <div class="section-icon-name">${section.sectionName}</div>
+                                        <div class="section-icon-number">Section ${section.sectionOrder}</div>
                                     </div>
                                 </div>
                             `).join('')}
@@ -1810,8 +1810,8 @@
             originalSectionIcons = {};
             currentSectionIcons = {};
             schema.sections.forEach(section => {
-                originalSectionIcons[section.SectionID] = section.SectionIcon || '📋';
-                currentSectionIcons[section.SectionID] = section.SectionIcon || '📋';
+                originalSectionIcons[section.sectionId] = section.sectionIcon || '📋';
+                currentSectionIcons[section.sectionId] = section.sectionIcon || '📋';
             });
         }
 
