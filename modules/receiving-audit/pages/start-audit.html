@@ -295,6 +295,127 @@
             to { transform: translateX(0); opacity: 1; }
         }
 
+        /* Multi-Select Dropdown for Auditors */
+        .multi-select-container {
+            position: relative;
+        }
+
+        .multi-select-trigger {
+            width: 100%;
+            min-height: 45px;
+            padding: 8px 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            background: white;
+            cursor: pointer;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: center;
+            transition: border-color 0.2s;
+        }
+
+        .multi-select-trigger:hover,
+        .multi-select-trigger:focus {
+            border-color: #3b82f6;
+            outline: none;
+        }
+
+        .multi-select-trigger .placeholder {
+            color: #94a3b8;
+        }
+
+        .selected-tag {
+            background: linear-gradient(135deg, #3b82f6, #667eea);
+            color: white;
+            padding: 4px 10px;
+            border-radius: 15px;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .selected-tag .remove-tag {
+            cursor: pointer;
+            font-weight: bold;
+            opacity: 0.8;
+        }
+
+        .selected-tag .remove-tag:hover {
+            opacity: 1;
+        }
+
+        .multi-select-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+            max-height: 250px;
+            overflow-y: auto;
+            z-index: 100;
+            display: none;
+            margin-top: 4px;
+        }
+
+        .multi-select-dropdown.show {
+            display: block;
+        }
+
+        .multi-select-option {
+            padding: 12px 15px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid #f1f5f9;
+            transition: background 0.2s;
+        }
+
+        .multi-select-option:hover {
+            background: #f1f5f9;
+        }
+
+        .multi-select-option.selected {
+            background: linear-gradient(135deg, #3b82f6, #667eea);
+            color: white;
+        }
+
+        .multi-select-option .checkbox {
+            width: 18px;
+            height: 18px;
+            border: 2px solid #cbd5e1;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .multi-select-option.selected .checkbox {
+            background: white;
+            border-color: white;
+            color: #3b82f6;
+        }
+
+        .multi-select-option .auditor-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .multi-select-option .auditor-name {
+            font-weight: 500;
+        }
+
+        .multi-select-option .auditor-role {
+            font-size: 0.8rem;
+            opacity: 0.7;
+        }
+
         /* Responsive */
         @media (max-width: 500px) {
             .form-row {
@@ -372,7 +493,15 @@
                     <!-- Auditors -->
                     <div class="form-group">
                         <label>Auditor(s) <span class="required">*</span></label>
-                        <input type="text" id="auditors" placeholder="Enter auditor name(s)" required>
+                        <div class="multi-select-container" id="auditorContainer">
+                            <div class="multi-select-trigger" id="auditorTrigger" tabindex="0">
+                                <span class="placeholder">Select auditor(s)...</span>
+                            </div>
+                            <div class="multi-select-dropdown" id="auditorDropdown">
+                                <!-- Options populated by JS -->
+                            </div>
+                        </div>
+                        <input type="hidden" id="auditors" required>
                     </div>
 
                     <!-- Accompanied By -->
@@ -399,11 +528,15 @@
     <script>
         let stores = [];
         let selectedStore = null;
+        let auditors = [];
+        let selectedAuditors = [];
 
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
             loadStores();
+            loadAuditors();
             setDefaultValues();
+            initAuditorDropdown();
         });
 
         // Toast notification
@@ -431,6 +564,120 @@
             const hours = String(now.getHours()).padStart(2, '0');
             const minutes = String(now.getMinutes()).padStart(2, '0');
             document.getElementById('timeIn').value = `${hours}:${minutes}`;
+        }
+
+        // Load auditors from API
+        async function loadAuditors() {
+            try {
+                const response = await fetch('/receiving-audit/api/auditors');
+                const result = await response.json();
+                
+                if (result.success) {
+                    auditors = result.auditors;
+                    renderAuditorOptions();
+                } else {
+                    showToast('Failed to load auditors', 'error');
+                }
+            } catch (error) {
+                console.error('Error loading auditors:', error);
+                showToast('Error loading auditors', 'error');
+            }
+        }
+
+        // Initialize auditor dropdown
+        function initAuditorDropdown() {
+            const trigger = document.getElementById('auditorTrigger');
+            const dropdown = document.getElementById('auditorDropdown');
+
+            // Toggle dropdown on click
+            trigger.addEventListener('click', (e) => {
+                e.stopPropagation();
+                dropdown.classList.toggle('show');
+            });
+
+            // Close dropdown when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!document.getElementById('auditorContainer').contains(e.target)) {
+                    dropdown.classList.remove('show');
+                }
+            });
+
+            // Keyboard navigation
+            trigger.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    dropdown.classList.toggle('show');
+                }
+            });
+        }
+
+        // Render auditor options in dropdown
+        function renderAuditorOptions() {
+            const dropdown = document.getElementById('auditorDropdown');
+            dropdown.innerHTML = '';
+
+            auditors.forEach(auditor => {
+                const isSelected = selectedAuditors.some(a => a.Id === auditor.Id);
+                const option = document.createElement('div');
+                option.className = `multi-select-option ${isSelected ? 'selected' : ''}`;
+                option.innerHTML = `
+                    <div class="checkbox">${isSelected ? '✓' : ''}</div>
+                    <div class="auditor-info">
+                        <span class="auditor-name">${auditor.DisplayName}</span>
+                        <span class="auditor-role">${auditor.RoleName}</span>
+                    </div>
+                `;
+                option.onclick = (e) => {
+                    e.stopPropagation();
+                    toggleAuditor(auditor);
+                };
+                dropdown.appendChild(option);
+            });
+        }
+
+        // Toggle auditor selection
+        function toggleAuditor(auditor) {
+            const index = selectedAuditors.findIndex(a => a.Id === auditor.Id);
+            
+            if (index >= 0) {
+                selectedAuditors.splice(index, 1);
+            } else {
+                selectedAuditors.push(auditor);
+            }
+
+            updateAuditorTrigger();
+            renderAuditorOptions();
+            updateAuditorsHiddenField();
+        }
+
+        // Update the trigger display to show selected auditors
+        function updateAuditorTrigger() {
+            const trigger = document.getElementById('auditorTrigger');
+            
+            if (selectedAuditors.length === 0) {
+                trigger.innerHTML = '<span class="placeholder">Select auditor(s)...</span>';
+            } else {
+                trigger.innerHTML = selectedAuditors.map(auditor => `
+                    <span class="selected-tag">
+                        ${auditor.DisplayName}
+                        <span class="remove-tag" onclick="event.stopPropagation(); removeAuditor(${auditor.Id})">×</span>
+                    </span>
+                `).join('');
+            }
+        }
+
+        // Remove auditor from selection
+        function removeAuditor(auditorId) {
+            selectedAuditors = selectedAuditors.filter(a => a.Id !== auditorId);
+            updateAuditorTrigger();
+            renderAuditorOptions();
+            updateAuditorsHiddenField();
+        }
+
+        // Update hidden field with auditor names
+        function updateAuditorsHiddenField() {
+            const hiddenField = document.getElementById('auditors');
+            hiddenField.value = selectedAuditors.map(a => a.DisplayName).join(', ');
         }
 
         // Load stores from API
@@ -512,6 +759,11 @@
             
             if (!selectedStore) {
                 showToast('Please select a store', 'error');
+                return;
+            }
+
+            if (selectedAuditors.length === 0) {
+                showToast('Please select at least one auditor', 'error');
                 return;
             }
 

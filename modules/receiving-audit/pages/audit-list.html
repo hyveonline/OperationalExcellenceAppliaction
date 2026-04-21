@@ -976,6 +976,14 @@
                 </select>
             </div>
             <div class="filter-group">
+                <label>Date From</label>
+                <input type="date" id="dateFromFilter" onchange="applyFilters()">
+            </div>
+            <div class="filter-group">
+                <label>Date To</label>
+                <input type="date" id="dateToFilter" onchange="applyFilters()">
+            </div>
+            <div class="filter-group">
                 <label>Search</label>
                 <input type="text" id="searchInput" placeholder="Document # or Store" oninput="applyFilters()">
             </div>
@@ -1187,6 +1195,8 @@
             const selectedStores = getSelectedValues('storeMultiSelect');
             const year = document.getElementById('yearFilter').value;
             const cycle = document.getElementById('cycleFilter').value;
+            const dateFrom = document.getElementById('dateFromFilter').value;
+            const dateTo = document.getElementById('dateToFilter').value;
             const search = document.getElementById('searchInput').value.toLowerCase();
 
             filteredAudits = allAudits.filter(audit => {
@@ -1195,6 +1205,20 @@
                 if (selectedStores.length > 0 && !selectedStores.includes(audit.StoreName)) return false;
                 if (year && audit.AuditYear != year) return false;
                 if (cycle && audit.AuditCycle !== cycle) return false;
+                
+                // Date range filter
+                if (dateFrom || dateTo) {
+                    if (!audit.InspectionDate) {
+                        // No audit date - exclude if date filter is set
+                        return false;
+                    }
+                    // Parse date without timezone conversion issues
+                    const d = new Date(audit.InspectionDate);
+                    const auditDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                    if (dateFrom && auditDate < dateFrom) return false;
+                    if (dateTo && auditDate > dateTo) return false;
+                }
+                
                 if (search) {
                     const matchesDoc = audit.DocumentNumber?.toLowerCase().includes(search);
                     const matchesStore = audit.StoreName?.toLowerCase().includes(search);

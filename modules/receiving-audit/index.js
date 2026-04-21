@@ -232,6 +232,28 @@ router.get('/api/next-document-number', async (req, res) => {
 });
 
 // ==========================================
+// Get Auditors (users with RCV roles)
+// ==========================================
+router.get('/api/auditors', async (req, res) => {
+    try {
+        const pool = await getPool();
+        const result = await pool.request().query(`
+            SELECT DISTINCT u.Id, u.DisplayName, u.Email, r.RoleName
+            FROM Users u
+            INNER JOIN UserRoleAssignments ura ON u.Id = ura.UserId
+            INNER JOIN UserRoles r ON ura.RoleId = r.Id
+            WHERE r.RoleName IN ('Receiving Audit Admin', 'Receiving Audit Inspector')
+            AND u.IsActive = 1
+            ORDER BY u.DisplayName
+        `);
+        res.json({ success: true, auditors: result.recordset });
+    } catch (error) { 
+        console.error('Error fetching auditors:', error);
+        res.json({ success: false, error: error.message }); 
+    }
+});
+
+// ==========================================
 // Cycle/Visit Info API
 // ==========================================
 router.get('/api/cycle/store/:storeId', async (req, res) => {
