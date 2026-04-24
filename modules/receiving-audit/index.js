@@ -818,7 +818,7 @@ router.delete('/api/templates/items/:itemId', async (req, res) => {
 // ==========================================
 router.post('/api/inspections', async (req, res) => {
     try {
-        const { storeId, storeName, documentNumber, inspectionDate, inspectors, accompaniedBy, templateId } = req.body;
+        const { storeId, storeName, documentNumber, inspectionDate, inspectors, accompaniedBy, templateId, timeIn } = req.body;
         const userId = req.currentUser?.userId || 1;
         const pool = await getPool();
 
@@ -831,14 +831,15 @@ router.post('/api/inspections', async (req, res) => {
             .input('documentNumber', sql.NVarChar, documentNumber)
             .input('storeId', sql.Int, storeId).input('storeName', sql.NVarChar, storeName)
             .input('inspectionDate', sql.Date, inspectionDate)
+            .input('timeIn', sql.NVarChar, timeIn || null)
             .input('inspectors', sql.NVarChar, inspectors)
             .input('accompaniedBy', sql.NVarChar, accompaniedBy || null)
             .input('cycle', sql.Int, cycle)
             .input('year', sql.Int, new Date(inspectionDate).getFullYear())
             .input('templateId', sql.Int, templateId || null)
             .input('createdBy', sql.Int, userId)
-            .query(`INSERT INTO RCV_Inspections (DocumentNumber, StoreId, StoreName, InspectionDate, Inspectors, AccompaniedBy, Cycle, Year, TemplateId, Status, CreatedBy, CreatedAt)
-                OUTPUT INSERTED.Id VALUES (@documentNumber, @storeId, @storeName, @inspectionDate, @inspectors, @accompaniedBy, @cycle, @year, @templateId, 'Draft', @createdBy, GETDATE())`);
+            .query(`INSERT INTO RCV_Inspections (DocumentNumber, StoreId, StoreName, InspectionDate, TimeIn, Inspectors, AccompaniedBy, Cycle, Year, TemplateId, Status, CreatedBy, CreatedAt)
+                OUTPUT INSERTED.Id VALUES (@documentNumber, @storeId, @storeName, @inspectionDate, @timeIn, @inspectors, @accompaniedBy, @cycle, @year, @templateId, 'Draft', @createdBy, GETDATE())`);
         const inspectionId = result.recordset[0].Id;
 
         // Copy template sections & items
@@ -1036,9 +1037,13 @@ router.post('/api/audits/:auditId/complete', async (req, res) => {
             .query("SELECT ISNULL(SUM(Score), 0) as totalPoints, ISNULL(SUM(Coefficient), 0) as maxPoints FROM RCV_InspectionItems WHERE InspectionId = @auditId AND Answer IS NOT NULL AND Answer != 'NA'");
         const { totalPoints, maxPoints } = scoreResult.recordset[0];
         const totalScore = maxPoints > 0 ? (totalPoints / maxPoints) * 100 : 0;
+        // Get current time for TimeOut
+        const now = new Date();
+        const timeOut = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
         await pool.request().input('auditId', sql.Int, auditId).input('score', sql.Decimal(5,2), totalScore)
             .input('totalPoints', sql.Decimal(10,2), totalPoints).input('maxPoints', sql.Decimal(10,2), maxPoints)
-            .query("UPDATE RCV_Inspections SET Status = 'Completed', Score = @score, TotalPoints = @totalPoints, MaxPoints = @maxPoints, CompletedAt = GETDATE(), UpdatedAt = GETDATE() WHERE Id = @auditId");
+            .input('timeOut', sql.NVarChar, timeOut)
+            .query("UPDATE RCV_Inspections SET Status = 'Completed', Score = @score, TotalPoints = @totalPoints, MaxPoints = @maxPoints, TimeOut = @timeOut, CompletedAt = GETDATE(), UpdatedAt = GETDATE() WHERE Id = @auditId");
         // Auto-create action items from findings
         const findingsResult = await pool.request().input('auditId', sql.Int, auditId)
             .query("SELECT InspectionId, ReferenceValue, SectionName, Finding, CorrectedAction as SuggestedAction, Priority, Department FROM RCV_InspectionItems WHERE InspectionId = @auditId AND ((Finding IS NOT NULL AND Finding != '') OR Escalate = 1)");
@@ -1292,6 +1297,27 @@ router.post('/api/audits/:auditId/generate-report', async (req, res) => {
         const startIdx = Math.max(0, currentIndex - 5);
         const cycleAudits = historicalAuditsWithCycles.slice(startIdx, currentIndex + 1);
 
+        // 11. Get repetitive findings across all cycles for this store
+        const repetitiveFindingsResult = await pool.request().input('storeId', sql.Int, audit.StoreId)
+            .query(`
+                SELECT 
+                    it.ReferenceValue,
+                    it.Question,
+                    it.SectionName,
+                    COUNT(*) as OccurrenceCount,
+                    STRING_AGG(CONCAT('C', i.Cycle, ': ', it.Answer), ' | ') WITHIN GROUP (ORDER BY i.InspectionDate) as CycleHistory
+                FROM RCV_InspectionItems it
+                INNER JOIN RCV_Inspections i ON it.InspectionId = i.Id
+                WHERE i.StoreId = @storeId 
+                    AND i.Status = 'Completed'
+                    AND (it.Answer = 'No' OR it.Answer = 'Partially')
+                GROUP BY it.ReferenceValue, it.Question, it.SectionName
+                HAVING COUNT(*) >= 2
+                ORDER BY COUNT(*) DESC, it.ReferenceValue
+            `);
+        const repetitiveFindings = repetitiveFindingsResult.recordset;
+        console.log(`[RCV Report] Store ${audit.StoreId} - Found ${repetitiveFindings.length} repetitive findings`);
+
         // Build report data
         const reportData = {
             audit,
@@ -1299,6 +1325,7 @@ router.post('/api/audits/:auditId/generate-report', async (req, res) => {
             findings, pictures: picturesByItem,
             fridgeReadings: fridgeResult.recordset,
             overallScore, threshold, cycleAudits,
+            repetitiveFindings,
             generatedAt: new Date().toISOString()
         };
 
@@ -1358,7 +1385,7 @@ router.get('/api/audits/:auditId/department-report/:department', async (req, res
 
 // Report HTML generator - Full featured (matching OE Inspection report)
 function generateRcvReportHTML(data) {
-    const { audit, sections, findings, pictures, fridgeReadings, overallScore, threshold, cycleAudits, generatedAt } = data;
+    const { audit, sections, findings, pictures, fridgeReadings, overallScore, threshold, cycleAudits, repetitiveFindings, generatedAt } = data;
     const passedClass = overallScore >= threshold ? 'pass' : 'fail';
     const passedText = overallScore >= threshold ? 'PASS ✅' : 'FAIL ❌';
 
@@ -1642,9 +1669,11 @@ function generateRcvReportHTML(data) {
             <div class="header-info">
                 <div class="header-item"><label>Document #</label><span>${audit.DocumentNumber}</span></div>
                 <div class="header-item"><label>Store</label><span>${audit.StoreName || 'N/A'}</span></div>
-                <div class="header-item"><label>Date</label><span>${audit.InspectionDate ? new Date(audit.InspectionDate).toLocaleDateString() : 'N/A'}</span></div>
+                <div class="header-item"><label>Date</label><span>${audit.InspectionDate ? new Date(audit.InspectionDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A'}</span></div>
                 <div class="header-item"><label>Auditors</label><span>${audit.Inspectors || 'N/A'}</span></div>
                 <div class="header-item"><label>Accompanied By</label><span>${audit.AccompaniedBy || 'N/A'}</span></div>
+                <div class="header-item"><label>Time In</label><span>${audit.TimeIn ? (typeof audit.TimeIn === 'string' ? audit.TimeIn : new Date(audit.TimeIn).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })) : 'N/A'}</span></div>
+                <div class="header-item"><label>Time Out</label><span>${audit.TimeOut ? (typeof audit.TimeOut === 'string' ? audit.TimeOut : new Date(audit.TimeOut).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })) : 'N/A'}</span></div>
                 <div class="header-item"><label>Cycle</label><span>${audit.Cycle || '-'} / ${audit.Year || '-'}</span></div>
                 <div class="header-item"><label>Status</label><span>${audit.Status}</span></div>
             </div>
@@ -1783,6 +1812,39 @@ function generateRcvReportHTML(data) {
                 })() +
                 '</div></div>';
         }).join('')}
+
+        <!-- Repetitive Findings Across Cycles -->
+        <div class="summary-section" style="margin-bottom: 25px;">
+            <h2 class="summary-title" style="background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);">🔄 Repetitive Findings Across Cycles (${repetitiveFindings ? repetitiveFindings.length : 0})</h2>
+            ${repetitiveFindings && repetitiveFindings.length > 0 ? `
+            <div style="padding: 15px; background: #fef2f2;">
+                <p style="margin: 0 0 15px 0; color: #991b1b; font-size: 14px;">These items have failed or partially complied in <strong>2 or more audit cycles</strong> for this store and require attention:</p>
+                <table class="summary-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 80px;">Ref</th>
+                            <th style="width: 150px;">Section</th>
+                            <th>Question</th>
+                            <th style="width: 60px; text-align: center;">Count</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${repetitiveFindings.map(rf => `
+                            <tr style="background: ${rf.OccurrenceCount >= 3 ? '#fee2e2' : '#fff'};">
+                                <td><strong style="color: #7c3aed;">${rf.ReferenceValue || 'N/A'}</strong></td>
+                                <td style="font-size: 12px;">${rf.SectionName || 'N/A'}</td>
+                                <td>${rf.Question || 'N/A'}</td>
+                                <td style="text-align: center;"><span style="background: ${rf.OccurrenceCount >= 3 ? '#dc2626' : '#f59e0b'}; color: white; padding: 2px 10px; border-radius: 12px; font-weight: 600;">${rf.OccurrenceCount}x</span></td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+            ` : `<div style="padding: 30px; text-align: center; background: #f0fdf4; color: #166534;">
+                <span style="font-size: 24px;">✅</span>
+                <p style="margin: 10px 0 0 0; font-size: 14px;">No repetitive findings detected. Each finding appears in only one audit cycle.</p>
+            </div>`}
+        </div>
 
         <!-- Observation Gallery -->
         <div class="gallery-section">
