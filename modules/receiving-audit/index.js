@@ -2523,6 +2523,9 @@ router.get('/api/audits/:auditId/email-recipients', async (req, res) => {
             }
         }
         
+        // Always include Receiving Control Team in CC
+        ccSuggestions.push({ email: 'receivingcontrolteam@spinneys-lebanon.com', name: 'Receiving Control Team', role: 'Receiving Control' });
+        
         res.json({
             success: true,
             audit: {

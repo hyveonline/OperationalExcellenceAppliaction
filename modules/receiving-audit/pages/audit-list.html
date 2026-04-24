@@ -1387,24 +1387,8 @@
                     </button>
                 ` : '';
                 
-                const deptReportsHtml = (currentUserRole !== 'StoreManager') ? `
-                    <div class="dept-reports-dropdown">
-                        <button class="action-btn dept-reports" onclick="toggleDeptDropdown(${audit.AuditID}); event.stopPropagation();">
-                            📋 Dept Reports ▾
-                        </button>
-                        <div class="dept-dropdown-content" id="dept-dropdown-${audit.AuditID}">
-                            <button class="dept-dropdown-item maintenance" onclick="generateDeptReport(${audit.AuditID}, 'Maintenance'); event.stopPropagation();">
-                                🔧 Maintenance Report
-                            </button>
-                            <button class="dept-dropdown-item procurement" onclick="generateDeptReport(${audit.AuditID}, 'Procurement'); event.stopPropagation();">
-                                📦 Procurement Report
-                            </button>
-                            <button class="dept-dropdown-item cleaning" onclick="generateDeptReport(${audit.AuditID}, 'Cleaning'); event.stopPropagation();">
-                                🧹 Cleaning Report
-                            </button>
-                        </div>
-                    </div>
-                ` : '';
+                // Dept Reports hidden - not needed for receiving audit
+                const deptReportsHtml = '';
                 
                 return `
                     ${currentUserRole !== 'StoreManager' ? `
