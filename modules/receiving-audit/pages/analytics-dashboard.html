@@ -775,7 +775,7 @@
                     if (score === null || score === undefined) {
                         return '<td><span class="score-cell score-na">-</span></td>';
                     }
-                    const scoreClass = score >= 80 ? 'score-pass' : score >= 60 ? 'score-partial' : 'score-fail';
+                    const scoreClass = score >= 80 ? 'score-pass' : 'score-fail';
                     return `<td><span class="score-cell ${scoreClass}">${Math.round(score)}%</span></td>`;
                 }).join('');
 
@@ -803,7 +803,7 @@
                 if (avg === null) {
                     return '<td><span class="score-cell score-na" style="font-weight:700;">-</span></td>';
                 }
-                const scoreClass = avg >= 80 ? 'score-pass' : avg >= 60 ? 'score-partial' : 'score-fail';
+                const scoreClass = avg >= 80 ? 'score-pass' : 'score-fail';
                 return `<td><span class="score-cell ${scoreClass}" style="font-weight:700;">${Math.round(avg)}%</span></td>`;
             }).join('');
 
