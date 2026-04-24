@@ -162,6 +162,7 @@ router.get('/', async (req, res) => {
                     <div class="stat-card"><div class="stat-number">${s.today}</div><div class="stat-label">Today</div></div>
                 </div>
                 <div class="actions">
+                    <a href="/receiving-audit/analytics-dashboard" class="action-card"><div class="action-icon">📊</div><div class="action-title">Dashboard</div><div class="action-desc">View monthly scores and analytics</div></a>
                     <a href="/receiving-audit/start" class="action-card"><div class="action-icon">🚀</div><div class="action-title">Start New Audit</div><div class="action-desc">Begin a new receiving area inspection</div></a>
                     <a href="/receiving-audit/list" class="action-card"><div class="action-icon">📋</div><div class="action-title">View Audits</div><div class="action-desc">Browse all receiving audits</div></a>
                     <a href="/receiving-audit/template-builder" class="action-card"><div class="action-icon">🔧</div><div class="action-title">Template Builder</div><div class="action-desc">Create and manage audit templates</div></a>
@@ -183,6 +184,113 @@ router.get('/template-builder', (req, res) => res.sendFile(path.join(__dirname, 
 router.get('/store-management', (req, res) => res.sendFile(path.join(__dirname, 'pages', 'store-management.html')));
 router.get('/settings', (req, res) => res.sendFile(path.join(__dirname, 'pages', 'system-settings.html')));
 router.get('/action-plan/:id', (req, res) => res.sendFile(path.join(__dirname, 'pages', 'action-plan.html')));
+router.get('/analytics-dashboard', (req, res) => res.sendFile(path.join(__dirname, 'pages', 'analytics-dashboard.html')));
+
+// ==========================================
+// Dashboard API
+// ==========================================
+router.get('/api/dashboard/monthly-scores', async (req, res) => {
+    try {
+        const { year, brandIds, storeIds } = req.query;
+        const selectedYear = parseInt(year) || new Date().getFullYear();
+        const pool = await getPool();
+
+        // Parse multi-select arrays
+        const brandIdArray = brandIds ? brandIds.split(',').map(id => parseInt(id)).filter(id => !isNaN(id)) : [];
+        const storeIdArray = storeIds ? storeIds.split(',').map(id => parseInt(id)).filter(id => !isNaN(id)) : [];
+
+        // Build WHERE clause
+        let whereClause = `WHERE i.Status = 'Completed' AND YEAR(i.InspectionDate) = @year`;
+        if (brandIdArray.length > 0) {
+            whereClause += ` AND s.BrandId IN (${brandIdArray.join(',')})`;
+        }
+        if (storeIdArray.length > 0) {
+            whereClause += ` AND i.StoreId IN (${storeIdArray.join(',')})`;
+        }
+
+        // Get monthly scores per store
+        const query = `
+            SELECT 
+                i.StoreId,
+                s.StoreCode,
+                s.StoreName,
+                MONTH(i.InspectionDate) as Month,
+                AVG(i.Score) as AvgScore,
+                COUNT(*) as AuditCount
+            FROM RCV_Inspections i
+            INNER JOIN Stores s ON i.StoreId = s.Id
+            ${whereClause}
+            GROUP BY i.StoreId, s.StoreCode, s.StoreName, MONTH(i.InspectionDate)
+            ORDER BY s.StoreName, MONTH(i.InspectionDate)
+        `;
+
+        const request = pool.request()
+            .input('year', sql.Int, selectedYear);
+
+        const result = await request.query(query);
+
+        // Transform data to store-based rows with monthly columns
+        const storeMap = new Map();
+        result.recordset.forEach(row => {
+            if (!storeMap.has(row.StoreId)) {
+                storeMap.set(row.StoreId, {
+                    storeId: row.StoreId,
+                    storeCode: row.StoreCode,
+                    storeName: row.StoreName,
+                    months: {},
+                    totalScore: 0,
+                    monthCount: 0
+                });
+            }
+            const store = storeMap.get(row.StoreId);
+            store.months[row.Month] = row.AvgScore;
+            store.totalScore += row.AvgScore;
+            store.monthCount++;
+        });
+
+        // Calculate averages
+        const data = Array.from(storeMap.values()).map(store => ({
+            storeId: store.storeId,
+            storeCode: store.storeCode,
+            storeName: store.storeName,
+            months: store.months,
+            average: store.monthCount > 0 ? store.totalScore / store.monthCount : null
+        }));
+
+        // Calculate summary stats
+        const summaryQuery = `
+            SELECT 
+                COUNT(*) as TotalAudits,
+                AVG(i.Score) as AvgScore,
+                SUM(CASE WHEN i.Score >= 80 THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0) as PassRate,
+                COUNT(DISTINCT i.StoreId) as StoresAudited
+            FROM RCV_Inspections i
+            INNER JOIN Stores s ON i.StoreId = s.Id
+            ${whereClause}
+        `;
+
+        const summaryRequest = pool.request()
+            .input('year', sql.Int, selectedYear);
+
+        const summaryResult = await summaryRequest.query(summaryQuery);
+        const summary = summaryResult.recordset[0] || {};
+
+        res.json({
+            success: true,
+            data: data,
+            summary: {
+                totalAudits: summary.TotalAudits || 0,
+                avgScore: summary.AvgScore ? Math.round(summary.AvgScore) : null,
+                passRate: summary.PassRate ? Math.round(summary.PassRate) : null,
+                storesAudited: summary.StoresAudited || 0
+            },
+            year: selectedYear
+        });
+    } catch (error) {
+        console.error('Error in dashboard API:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
 
 // ==========================================
 // Settings API
