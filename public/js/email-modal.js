@@ -856,6 +856,9 @@ const EmailModal = (function() {
         if (options.module === 'OE') {
             titleText.textContent = options.reportType === 'full' ? 
                 'Send OE Full Report' : 'Send OE Action Plan';
+        } else if (options.module === 'RCV') {
+            titleText.textContent = options.reportType === 'full' ? 
+                'Send Receiving Audit Report' : 'Send Receiving Audit Action Plan';
         } else {
             titleText.textContent = options.reportType === 'full' ? 
                 'Send OHS Full Report' : 'Send OHS Action Plan';
