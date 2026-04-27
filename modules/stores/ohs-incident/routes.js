@@ -109,9 +109,9 @@ router.get('/', async (req, res) => {
         const user = req.currentUser;
         const pool = await sql.connect(dbConfig);
         
-        // Load all dropdown data from OHS settings
+        // Load stores from main Stores table (from OE system settings)
         const stores = await pool.request().query(`
-            SELECT Id, StoreId, StoreName, StoreCode FROM OHSStores WHERE IsActive = 1 ORDER BY StoreName
+            SELECT Id, Id as StoreId, StoreName, StoreCode FROM Stores WHERE IsActive = 1 ORDER BY StoreName
         `);
         
         const eventTypes = await pool.request().query(`

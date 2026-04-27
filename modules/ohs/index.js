@@ -12,6 +12,7 @@ const fireEquipment = require('./fire-equipment');
 const fireEquipmentAdmin = require('./fire-equipment-admin');
 const ora = require('./ora');
 const oraAdmin = require('./ora-admin');
+const safetyPyramid = require('./safety-pyramid');
 
 // Mount sub-routes
 router.use('/settings', ohsSettings);
@@ -19,6 +20,7 @@ router.use('/fire-equipment', fireEquipment);
 router.use('/fire-equipment/admin', fireEquipmentAdmin);
 router.use('/ora', ora);
 router.use('/ora/admin', oraAdmin);
+router.use('/safety-pyramid', safetyPyramid);
 
 // OHS Landing Page
 router.get('/', (req, res) => {
@@ -37,6 +39,7 @@ router.get('/', (req, res) => {
     
     // Dashboard cards
     const dashboardCards = [
+        { id: 'safety-pyramid', icon: '⚠️', title: 'Safety Pyramid', href: '/ohs/safety-pyramid', desc: 'Incident severity pyramid with RIR & LTIR metrics', color: '#d63031' },
         { id: 'ora', icon: '📋', title: 'Risk Assessment (ORA)', href: '/ohs/ora', desc: 'Overall Risk Assessment and action planning', color: '#6c5ce7' },
         { id: 'fire-equipment', icon: '🧯', title: 'Fire Equipment Register', href: '/ohs/fire-equipment', desc: 'Manage fire fighting equipment inspections', color: '#d63031' },
         { id: 'all-incidents', icon: '📊', title: 'All Incidents', href: '/stores/ohs-incident/history', desc: 'View and manage all reported incidents', color: '#e17055' },
