@@ -215,6 +215,18 @@ router.get('/', async (req, res) => {
                         </div>
                     </a>
                     
+                    <!-- A&I Reporting -->
+                    <a href="/stores/ohs-incident" class="card">
+                        <div class="card-icon">⚠️</div>
+                        <div class="card-title">A&I Reporting</div>
+                        <div class="card-desc">Accident & Incident reporting for OHS - Report workplace incidents, near misses, and unsafe conditions</div>
+                        <div class="card-stats">
+                            <div class="stat stat-total">
+                                <span class="stat-value">Report Incident</span>
+                            </div>
+                        </div>
+                    </a>
+                    
                     <!-- Placeholder for future HR modules -->
                     <div class="card" style="opacity: 0.5; cursor: not-allowed;">
                         <div class="card-icon">📝</div>
