@@ -2041,7 +2041,12 @@
 
                 hideLoading();
                 if (result.success) {
-                    alert(`Inspection completed!\nFinal Score: ${Math.round(result.data.totalScore)}%`);
+                    let msg = `Inspection completed!\nFinal Score: ${Math.round(result.data.totalScore)}%`;
+                    if (result.data.criticalCount > 0) {
+                        msg += `\n\n🟣 ${result.data.criticalCount} Critical Finding(s) detected`;
+                        msg += `\nDeduction: -${result.data.criticalDeduction}%`;
+                    }
+                    alert(msg);
                     loadAudit();
                 } else {
                     alert('Error: ' + result.error);

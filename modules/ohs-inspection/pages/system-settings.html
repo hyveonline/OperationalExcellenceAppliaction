@@ -686,6 +686,52 @@
             </div>
         </div>
 
+        <!-- Scoring Settings Section -->
+        <div class="info-banner" style="margin-top: 30px; background: linear-gradient(135deg, #fef2f2 0%, #fde8e8 100%); border-left: 4px solid #ef4444;">
+            <div class="icon">📊</div>
+            <div class="text">
+                <h3 style="color: #991b1b;">Scoring Settings</h3>
+                <p style="color: #b91c1c;">Configure score deductions for critical findings.</p>
+            </div>
+        </div>
+
+        <div style="background: white; border-radius: 10px; padding: 25px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-top: 16px;">
+            <form id="scoringSettingsForm">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 25px;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label style="font-weight: 600; margin-bottom: 8px; display: block; color: #374151;">Critical Finding Deduction (%)</label>
+                        <input type="number" id="criticalFindingDeduction" min="0" max="100" step="0.5" value="5" style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 16px;">
+                        <small style="color: #6b7280; display: block; margin-top: 5px;">Percentage deducted from the total score for each critical finding (e.g., 5 = deduct 5% per critical finding)</small>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label style="font-weight: 600; margin-bottom: 8px; display: block; color: #374151;">Preview</label>
+                        <div id="deductionPreview" style="background: #f9fafb; border: 2px solid #e5e7eb; border-radius: 8px; padding: 12px; font-size: 14px; color: #374151; min-height: 46px; display: flex; align-items: center;">
+                            Example: 3 critical findings × 5% = <strong style="color: #ef4444; margin-left: 4px;">15% deducted</strong>
+                        </div>
+                        <small style="color: #6b7280; display: block; margin-top: 5px;">The deduction is applied after the base score is calculated</small>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 25px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+                    <button type="submit" class="btn btn-success" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                        <span>💾</span> Save Scoring Settings
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div style="background: #fee2e2; border-radius: 10px; padding: 20px; margin-top: 16px; border-left: 4px solid #ef4444;">
+            <h4 style="color: #991b1b; margin-bottom: 10px;">💡 How Critical Finding Deduction Works</h4>
+            <ol style="color: #b91c1c; padding-left: 20px; line-height: 1.8; margin: 0;">
+                <li>Inspector assigns <strong>Critical</strong> priority (🟣) to findings during inspection</li>
+                <li>When the inspection is completed, the system counts all critical findings</li>
+                <li>Each critical finding deducts the configured percentage from the total score</li>
+                <li>Example: Base score 85% with 2 critical findings at 5% each → Final score: 75%</li>
+                <li>The final score cannot go below 0%</li>
+            </ol>
+        </div>
+
         <!-- Escalation Settings Section -->
         <div class="info-banner" style="margin-top: 30px; background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%); border-left: 4px solid #f59e0b;">
             <div class="icon">⏰</div>
@@ -923,9 +969,65 @@
 
         document.addEventListener('DOMContentLoaded', async () => {
             await loadSchemas();
+            await loadScoringSettings();
+            setupScoringForm();
             await loadEscalationSettings();
             setupEscalationForm();
         });
+
+        // Scoring Settings Functions
+        async function loadScoringSettings() {
+            try {
+                const response = await fetch('/ohs-inspection/api/settings');
+                if (!response.ok) throw new Error('Failed to load settings');
+                
+                const data = await response.json();
+                if (data.success && data.settings) {
+                    const deduction = data.settings.find(s => s.SettingKey === 'CRITICAL_FINDING_DEDUCTION');
+                    if (deduction) {
+                        document.getElementById('criticalFindingDeduction').value = deduction.SettingValue || '5';
+                    }
+                    updateDeductionPreview();
+                }
+            } catch (error) {
+                console.error('Error loading scoring settings:', error);
+            }
+        }
+
+        function updateDeductionPreview() {
+            const pct = parseFloat(document.getElementById('criticalFindingDeduction').value) || 0;
+            const preview = document.getElementById('deductionPreview');
+            preview.innerHTML = `Example: 3 critical findings × ${pct}% = <strong style="color: #ef4444; margin-left: 4px;">${(3 * pct).toFixed(1)}% deducted</strong>`;
+        }
+
+        function setupScoringForm() {
+            document.getElementById('criticalFindingDeduction').addEventListener('input', updateDeductionPreview);
+            
+            const form = document.getElementById('scoringSettingsForm');
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const deduction = document.getElementById('criticalFindingDeduction').value;
+
+                try {
+                    const response = await fetch('/ohs-inspection/api/settings', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ settings: { CRITICAL_FINDING_DEDUCTION: deduction } })
+                    });
+
+                    const result = await response.json();
+                    if (result.success) {
+                        showToast('Scoring settings saved!', 'success');
+                    } else {
+                        throw new Error(result.error || 'Failed to save');
+                    }
+                } catch (error) {
+                    console.error('Error saving scoring settings:', error);
+                    showToast('Failed to save: ' + error.message, 'error');
+                }
+            });
+        }
 
         // Escalation Settings Functions
         async function loadEscalationSettings() {

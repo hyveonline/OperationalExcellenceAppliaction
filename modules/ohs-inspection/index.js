@@ -2101,19 +2101,42 @@ router.post('/api/audits/:auditId/complete', async (req, res) => {
             `);
         
         const { totalPoints, maxPoints } = scoreResult.recordset[0];
-        const totalScore = maxPoints > 0 ? (totalPoints / maxPoints) * 100 : 0;
+        let totalScore = maxPoints > 0 ? (totalPoints / maxPoints) * 100 : 0;
+        
+        // Count critical findings and apply deduction
+        const criticalResult = await pool.request()
+            .input('auditId', sql.Int, auditId)
+            .query(`
+                SELECT COUNT(*) as criticalCount
+                FROM OHS_InspectionItems
+                WHERE InspectionId = @auditId AND Priority = 'Critical'
+            `);
+        const criticalCount = criticalResult.recordset[0].criticalCount || 0;
+        
+        let criticalDeduction = 0;
+        if (criticalCount > 0) {
+            const deductionSetting = await pool.request()
+                .query("SELECT SettingValue FROM OHS_InspectionSettings WHERE SettingKey = 'CRITICAL_FINDING_DEDUCTION'");
+            const deductionPct = deductionSetting.recordset.length > 0 ? parseFloat(deductionSetting.recordset[0].SettingValue) || 0 : 0;
+            criticalDeduction = criticalCount * deductionPct;
+            totalScore = Math.max(0, Math.ceil(totalScore - criticalDeduction));
+        }
         
         await pool.request()
             .input('auditId', sql.Int, auditId)
             .input('score', sql.Decimal(5,2), totalScore)
             .input('totalPoints', sql.Decimal(10,2), totalPoints)
             .input('maxPoints', sql.Decimal(10,2), maxPoints)
+            .input('criticalCount', sql.Int, criticalCount)
+            .input('criticalDeduction', sql.Decimal(5,2), criticalDeduction)
             .query(`
                 UPDATE OHS_Inspections 
                 SET Status = 'Completed', 
                     Score = @score,
                     TotalPoints = @totalPoints,
                     MaxPoints = @maxPoints,
+                    CriticalFindingsCount = @criticalCount,
+                    CriticalDeduction = @criticalDeduction,
                     CompletedAt = GETDATE(),
                     UpdatedAt = GETDATE()
                 WHERE Id = @auditId
@@ -2194,7 +2217,7 @@ router.post('/api/audits/:auditId/complete', async (req, res) => {
                 // Non-critical, continue
             }
         }
-        res.json({ success: true, data: { totalScore, actionItemsCreated } });
+        res.json({ success: true, data: { totalScore, actionItemsCreated, criticalCount, criticalDeduction } });
     } catch (error) {
         console.error('Error completing audit:', error);
         res.status(500).json({ success: false, error: error.message });
@@ -2314,11 +2337,26 @@ router.post('/api/audits/:auditId/generate-report', async (req, res) => {
                 totalMax += dept.maxScore;
             }
         }
-        const overallScore = totalMax > 0 ? Math.round((totalEarned / totalMax) * 100) : 0;
+        const baseScore = totalMax > 0 ? Math.round((totalEarned / totalMax) * 100) : 0;
         
         // Get settings for threshold
-        const settingsResult = await pool.request().query(`SELECT SettingValue FROM OHS_InspectionSettings WHERE SettingKey = 'PASSING_SCORE'`);
-        const threshold = parseInt(settingsResult.recordset[0]?.SettingValue) || 80;
+        const settingsResult = await pool.request().query(`SELECT SettingKey, SettingValue FROM OHS_InspectionSettings WHERE SettingKey IN ('PASSING_SCORE', 'CRITICAL_FINDING_DEDUCTION')`);
+        const settingsMap = {};
+        for (const s of settingsResult.recordset) settingsMap[s.SettingKey] = s.SettingValue;
+        const threshold = parseInt(settingsMap['PASSING_SCORE']) || 80;
+        const deductionPct = parseFloat(settingsMap['CRITICAL_FINDING_DEDUCTION']) || 0;
+        
+        // Count critical findings and apply deduction
+        const criticalResult = await pool.request()
+            .input('auditId2', sql.Int, auditId)
+            .query(`
+                SELECT COUNT(*) as criticalCount
+                FROM OHS_InspectionItems
+                WHERE InspectionId = @auditId2 AND Priority = 'Critical'
+            `);
+        const criticalCount = criticalResult.recordset[0].criticalCount || 0;
+        const criticalDeduction = criticalCount * deductionPct;
+        const overallScore = Math.max(0, Math.ceil(baseScore - criticalDeduction));
         
         // Get pictures for all items (direct uploads + gallery assigned)
         const picturesResult = await pool.request()
@@ -2457,6 +2495,10 @@ router.post('/api/audits/:auditId/generate-report', async (req, res) => {
             pictures: picturesByItem,
             freetextSections,
             overallScore,
+            baseScore,
+            criticalCount,
+            criticalDeduction,
+            deductionPct,
             threshold,
             cycleAudits,
             generatedAt: new Date().toISOString()
@@ -2754,7 +2796,7 @@ function generateDepartmentReportHTML(data) {
 
 // Helper function to generate HTML report
 function generateOHSReportHTML(data) {
-    const { audit, departments, pictures, freetextSections = [], overallScore, threshold, cycleAudits = [], generatedAt } = data;
+    const { audit, departments, pictures, freetextSections = [], overallScore, baseScore, criticalCount = 0, criticalDeduction = 0, deductionPct = 0, threshold, cycleAudits = [], generatedAt } = data;
     const passedClass = overallScore >= threshold ? 'pass' : 'fail';
     const passedText = overallScore >= threshold ? 'PASS ✅' : 'FAIL ❌';
     
