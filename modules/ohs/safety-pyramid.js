@@ -67,9 +67,15 @@ router.get('/', async (req, res) => {
     try {
         const pool = await getPool();
         
-        // Get stores from main Stores table (from OE system settings)
+        // Get brands
+        const brandsResult = await pool.request().query(`
+            SELECT Id, BrandName, BrandCode FROM Brands WHERE IsActive = 1 ORDER BY BrandName
+        `);
+        const brands = brandsResult.recordset;
+        
+        // Get stores from main Stores table with BrandId
         const storesResult = await pool.request().query(`
-            SELECT Id as StoreId, StoreName, StoreCode
+            SELECT Id as StoreId, StoreName, StoreCode, BrandId
             FROM Stores
             WHERE IsActive = 1
             ORDER BY StoreName
@@ -331,25 +337,25 @@ router.get('/', async (req, res) => {
                         justify-content: flex-start;
                         padding: 0 60px 0 0;
                         flex: 1;
-                        width: 480px;
-                        min-width: 480px;
+                        width: 520px;
+                        min-width: 520px;
                         position: relative;
+                        overflow: visible;
                     }
                     
                     .pyramid-level {
                         display: flex;
                         align-items: center;
                         justify-content: center;
-                        margin-bottom: 4px;
-                        transition: transform 0.2s, box-shadow 0.2s;
+                        margin-bottom: 0;
+                        transition: transform 0.2s, box-shadow 0.2s, filter 0.2s;
                         cursor: pointer;
                         position: relative;
                         margin-left: auto;
                         margin-right: auto;
                     }
                     .pyramid-level:hover {
-                        transform: scale(1.02);
-                        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+                        filter: brightness(1.15);
                         z-index: 10;
                     }
                     
@@ -358,7 +364,7 @@ router.get('/', async (req, res) => {
                         align-items: center;
                         justify-content: center;
                         width: 100%;
-                        padding: 10px 15px;
+                        padding: 12px 15px;
                         color: white;
                         text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
                     }
@@ -369,9 +375,9 @@ router.get('/', async (req, res) => {
                     }
                     .pyramid-level .level-count {
                         position: absolute;
-                        right: -50px;
+                        right: 0;
                         top: 50%;
-                        transform: translateY(-50%);
+                        transform: translate(110%, -50%);
                         font-weight: 700;
                         font-size: 16px;
                         background: #333;
@@ -380,16 +386,21 @@ router.get('/', async (req, res) => {
                         border-radius: 15px;
                         min-width: 35px;
                         text-align: center;
+                        z-index: 20;
                     }
                     
-                    /* Pyramid shape widths - centered */
-                    .pyramid-level-1 { width: 100px; min-width: 100px; }
-                    .pyramid-level-2 { width: 140px; min-width: 140px; }
-                    .pyramid-level-3 { width: 180px; min-width: 180px; }
-                    .pyramid-level-4 { width: 220px; min-width: 220px; }
-                    .pyramid-level-5 { width: 270px; min-width: 270px; }
-                    .pyramid-level-6 { width: 320px; min-width: 320px; }
-                    .pyramid-level-7 { width: 400px; min-width: 400px; }
+                    /* True pyramid trapezoid shapes using clip-path */
+                    /* clip-path ONLY on .level-content, count is outside so not clipped */
+                    /* Polygon order: top-left, top-right, bottom-right, bottom-left (clockwise) */
+                    /* Perfectly straight sides: step = 6% per level */
+                    .pyramid-level { width: 500px; position: relative; overflow: visible; }
+                    .pyramid-level-1 .level-content { clip-path: polygon(42% 0%, 58% 0%, 64% 100%, 36% 100%); }
+                    .pyramid-level-2 .level-content { clip-path: polygon(36% 0%, 64% 0%, 70% 100%, 30% 100%); }
+                    .pyramid-level-3 .level-content { clip-path: polygon(30% 0%, 70% 0%, 76% 100%, 24% 100%); }
+                    .pyramid-level-4 .level-content { clip-path: polygon(24% 0%, 76% 0%, 82% 100%, 18% 100%); }
+                    .pyramid-level-5 .level-content { clip-path: polygon(18% 0%, 82% 0%, 88% 100%, 12% 100%); }
+                    .pyramid-level-6 .level-content { clip-path: polygon(12% 0%, 88% 0%, 94% 100%, 6% 100%); }
+                    .pyramid-level-7 .level-content { clip-path: polygon(6% 0%, 94% 0%, 100% 100%, 0% 100%); }
                     
                     /* Level details tooltip */
                     .level-tooltip {
@@ -592,10 +603,17 @@ router.get('/', async (req, res) => {
                     <!-- Filters -->
                     <div class="filters-bar">
                         <div class="filter-group">
+                            <label>Brand / Scheme</label>
+                            <select id="brandFilter" onchange="filterStoresByBrand()">
+                                <option value="">All Brands</option>
+                                ${brands.map(b => `<option value="${b.Id}">${b.BrandName}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div class="filter-group">
                             <label>Store</label>
                             <select id="storeFilter">
                                 <option value="">All Stores</option>
-                                ${stores.map(s => `<option value="${s.StoreId}">${s.StoreName}</option>`).join('')}
+                                ${stores.map(s => `<option value="${s.StoreId}" data-brand="${s.BrandId}">${s.StoreName}</option>`).join('')}
                             </select>
                         </div>
                         <div class="filter-group">
@@ -763,8 +781,20 @@ router.get('/', async (req, res) => {
                     // Load data on page load
                     document.addEventListener('DOMContentLoaded', loadData);
                     
+                    function filterStoresByBrand() {
+                        const brandId = document.getElementById('brandFilter').value;
+                        const storeSelect = document.getElementById('storeFilter');
+                        const options = storeSelect.querySelectorAll('option[data-brand]');
+                        
+                        storeSelect.value = '';
+                        options.forEach(opt => {
+                            opt.style.display = (!brandId || opt.getAttribute('data-brand') === brandId) ? '' : 'none';
+                        });
+                    }
+                    
                     async function loadData() {
                         const storeId = document.getElementById('storeFilter').value;
+                        const brandId = document.getElementById('brandFilter').value;
                         const year = document.getElementById('yearFilter').value;
                         const period = document.getElementById('periodFilter').value;
                         
@@ -773,6 +803,7 @@ router.get('/', async (req, res) => {
                         try {
                             const params = new URLSearchParams({ year, period });
                             if (storeId) params.append('storeId', storeId);
+                            if (brandId) params.append('brandId', brandId);
                             
                             const response = await fetch('/ohs/safety-pyramid/api/data?' + params);
                             const data = await response.json();
@@ -802,12 +833,11 @@ router.get('/', async (req, res) => {
                         
                         container.innerHTML = levels.map((level, index) => \`
                             <div class="pyramid-level pyramid-level-\${index + 1}" 
-                                 style="background: \${level.ColorHex}; border-radius: 4px;"
                                  onclick="viewLevelDetails(\${level.Id}, '\${level.LevelName}')">
-                                <div class="level-content">
+                                <div class="level-content" style="background: \${level.ColorHex};">
                                     <span class="level-name">\${level.LevelName}</span>
-                                    <span class="level-count">\${level.Count}</span>
                                 </div>
+                                <span class="level-count">\${level.Count}</span>
                                 <div class="level-tooltip">
                                     <strong>\${level.LevelName}</strong><br>
                                     \${level.Description}<br><br>
@@ -836,7 +866,7 @@ router.get('/', async (req, res) => {
                         let leadingHeight = 0;
                         
                         pyramidLevels.forEach((level, index) => {
-                            const height = level.offsetHeight + 4; // Include margin
+                            const height = level.offsetHeight; // No margin gap with true pyramid shape
                             
                             // LTIR: Levels 1-3 (Fatality, Irreversible, Lost-Time)
                             if (index < 3) {
@@ -909,7 +939,7 @@ router.get('/', async (req, res) => {
 // =====================================================
 router.get('/api/data', async (req, res) => {
     try {
-        const { storeId, year, period } = req.query;
+        const { storeId, brandId, year, period } = req.query;
         const pool = await getPool();
         
         // Build date filter
@@ -927,6 +957,8 @@ router.get('/api/data', async (req, res) => {
         let storeFilter = '';
         if (storeId) {
             storeFilter = `AND i.StoreId = ${parseInt(storeId)}`;
+        } else if (brandId) {
+            storeFilter = `AND i.StoreId IN (SELECT Id FROM Stores WHERE BrandId = ${parseInt(brandId)} AND IsActive = 1)`;
         }
         
         // Get incident counts by severity level
@@ -958,6 +990,8 @@ router.get('/api/data', async (req, res) => {
         
         if (storeId) {
             hoursQuery += ` AND StoreId = ${parseInt(storeId)}`;
+        } else if (brandId) {
+            hoursQuery += ` AND StoreId IN (SELECT Id FROM Stores WHERE BrandId = ${parseInt(brandId)} AND IsActive = 1)`;
         }
         
         const hoursResult = await pool.request().query(hoursQuery);
