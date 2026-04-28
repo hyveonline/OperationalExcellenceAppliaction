@@ -1527,4 +1527,180 @@ router.delete('/body-parts/delete/:id', async (req, res) => {
     } catch (error) { res.json({ success: false, error: error.message }); }
 });
 
+// =====================================================
+// PERSON AFFECTED TYPES MANAGEMENT
+// =====================================================
+router.get('/person-affected', async (req, res) => {
+    try {
+        const db = await getPool();
+        const types = await db.request().query(`
+            SELECT * FROM OHSPersonAffectedTypes ORDER BY DisplayOrder, TypeName
+        `);
+        
+        res.send(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+            <title>Person Affected Types - OHS Settings</title>
+                <style>${getCommonStyles()}</style>
+            </head>
+            <body>
+                <div class="header">
+                    <h1>👤 Person Affected Types</h1>
+                    <div class="header-nav">
+                        <a href="/ohs">← Back to OHS</a>
+                        <a href="/">🏠 Home</a>
+                    </div>
+                </div>
+                
+                <div class="container">
+                    <div class="page-title">
+                        <h2>Manage Person Affected Types</h2>
+                        <p>Configure person affected types for incident reporting</p>
+                    </div>
+                    
+                    <div id="alertContainer"></div>
+                    
+                    <div class="card">
+                        <div class="toolbar">
+                            <span></span>
+                            <button class="btn btn-primary" onclick="openAddModal()">+ Add Type</button>
+                        </div>
+                        
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Order</th>
+                                        <th>Type Name</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${types.recordset.map(t => `
+                                        <tr>
+                                            <td>${t.DisplayOrder}</td>
+                                            <td><strong>${t.TypeName}</strong></td>
+                                            <td><span class="badge ${t.IsActive ? 'badge-success' : 'badge-danger'}">${t.IsActive ? 'Active' : 'Inactive'}</span></td>
+                                            <td class="actions">
+                                                <button class="btn btn-secondary" onclick="editItem(${t.Id}, '${t.TypeName.replace(/'/g, "\\\'")}', ${t.DisplayOrder})">Edit</button>
+                                                <button class="btn btn-danger" onclick="deleteItem(${t.Id})">Delete</button>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Modal -->
+                <div class="modal" id="itemModal">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3 id="modalTitle">Add Type</h3>
+                            <button class="modal-close" onclick="closeModal()">&times;</button>
+                        </div>
+                        <form onsubmit="saveItem(event)">
+                            <input type="hidden" id="itemId">
+                            <div class="form-group">
+                                <label>Type Name *</label>
+                                <input type="text" id="itemName" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Display Order</label>
+                                <input type="number" id="itemOrder" value="0">
+                            </div>
+                            <button type="submit" class="btn btn-primary">Save</button>
+                        </form>
+                    </div>
+                </div>
+                
+                <script>
+                    function openAddModal() {
+                        document.getElementById('modalTitle').textContent = 'Add Type';
+                        document.getElementById('itemId').value = '';
+                        document.getElementById('itemName').value = '';
+                        document.getElementById('itemOrder').value = '0';
+                        document.getElementById('itemModal').classList.add('active');
+                    }
+                    function editItem(id, name, order) {
+                        document.getElementById('modalTitle').textContent = 'Edit Type';
+                        document.getElementById('itemId').value = id;
+                        document.getElementById('itemName').value = name;
+                        document.getElementById('itemOrder').value = order;
+                        document.getElementById('itemModal').classList.add('active');
+                    }
+                    function closeModal() { document.getElementById('itemModal').classList.remove('active'); }
+                    function showAlert(message, type) {
+                        document.getElementById('alertContainer').innerHTML = '<div class="alert alert-' + type + '">' + message + '</div>';
+                        setTimeout(() => document.getElementById('alertContainer').innerHTML = '', 5000);
+                    }
+                    async function saveItem(e) {
+                        e.preventDefault();
+                        const id = document.getElementById('itemId').value;
+                        const data = {
+                            name: document.getElementById('itemName').value,
+                            displayOrder: parseInt(document.getElementById('itemOrder').value) || 0
+                        };
+                        const url = id ? '/ohs/settings/person-affected/update/' + id : '/ohs/settings/person-affected/add';
+                        const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+                        const result = await res.json();
+                        if (result.success) location.reload();
+                        else showAlert(result.error || 'Failed to save', 'error');
+                    }
+                    async function deleteItem(id) {
+                        if (!confirm('Are you sure?')) return;
+                        const res = await fetch('/ohs/settings/person-affected/delete/' + id, { method: 'DELETE' });
+                        const result = await res.json();
+                        if (result.success) location.reload();
+                        else showAlert(result.error || 'Failed to delete', 'error');
+                    }
+                </script>
+            </body>
+            </html>
+        `);
+    } catch (error) {
+        res.status(500).send('Error: ' + error.message);
+    }
+});
+
+// Person Affected Types CRUD APIs
+router.post('/person-affected/add', async (req, res) => {
+    try {
+        const { name, displayOrder } = req.body;
+        const db = await getPool();
+        await db.request()
+            .input('name', sql.NVarChar, name)
+            .input('displayOrder', sql.Int, displayOrder || 0)
+            .query(`INSERT INTO OHSPersonAffectedTypes (TypeName, DisplayOrder) VALUES (@name, @displayOrder)`);
+        res.json({ success: true });
+    } catch (error) { res.json({ success: false, error: error.message }); }
+});
+
+router.post('/person-affected/update/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, displayOrder } = req.body;
+        const db = await getPool();
+        await db.request()
+            .input('id', sql.Int, id)
+            .input('name', sql.NVarChar, name)
+            .input('displayOrder', sql.Int, displayOrder || 0)
+            .query(`UPDATE OHSPersonAffectedTypes SET TypeName = @name, DisplayOrder = @displayOrder WHERE Id = @id`);
+        res.json({ success: true });
+    } catch (error) { res.json({ success: false, error: error.message }); }
+});
+
+router.delete('/person-affected/delete/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const db = await getPool();
+        await db.request().input('id', sql.Int, id).query('DELETE FROM OHSPersonAffectedTypes WHERE Id = @id');
+        res.json({ success: true });
+    } catch (error) { res.json({ success: false, error: error.message }); }
+});
+
 module.exports = router;

@@ -146,6 +146,10 @@ router.get('/', async (req, res) => {
             SELECT Id, InjuryTypeName FROM OHSInjuryTypes WHERE IsActive = 1 ORDER BY DisplayOrder
         `);
         
+        const personAffectedTypes = await pool.request().query(`
+            SELECT Id, TypeName FROM OHSPersonAffectedTypes WHERE IsActive = 1 ORDER BY DisplayOrder
+        `);
+        
         await pool.close();
         
         // Build sub-categories JSON for cascading dropdown
@@ -497,6 +501,16 @@ router.get('/', async (req, res) => {
                                 <div class="form-group">
                                     <label>Name of Person Reporting <span class="required">*</span></label>
                                     <input type="text" name="reporterName" id="reporterName" required value="${user?.displayName || ''}" readonly style="background: #f0f0f0;">
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label>Person Affected <span class="required">*</span></label>
+                                    <select name="personAffectedTypeId" id="personAffectedTypeId" required>
+                                        <option value="">-- Select Person Affected --</option>
+                                        ${personAffectedTypes.recordset.map(pa => `
+                                            <option value="${pa.Id}">${pa.TypeName}</option>
+                                        `).join('')}
+                                    </select>
                                 </div>
                             </div>
                             
@@ -952,6 +966,7 @@ router.post('/submit', upload.array('attachments', 10), async (req, res) => {
             .input('reportedByEmail', sql.NVarChar, user?.email || '')
             .input('attachments', sql.NVarChar, JSON.stringify(attachments))
             .input('claimId', sql.NVarChar, req.body.claimId || null)
+            .input('personAffectedTypeId', sql.Int, req.body.personAffectedTypeId || null)
             .query(`
                 INSERT INTO OHSIncidents (
                     IncidentNumber, StoreId, StoreName, EventTypeId, CategoryId, SubCategoryId,
@@ -960,7 +975,7 @@ router.post('/submit', upload.array('attachments', 10), async (req, res) => {
                     InjuredPersonName, InjuredPersonType, InjuredPersonEmployeeId,
                     WitnessNames, ImmediateActions, MedicalTreatmentRequired, MedicalTreatmentDetails,
                     HospitalVisit, ReportedByUserId, ReportedByName, ReportedByRole, ReportedByEmail,
-                    Attachments, ClaimId, Status
+                    Attachments, ClaimId, PersonAffectedTypeId, Status
                 )
                 OUTPUT INSERTED.Id
                 VALUES (
@@ -970,7 +985,7 @@ router.post('/submit', upload.array('attachments', 10), async (req, res) => {
                     @injuredPersonName, @injuredPersonType, @injuredPersonEmployeeId,
                     @witnessNames, @immediateActions, @medicalTreatmentRequired, @medicalTreatmentDetails,
                     @hospitalVisit, @reportedByUserId, @reportedByName, @reportedByRole, @reportedByEmail,
-                    @attachments, @claimId, 'Submitted'
+                    @attachments, @claimId, @personAffectedTypeId, 'Submitted'
                 )
             `);
         

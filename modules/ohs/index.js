@@ -33,6 +33,7 @@ router.get('/', (req, res) => {
         { id: 'categories', icon: '📁', title: 'Event Categories', href: '/ohs/settings/categories', desc: 'Manage categories and sub-categories', color: '#00b894' },
         { id: 'injury-types', icon: '🩹', title: 'Injury Types', href: '/ohs/settings/injury-types', desc: 'Configure injury types for reporting', color: '#e17055' },
         { id: 'body-parts', icon: '🦴', title: 'Body Parts', href: '/ohs/settings/body-parts', desc: 'Manage body part options for injuries', color: '#fdcb6e' },
+        { id: 'person-affected', icon: '👤', title: 'Person Affected Types', href: '/ohs/settings/person-affected', desc: 'Manage person affected types for incidents', color: '#00cec9' },
         { id: 'fire-equipment-setup', icon: '⚙️', title: 'Fire Equipment Setup', href: '/ohs/fire-equipment/admin', desc: 'Configure fire equipment types and store registry', color: '#d63031' },
         { id: 'ora-setup', icon: '⚙️', title: 'ORA Setup', href: '/ohs/ora/admin', desc: 'Configure hazard categories and risk matrix', color: '#6c5ce7' },
     ];
