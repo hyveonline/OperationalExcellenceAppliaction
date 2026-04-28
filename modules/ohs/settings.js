@@ -714,7 +714,8 @@ router.delete('/event-types/delete/:id', async (req, res) => {
     try {
         const { id } = req.params;
         const db = await getPool();
-        await db.request().input('id', sql.Int, id).query('DELETE FROM OHSEventTypes WHERE Id = @id');
+        // Soft-delete: set IsActive = 0 to preserve referential integrity with OHSIncidents
+        await db.request().input('id', sql.Int, id).query('UPDATE OHSEventTypes SET IsActive = 0 WHERE Id = @id');
         res.json({ success: true });
     } catch (error) {
         res.json({ success: false, error: error.message });
