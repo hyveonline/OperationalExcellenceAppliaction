@@ -115,8 +115,20 @@ router.get('/', async (req, res) => {
         `);
         
         const eventTypes = await pool.request().query(`
-            SELECT Id, EventTypeName, Description FROM OHSEventTypes WHERE IsActive = 1 ORDER BY DisplayOrder
+            SELECT Id, EventTypeName, Description, ISNULL(RoleGroup, 'all') as RoleGroup FROM OHSEventTypes WHERE IsActive = 1 ORDER BY DisplayOrder
         `);
+        
+        // Filter event types based on user role
+        const userRole = user?.role || '';
+        const storeRoles = ['Store Manager', 'Duty Manager'];
+        const hrRoles = ['HR Officer', 'OHS Manager', 'OHS Officer', 'Head of Talent Management', 'Employee Relations Officer', 'Personnel', 'Personnel Supervisor'];
+        
+        let filteredEventTypes = eventTypes.recordset;
+        if (storeRoles.includes(userRole)) {
+            filteredEventTypes = eventTypes.recordset.filter(et => et.RoleGroup === 'store');
+        } else if (hrRoles.includes(userRole)) {
+            filteredEventTypes = eventTypes.recordset.filter(et => et.RoleGroup === 'hr');
+        }
         
         const categories = await pool.request().query(`
             SELECT Id, CategoryName FROM OHSEventCategories WHERE IsActive = 1 ORDER BY DisplayOrder
@@ -495,12 +507,19 @@ router.get('/', async (req, res) => {
                                 <div class="form-row">
                                     <div class="form-group">
                                         <label>Event Type <span class="required">*</span></label>
-                                        <select name="eventTypeId" id="eventTypeId" required>
+                                        <select name="eventTypeId" id="eventTypeId" required onchange="toggleClaimId()">
                                             <option value="">-- Select Event Type --</option>
-                                            ${eventTypes.recordset.map(et => `
-                                                <option value="${et.Id}">${et.EventTypeName}</option>
+                                            ${filteredEventTypes.map(et => `
+                                                <option value="${et.Id}" data-role-group="${et.RoleGroup}">${et.EventTypeName}</option>
                                             `).join('')}
                                         </select>
+                                    </div>
+                                </div>
+                                
+                                <div class="form-row" id="claimIdRow" style="display: none;">
+                                    <div class="form-group">
+                                        <label>Claim ID</label>
+                                        <input type="text" name="claimId" id="claimId" placeholder="Enter claim ID (if applicable)">
                                     </div>
                                 </div>
                                 
@@ -735,6 +754,19 @@ router.get('/', async (req, res) => {
                         }
                     }
                     
+                    // HR event types that show Claim ID field
+                    const claimIdEventTypes = ['Medical Treatment Case', 'Restricted Work Case', 'Lost Time Injury', 'Irreversible', 'Fatality'];
+                    
+                    function toggleClaimId() {
+                        const select = document.getElementById('eventTypeId');
+                        const selectedText = select.options[select.selectedIndex]?.text || '';
+                        const claimRow = document.getElementById('claimIdRow');
+                        claimRow.style.display = claimIdEventTypes.includes(selectedText) ? '' : 'none';
+                        if (claimRow.style.display === 'none') {
+                            document.getElementById('claimId').value = '';
+                        }
+                    }
+                    
                     // Toggle injury section visibility
                     function toggleInjurySection() {
                         const checked = document.getElementById('injuryOccurred').checked;
@@ -919,6 +951,7 @@ router.post('/submit', upload.array('attachments', 10), async (req, res) => {
             .input('reportedByRole', sql.NVarChar, user?.role || '')
             .input('reportedByEmail', sql.NVarChar, user?.email || '')
             .input('attachments', sql.NVarChar, JSON.stringify(attachments))
+            .input('claimId', sql.NVarChar, req.body.claimId || null)
             .query(`
                 INSERT INTO OHSIncidents (
                     IncidentNumber, StoreId, StoreName, EventTypeId, CategoryId, SubCategoryId,
@@ -927,7 +960,7 @@ router.post('/submit', upload.array('attachments', 10), async (req, res) => {
                     InjuredPersonName, InjuredPersonType, InjuredPersonEmployeeId,
                     WitnessNames, ImmediateActions, MedicalTreatmentRequired, MedicalTreatmentDetails,
                     HospitalVisit, ReportedByUserId, ReportedByName, ReportedByRole, ReportedByEmail,
-                    Attachments, Status
+                    Attachments, ClaimId, Status
                 )
                 OUTPUT INSERTED.Id
                 VALUES (
@@ -937,7 +970,7 @@ router.post('/submit', upload.array('attachments', 10), async (req, res) => {
                     @injuredPersonName, @injuredPersonType, @injuredPersonEmployeeId,
                     @witnessNames, @immediateActions, @medicalTreatmentRequired, @medicalTreatmentDetails,
                     @hospitalVisit, @reportedByUserId, @reportedByName, @reportedByRole, @reportedByEmail,
-                    @attachments, 'Submitted'
+                    @attachments, @claimId, 'Submitted'
                 )
             `);
         
