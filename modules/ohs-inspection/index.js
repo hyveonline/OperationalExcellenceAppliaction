@@ -1991,7 +1991,12 @@ router.put('/api/audits/section/:sectionId/freetext', async (req, res) => {
 });
 
 // Upload picture for audit item (file storage with compression)
-router.post('/api/audits/pictures', ohsUpload.single('picture'), async (req, res) => {
+router.post('/api/audits/pictures', (req, res, next) => {
+    ohsUpload.single('picture')(req, res, (err) => {
+        if (err) return res.status(400).json({ success: false, error: err.message });
+        next();
+    });
+}, async (req, res) => {
     try {
         if (!req.file) {
             return res.status(400).json({ success: false, error: 'No file uploaded' });
@@ -4221,7 +4226,12 @@ router.post('/api/action-plan/save', async (req, res) => {
 });
 
 // Upload action plan picture (returns file path for use in action-plan.html)
-router.post('/api/action-plan/upload-picture', ohsUpload.single('picture'), async (req, res) => {
+router.post('/api/action-plan/upload-picture', (req, res, next) => {
+    ohsUpload.single('picture')(req, res, (err) => {
+        if (err) return res.status(400).json({ success: false, error: err.message });
+        next();
+    });
+}, async (req, res) => {
     try {
         if (!req.file) {
             return res.status(400).json({ success: false, error: 'No file uploaded' });
@@ -5507,7 +5517,12 @@ const galleryUpload = multer({
 });
 
 // Upload single picture to gallery
-router.post('/api/gallery/:auditId/upload', galleryUpload.single('picture'), async (req, res) => {
+router.post('/api/gallery/:auditId/upload', (req, res, next) => {
+    galleryUpload.single('picture')(req, res, (err) => {
+        if (err) return res.status(400).json({ success: false, error: err.message });
+        next();
+    });
+}, async (req, res) => {
     try {
         const { auditId } = req.params;
         const user = req.currentUser;
@@ -5536,7 +5551,12 @@ router.post('/api/gallery/:auditId/upload', galleryUpload.single('picture'), asy
 });
 
 // Upload multiple pictures to gallery
-router.post('/api/gallery/:auditId/upload-multiple', galleryUpload.array('pictures', 20), async (req, res) => {
+router.post('/api/gallery/:auditId/upload-multiple', (req, res, next) => {
+    galleryUpload.array('pictures', 20)(req, res, (err) => {
+        if (err) return res.status(400).json({ success: false, error: err.message });
+        next();
+    });
+}, async (req, res) => {
     try {
         const { auditId } = req.params;
         const user = req.currentUser;

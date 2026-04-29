@@ -2147,7 +2147,19 @@
                     canvas.height = height;
                     canvas.getContext('2d').drawImage(img, 0, 0, width, height);
                     canvas.toBlob(function(blob) {
-                        resolve(blob ? new File([blob], file.name, { type: 'image/jpeg', lastModified: Date.now() }) : file);
+                        if (blob) {
+                            const jpgName = file.name.replace(/\.[^.]+$/, '.jpg');
+                            try {
+                                resolve(new File([blob], jpgName, { type: 'image/jpeg' }));
+                            } catch(e) {
+                                // File constructor not supported (older browsers) - use blob with name
+                                blob.name = jpgName;
+                                blob.lastModifiedDate = new Date();
+                                resolve(blob);
+                            }
+                        } else {
+                            resolve(file);
+                        }
                     }, 'image/jpeg', quality);
                 };
                 img.onerror = function() { URL.revokeObjectURL(url); resolve(file); };
@@ -2194,8 +2206,9 @@
             
             try {
                 const compressedFile = await compressImageFile(selectedImageFile);
+                const fileName = (compressedFile.name || selectedImageFile.name || 'photo.jpg').replace(/\.[^.]+$/, '.jpg');
                 const formData = new FormData();
-                formData.append('picture', compressedFile);
+                formData.append('picture', compressedFile, fileName);
                 formData.append('responseId', currentImageResponseId);
                 formData.append('auditId', auditData.auditId);
                 formData.append('pictureType', selectedImageType);
@@ -2457,28 +2470,31 @@
             if (galleryUploadFiles.length === 0) return;
             const btn = document.getElementById('galleryUploadBtn');
             btn.disabled = true;
-            btn.textContent = '⏳ Compressing & Uploading...';
+            let uploaded = 0;
+            const total = galleryUploadFiles.length;
+            btn.textContent = '⏳ 0/' + total + ' uploading...';
             try {
-                const formData = new FormData();
-                for (const file of galleryUploadFiles) {
+                for (let i = 0; i < galleryUploadFiles.length; i++) {
+                    const file = galleryUploadFiles[i];
                     const compressed = await compressImageFile(file);
-                    formData.append('pictures', compressed);
+                    const fileName = (compressed.name || file.name || ('photo-' + i + '.jpg')).replace(/\.[^.]+$/, '.jpg');
+                    const formData = new FormData();
+                    formData.append('picture', compressed, fileName);
+                    const response = await fetch('/ohs-inspection/api/gallery/' + auditId + '/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const result = await response.json();
+                    if (!result.success) throw new Error(result.error || 'Upload failed');
+                    uploaded++;
+                    btn.textContent = '⏳ ' + uploaded + '/' + total + ' uploading...';
                 }
-                const response = await fetch(`/ohs-inspection/api/gallery/${auditId}/upload-multiple`, {
-                    method: 'POST',
-                    body: formData
-                });
-                const result = await response.json();
-                if (result.success) {
-                    alert(result.count + ' photo(s) uploaded to gallery!');
-                    closeGalleryUploadModal();
-                    await loadGalleryPictures();
-                } else {
-                    throw new Error(result.error);
-                }
+                alert(uploaded + ' photo(s) uploaded to gallery!');
+                closeGalleryUploadModal();
+                await loadGalleryPictures();
             } catch (error) {
                 console.error('Error uploading to gallery:', error);
-                alert('Failed to upload photos');
+                alert('Failed to upload photos. ' + uploaded + '/' + total + ' uploaded.');
             }
             btn.disabled = false;
             btn.textContent = '📤 Upload to Gallery';
