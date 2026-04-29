@@ -908,8 +908,16 @@
                                     </select>
                                 </div>
                             </div>
-                            <!-- Quantitative Section -->
-                            <div class="form-row" style="align-items: center; margin-top: 15px; padding: 15px; background: #f0f9ff; border-radius: 10px; border: 1px solid #bae6fd;">
+                            <!-- Deductible / Quantitative Section -->
+                            <div class="form-row" style="align-items: center; margin-top: 15px; padding: 15px; background: #fff7ed; border-radius: 10px; border: 1px solid #fed7aa; gap: 20px;">
+                                <div class="form-group" style="flex: 0; min-width: auto;">
+                                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                        <input type="checkbox" id="itemIsDeductible" style="width: 18px; height: 18px;">
+                                        <span>💰 Deductible Item</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="form-row" style="align-items: center; margin-top: 10px; padding: 15px; background: #f0f9ff; border-radius: 10px; border: 1px solid #bae6fd;">
                                 <div class="form-group" style="flex: 0; min-width: auto;">
                                     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
                                         <input type="checkbox" id="itemIsQuantitative" onchange="toggleQuantitativeFields()" style="width: 18px; height: 18px;">
@@ -1789,7 +1797,7 @@
                             ${sortedItems.map(item => `
                                 <tr>
                                     <td><span class="ref-badge">${item.referenceValue}</span></td>
-                                    <td>${item.title}</td>
+                                    <td>${item.title}${item.isDeductible ? ' <span style="background:#fff7ed;color:#c2410c;padding:1px 6px;border-radius:8px;font-size:11px;">💰 Deductible</span>' : ''}</td>
                                     <td><span class="coeff-badge">${item.coeff}</span></td>
                                     <td>${item.quantity || '-'}</td>
                                     <td>${item.isQuantitative ? `<span style="font-size: 11px;">✅${item.range1From}-${item.range1To} ⚠️${item.range2From}-${item.range2To} ❌${item.range3From}+</span>` : '-'}</td>
@@ -1811,6 +1819,7 @@
         async function createItem(e) {
             e.preventDefault();
             const isQuantitative = document.getElementById('itemIsQuantitative').checked;
+            const isDeductible = document.getElementById('itemIsDeductible').checked;
             const itemData = {
                 referenceValue: document.getElementById('itemRefValue').value,
                 title: document.getElementById('itemTitle').value,
@@ -1819,6 +1828,7 @@
                 answer: document.getElementById('itemAnswer').value,
                 cr: document.getElementById('itemCR').value,
                 defaultSeverity: document.getElementById('itemDefaultSeverity').value || null,
+                isDeductible: isDeductible,
                 isQuantitative: isQuantitative,
                 range1From: isQuantitative ? parseInt(document.getElementById('itemRange1From').value) || 0 : null,
                 range1To: isQuantitative ? parseInt(document.getElementById('itemRange1To').value) || 0 : null,
@@ -1836,6 +1846,7 @@
                 document.getElementById('createItemForm').reset();
                 document.getElementById('itemCoeff').value = '2';
                 document.getElementById('itemAnswer').value = 'Yes,Partially,No,NA';
+                document.getElementById('itemIsDeductible').checked = false;
                 document.getElementById('itemIsQuantitative').checked = false;
                 document.getElementById('quantitativeFields').style.display = 'none';
                 loadItems();
@@ -1887,6 +1898,7 @@
             document.getElementById('editItemCR').value = item.cr || '';
             document.getElementById('editItemDefaultSeverity').value = item.defaultSeverity || '';
             // Quantitative fields
+            document.getElementById('editItemIsDeductible').checked = item.isDeductible || false;
             document.getElementById('editItemIsQuantitative').checked = item.isQuantitative || false;
             document.getElementById('editQuantitativeFields').style.display = item.isQuantitative ? 'block' : 'none';
             document.getElementById('editItemRange1From').value = item.range1From || '';
@@ -1907,6 +1919,7 @@
             if (!editingItemId) return;
 
             const isQuantitative = document.getElementById('editItemIsQuantitative').checked;
+            const isDeductible = document.getElementById('editItemIsDeductible').checked;
             const itemData = {
                 referenceValue: document.getElementById('editItemRefValue').value,
                 title: document.getElementById('editItemTitle').value,
@@ -1915,6 +1928,7 @@
                 answer: document.getElementById('editItemAnswer').value,
                 cr: document.getElementById('editItemCR').value,
                 defaultSeverity: document.getElementById('editItemDefaultSeverity').value || null,
+                isDeductible: isDeductible,
                 isQuantitative: isQuantitative,
                 range1From: isQuantitative ? parseInt(document.getElementById('editItemRange1From').value) || 0 : null,
                 range1To: isQuantitative ? parseInt(document.getElementById('editItemRange1To').value) || 0 : null,
@@ -2195,6 +2209,10 @@
                             <option value="High">🔴 High</option>
                         </select>
                     </div>
+                </div>
+                <div class="form-group" style="display: flex; align-items: center; gap: 10px;">
+                    <input type="checkbox" id="editItemIsDeductible">
+                    <label for="editItemIsDeductible" style="margin: 0;">💰 Deductible Item (Inspector enters deduction %)</label>
                 </div>
                 <div class="form-group" style="display: flex; align-items: center; gap: 10px;">
                     <input type="checkbox" id="editItemIsQuantitative" onchange="toggleQuantitativeFields(true)">

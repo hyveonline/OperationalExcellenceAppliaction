@@ -2532,10 +2532,11 @@
             const answerClass = item.selectedChoice ? 
                 (item.selectedChoice === 'Yes' ? 'answered' :
                  item.selectedChoice === 'Partially' ? 'answered-partial' :
-                 item.selectedChoice === 'No' ? 'answered-no' : 'answered-na') : '';
+                 item.selectedChoice === 'No' ? 'answered-no' :
+                 item.selectedChoice === 'Deduction' ? 'answered' : 'answered-na') : '';
 
             const showFinding = item.selectedChoice === 'No' || item.selectedChoice === 'Partially';
-            const showComment = item.selectedChoice === 'Yes' || item.selectedChoice === 'NA';
+            const showComment = item.selectedChoice === 'Yes' || item.selectedChoice === 'NA' || item.selectedChoice === 'Deduction';
             
             // Check if temperature monitoring is enabled for this section
             const section = auditData.sections[sectionIndex];
@@ -2547,6 +2548,7 @@
                     <div class="question-header">
                         <span class="question-ref">${item.referenceValue || '-'}</span>
                         <span class="question-coeff">Coeff: ${item.coeff}</span>
+                        ${item.selectedChoice && item.selectedChoice !== 'NA' ? `<span style="background: ${item.value >= item.coeff ? '#16a34a' : item.value >= item.coeff * 0.5 ? '#ca8a04' : '#dc2626'}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem;">Score: ${parseFloat(item.value || 0).toFixed(1)}/${item.coeff}</span>` : ''}
                         ${item.quantity ? `<span class="question-qty" style="background: #3b82f6; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; margin-left: 8px;">Expected: ${item.quantity}</span>` : ''}
                         ${(item.quantity || item.isQuantitative) ? `<span class="question-qty-edit" style="margin-left: 8px; display: inline-flex; align-items: center; gap: 4px;">
                             <label style="font-size: 0.75rem; color: #64748b;">Found:</label>
@@ -2556,6 +2558,7 @@
                                 placeholder="-">
                         </span>` : ''}
                         ${item.isQuantitative ? `<span style="background: #f0f9ff; color: #0369a1; padding: 2px 8px; border-radius: 10px; font-size: 0.7rem; margin-left: 8px;" title="Auto-grades: ✅${item.range1From}-${item.range1To} ⚠️${item.range2From}-${item.range2To} ❌${item.range3From}+">📊 Auto</span>` : ''}
+                        ${item.isDeductible ? `<span style="background: #fff7ed; color: #c2410c; padding: 2px 8px; border-radius: 10px; font-size: 0.7rem; margin-left: 8px;">💰 Deductible</span>` : ''}
                     </div>
                     <div class="question-title">${item.title}</div>
                     ${item.isQuantitative ? `<div style="font-size: 0.7rem; color: #64748b; margin: 5px 0; padding: 4px 8px; background: #f8fafc; border-radius: 4px;">
@@ -2656,6 +2659,28 @@
 
         // Get answer buttons HTML
         function getAnswerButtons(item) {
+            // Deductible items: show deduction % input + NA button instead of Yes/Partially/No/NA
+            if (item.isDeductible) {
+                const pctValue = item.deductionPct != null ? item.deductionPct : '';
+                const hasAnswer = item.selectedChoice === 'Deduction';
+                const isNA = item.selectedChoice === 'NA';
+                return `
+                    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                        <label style="font-size: 0.85rem; color: #64748b; font-weight: 600;">💰 Deduction %:</label>
+                        <input type="number" min="0" max="100" step="0.1" value="${pctValue}"
+                            id="deduction-${item.responseId}"
+                            style="width: 80px; padding: 6px 10px; border: 2px solid ${hasAnswer ? '#f59e0b' : '#cbd5e1'}; border-radius: 8px; font-size: 1rem; font-weight: 600; text-align: center; ${hasAnswer ? 'background: #fffbeb;' : ''}"
+                            onchange="saveDeduction(${item.responseId}, this.value, ${item.coeff})"
+                            placeholder="0">
+                        <span style="font-size: 0.8rem; color: #94a3b8;">%</span>
+                        <button class="answer-btn ${isNA ? 'selected-na' : ''}"
+                            onclick="selectAnswer(${item.responseId}, 'NA', ${item.coeff})"
+                            style="margin-left: 10px;">
+                            NA
+                        </button>
+                    </div>
+                `;
+            }
             const options = (item.answerOptions || 'Yes,Partially,No,NA').split(',');
             return options.map(opt => {
                 const selected = item.selectedChoice === opt;
@@ -2739,6 +2764,37 @@
             } catch (error) {
                 console.error('Error updating CR:', error);
                 showToast('Failed to save corrective action', 'error');
+            }
+        }
+
+        // Save deduction percentage for deductible items
+        async function saveDeduction(responseId, pctValue, coeff) {
+            try {
+                const pct = Math.max(0, Math.min(100, parseFloat(pctValue) || 0));
+                const response = await fetch(`/receiving-audit/api/audits/response/${responseId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ selectedChoice: 'Deduction', coeff, deductionPct: pct })
+                });
+
+                const result = await response.json();
+                if (!result.success) throw new Error(result.error);
+
+                // Update local data
+                const item = findItem(responseId);
+                if (item) {
+                    item.selectedChoice = 'Deduction';
+                    item.deductionPct = pct;
+                    item.value = result.data.score;
+                }
+
+                renderSection(currentSectionIndex);
+                renderSectionsList();
+                updateProgress();
+
+            } catch (error) {
+                console.error('Error saving deduction:', error);
+                showToast('Failed to save deduction', 'error');
             }
         }
 

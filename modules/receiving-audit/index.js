@@ -841,7 +841,7 @@ router.get('/api/templates/sections/:sectionId/items', async (req, res) => {
     try {
         const pool = await getPool();
         const result = await pool.request().input('sectionId', sql.Int, req.params.sectionId)
-            .query(`SELECT Id as itemId, ReferenceValue as referenceValue, Question as title, Coefficient as coeff, AnswerOptions as answer, Criteria as cr, Quantity as quantity, DefaultSeverity as defaultSeverity, IsQuantitative as isQuantitative
+            .query(`SELECT Id as itemId, ReferenceValue as referenceValue, Question as title, Coefficient as coeff, AnswerOptions as answer, Criteria as cr, Quantity as quantity, DefaultSeverity as defaultSeverity, IsQuantitative as isQuantitative, IsDeductible as isDeductible
                 FROM RCV_InspectionTemplateItems WHERE SectionId = @sectionId AND IsActive = 1
                 ORDER BY TRY_CAST(PARSENAME(REPLACE(ReferenceValue, '-', '.'), 2) AS INT), TRY_CAST(PARSENAME(REPLACE(ReferenceValue, '-', '.'), 1) AS INT)`);
         res.json({ success: true, data: result.recordset });
@@ -850,7 +850,7 @@ router.get('/api/templates/sections/:sectionId/items', async (req, res) => {
 
 router.post('/api/templates/sections/:sectionId/items', async (req, res) => {
     try {
-        const { referenceValue, title, coeff, quantity, answer, cr, defaultSeverity, isQuantitative } = req.body;
+        const { referenceValue, title, coeff, quantity, answer, cr, defaultSeverity, isQuantitative, isDeductible } = req.body;
         const pool = await getPool();
         const sectionInfo = await pool.request().input('sectionId', sql.Int, req.params.sectionId).query('SELECT TemplateId FROM RCV_InspectionTemplateSections WHERE Id = @sectionId');
         const maxOrder = await pool.request().input('sectionId', sql.Int, req.params.sectionId).query('SELECT ISNULL(MAX(ItemOrder), 0) + 1 as nextOrder FROM RCV_InspectionTemplateItems WHERE SectionId = @sectionId');
@@ -864,8 +864,9 @@ router.post('/api/templates/sections/:sectionId/items', async (req, res) => {
             .input('cr', sql.NVarChar, cr || null)
             .input('defaultSeverity', sql.NVarChar, defaultSeverity || null)
             .input('isQuantitative', sql.Bit, isQuantitative || 0)
+            .input('isDeductible', sql.Bit, isDeductible || 0)
             .input('order', sql.Int, maxOrder.recordset[0].nextOrder)
-            .query('INSERT INTO RCV_InspectionTemplateItems (SectionId, ReferenceValue, Question, Coefficient, Quantity, AnswerOptions, Criteria, DefaultSeverity, IsQuantitative, ItemOrder) OUTPUT INSERTED.Id VALUES (@sectionId, @ref, @question, @coeff, @quantity, @answer, @cr, @defaultSeverity, @isQuantitative, @order)');
+            .query('INSERT INTO RCV_InspectionTemplateItems (SectionId, ReferenceValue, Question, Coefficient, Quantity, AnswerOptions, Criteria, DefaultSeverity, IsQuantitative, IsDeductible, ItemOrder) OUTPUT INSERTED.Id VALUES (@sectionId, @ref, @question, @coeff, @quantity, @answer, @cr, @defaultSeverity, @isQuantitative, @isDeductible, @order)');
         res.json({ success: true, data: { itemId: result.recordset[0].Id } });
     } catch (error) { res.json({ success: false, error: error.message }); }
 });
@@ -901,14 +902,14 @@ router.post('/api/templates/sections/:sectionId/items/bulk', async (req, res) =>
 
 router.put('/api/templates/items/:itemId', async (req, res) => {
     try {
-        const { referenceValue, title, coeff, quantity, answer, cr, defaultSeverity, isQuantitative } = req.body;
+        const { referenceValue, title, coeff, quantity, answer, cr, defaultSeverity, isQuantitative, isDeductible } = req.body;
         const pool = await getPool();
         await pool.request()
             .input('id', sql.Int, req.params.itemId)
             .input('ref', sql.NVarChar, referenceValue).input('question', sql.NVarChar, title).input('coeff', sql.Decimal(5,2), coeff || 1)
             .input('quantity', sql.Int, quantity || null).input('answer', sql.NVarChar, answer).input('cr', sql.NVarChar, cr || null)
-            .input('defaultSeverity', sql.NVarChar, defaultSeverity || null).input('isQuantitative', sql.Bit, isQuantitative || 0)
-            .query('UPDATE RCV_InspectionTemplateItems SET ReferenceValue=@ref, Question=@question, Coefficient=@coeff, Quantity=@quantity, AnswerOptions=@answer, Criteria=@cr, DefaultSeverity=@defaultSeverity, IsQuantitative=@isQuantitative WHERE Id=@id');
+            .input('defaultSeverity', sql.NVarChar, defaultSeverity || null).input('isQuantitative', sql.Bit, isQuantitative || 0).input('isDeductible', sql.Bit, isDeductible || 0)
+            .query('UPDATE RCV_InspectionTemplateItems SET ReferenceValue=@ref, Question=@question, Coefficient=@coeff, Quantity=@quantity, AnswerOptions=@answer, Criteria=@cr, DefaultSeverity=@defaultSeverity, IsQuantitative=@isQuantitative, IsDeductible=@isDeductible WHERE Id=@id');
         res.json({ success: true });
     } catch (error) { res.json({ success: false, error: error.message }); }
 });
@@ -965,7 +966,7 @@ router.post('/api/inspections', async (req, res) => {
                     .input('sectionIcon', sql.NVarChar, section.SectionIcon).input('sectionOrder', sql.Int, section.SectionOrder)
                     .query('INSERT INTO RCV_InspectionSections (InspectionId, SectionName, SectionIcon, SectionOrder) VALUES (@inspectionId, @sectionName, @sectionIcon, @sectionOrder)');
                 const templateItems = await pool.request().input('sectionId', sql.Int, section.Id)
-                    .query('SELECT ReferenceValue, Question, Coefficient, Quantity, AnswerOptions, Criteria, ItemOrder, IsQuantitative, Range1From, Range1To, Range2From, Range2To, Range3From, DefaultSeverity FROM RCV_InspectionTemplateItems WHERE SectionId = @sectionId AND IsActive = 1 ORDER BY ItemOrder');
+                    .query('SELECT ReferenceValue, Question, Coefficient, Quantity, AnswerOptions, Criteria, ItemOrder, IsQuantitative, IsDeductible, Range1From, Range1To, Range2From, Range2To, Range3From, DefaultSeverity FROM RCV_InspectionTemplateItems WHERE SectionId = @sectionId AND IsActive = 1 ORDER BY ItemOrder');
                 for (const item of templateItems.recordset) {
                     await pool.request()
                         .input('inspectionId', sql.Int, inspectionId).input('sectionName', sql.NVarChar, section.SectionName)
@@ -975,11 +976,12 @@ router.post('/api/inspections', async (req, res) => {
                         .input('answerOptions', sql.NVarChar, item.AnswerOptions || 'Yes,Partially,No,NA')
                         .input('criteria', sql.NVarChar, item.Criteria).input('defaultSeverity', sql.NVarChar, item.DefaultSeverity || null)
                         .input('isQuantitative', sql.Bit, item.IsQuantitative || 0)
+                        .input('isDeductible', sql.Bit, item.IsDeductible || 0)
                         .input('range1From', sql.Int, item.Range1From || null).input('range1To', sql.Int, item.Range1To || null)
                         .input('range2From', sql.Int, item.Range2From || null).input('range2To', sql.Int, item.Range2To || null)
                         .input('range3From', sql.Int, item.Range3From || null)
-                        .query(`INSERT INTO RCV_InspectionItems (InspectionId, SectionName, SectionOrder, ItemOrder, ReferenceValue, Question, Coefficient, Quantity, AnswerOptions, Criteria, DefaultSeverity, IsQuantitative, Range1From, Range1To, Range2From, Range2To, Range3From)
-                            VALUES (@inspectionId, @sectionName, @sectionOrder, @itemOrder, @referenceValue, @question, @coefficient, @quantity, @answerOptions, @criteria, @defaultSeverity, @isQuantitative, @range1From, @range1To, @range2From, @range2To, @range3From)`);
+                        .query(`INSERT INTO RCV_InspectionItems (InspectionId, SectionName, SectionOrder, ItemOrder, ReferenceValue, Question, Coefficient, Quantity, AnswerOptions, Criteria, DefaultSeverity, IsQuantitative, IsDeductible, Range1From, Range1To, Range2From, Range2To, Range3From)
+                            VALUES (@inspectionId, @sectionName, @sectionOrder, @itemOrder, @referenceValue, @question, @coefficient, @quantity, @answerOptions, @criteria, @defaultSeverity, @isQuantitative, @isDeductible, @range1From, @range1To, @range2From, @range2To, @range3From)`);
                 }
             }
         }
@@ -1049,7 +1051,7 @@ router.get('/api/audits/:auditId', async (req, res) => {
         const sections = [];
         for (const section of sectionsResult.recordset) {
             const itemsResult = await pool.request().input('inspectionId', sql.Int, auditId).input('sectionName', sql.NVarChar, section.sectionName)
-                .query(`SELECT Id as responseId, ReferenceValue as referenceValue, Question as title, Coefficient as coeff, Quantity as quantity, ActualQuantity as actualQuantity, AnswerOptions as answerOptions, Answer as selectedChoice, Score as value, Finding as finding, Comment as comment, CorrectedAction as cr, Priority as priority, DefaultSeverity as defaultSeverity, HasPicture as hasPicture, Escalate as escalate, Department as department, Criteria as criteria, IsQuantitative as isQuantitative, Range1From as range1From, Range1To as range1To, Range2From as range2From, Range2To as range2To, Range3From as range3From
+                .query(`SELECT Id as responseId, ReferenceValue as referenceValue, Question as title, Coefficient as coeff, Quantity as quantity, ActualQuantity as actualQuantity, AnswerOptions as answerOptions, Answer as selectedChoice, Score as value, Finding as finding, Comment as comment, CorrectedAction as cr, Priority as priority, DefaultSeverity as defaultSeverity, HasPicture as hasPicture, Escalate as escalate, Department as department, Criteria as criteria, IsQuantitative as isQuantitative, IsDeductible as isDeductible, DeductionPct as deductionPct, Range1From as range1From, Range1To as range1To, Range2From as range2From, Range2To as range2To, Range3From as range3From
                     FROM RCV_InspectionItems WHERE InspectionId = @inspectionId AND SectionName = @sectionName
                     ORDER BY TRY_CAST(PARSENAME(REPLACE(ReferenceValue, '-', '.'), 2) AS INT), TRY_CAST(PARSENAME(REPLACE(ReferenceValue, '-', '.'), 1) AS INT)`);
             section.items = itemsResult.recordset;
@@ -1063,16 +1065,28 @@ router.get('/api/audits/:auditId', async (req, res) => {
 router.put('/api/audits/response/:responseId', async (req, res) => {
     try {
         const { responseId } = req.params;
-        const { selectedChoice, coeff, finding, comment, cr, priority, escalate, department } = req.body;
+        const { selectedChoice, coeff, finding, comment, cr, priority, escalate, department, deductionPct } = req.body;
         const pool = await getPool();
         const currentResult = await pool.request().input('id', sql.Int, responseId)
-            .query('SELECT Answer, Score, Finding, Comment, CorrectedAction, Priority, Escalate, Department FROM RCV_InspectionItems WHERE Id = @id');
+            .query('SELECT Answer, Score, Finding, Comment, CorrectedAction, Priority, Escalate, Department, IsDeductible, DeductionPct FROM RCV_InspectionItems WHERE Id = @id');
         const current = currentResult.recordset[0] || {};
         let value = 0;
         const choice = selectedChoice !== undefined ? selectedChoice : current.Answer;
         const coefficient = coeff !== undefined ? coeff : 1;
-        if (choice === 'Yes') value = coefficient;
-        else if (choice === 'Partially') value = coefficient * 0.5;
+
+        if (current.IsDeductible && deductionPct !== undefined) {
+            // Deductible item: score = coefficient * (100 - deductionPct) / 100
+            const pct = Math.max(0, Math.min(100, parseFloat(deductionPct) || 0));
+            value = coefficient * (100 - pct) / 100;
+        } else if (choice === 'NA') {
+            value = 0;
+        } else if (choice === 'Yes') {
+            value = coefficient;
+        } else if (choice === 'Partially') {
+            value = coefficient * 0.5;
+        }
+
+        const finalDeductionPct = deductionPct !== undefined ? (parseFloat(deductionPct) || 0) : current.DeductionPct;
         const finalEscalate = escalate !== undefined ? (escalate ? 1 : 0) : current.Escalate;
         const finalDepartment = department !== undefined ? (department || null) : current.Department;
         const finalFinding = finding !== undefined ? (finding || null) : current.Finding;
@@ -1084,7 +1098,8 @@ router.put('/api/audits/response/:responseId', async (req, res) => {
             .input('finding', sql.NVarChar, finalFinding).input('comment', sql.NVarChar, finalComment)
             .input('cr', sql.NVarChar, finalCr).input('priority', sql.NVarChar, finalPriority)
             .input('escalate', sql.Bit, finalEscalate).input('department', sql.NVarChar, finalDepartment)
-            .query('UPDATE RCV_InspectionItems SET Answer=@selectedChoice, Score=@value, Finding=@finding, Comment=@comment, CorrectedAction=@cr, Priority=@priority, Escalate=@escalate, Department=@department WHERE Id=@id');
+            .input('deductionPct', sql.Decimal(5,2), finalDeductionPct)
+            .query('UPDATE RCV_InspectionItems SET Answer=@selectedChoice, Score=@value, Finding=@finding, Comment=@comment, CorrectedAction=@cr, Priority=@priority, Escalate=@escalate, Department=@department, DeductionPct=@deductionPct WHERE Id=@id');
         res.json({ success: true, data: { score: value } });
     } catch (error) { console.error('Error updating response:', error); res.status(500).json({ success: false, error: error.message }); }
 });
