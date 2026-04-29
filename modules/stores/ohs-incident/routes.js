@@ -936,12 +936,24 @@ router.post('/submit', upload.array('attachments', 10), async (req, res) => {
             incidentTimeValue = req.body.incidentTime + ':00';
         }
         
+        // Look up the default severity level for this event type (for safety pyramid)
+        let severityLevelId = null;
+        if (req.body.eventTypeId) {
+            const sevResult = await pool.request()
+                .input('eventTypeId', sql.Int, req.body.eventTypeId)
+                .query('SELECT DefaultSeverityLevelId FROM OHSEventTypes WHERE Id = @eventTypeId');
+            if (sevResult.recordset.length > 0 && sevResult.recordset[0].DefaultSeverityLevelId) {
+                severityLevelId = sevResult.recordset[0].DefaultSeverityLevelId;
+            }
+        }
+        
         // Insert into database
         const result = await pool.request()
             .input('incidentNumber', sql.NVarChar, incidentNumber)
             .input('storeId', sql.Int, req.body.storeId || null)
             .input('storeName', sql.NVarChar, req.body.storeName || '')
             .input('eventTypeId', sql.Int, req.body.eventTypeId || null)
+            .input('severityLevelId', sql.Int, severityLevelId)
             .input('categoryId', sql.Int, req.body.categoryId || null)
             .input('subCategoryId', sql.Int, req.body.subCategoryId || null)
             .input('incidentDate', sql.Date, req.body.incidentDate)
@@ -969,7 +981,7 @@ router.post('/submit', upload.array('attachments', 10), async (req, res) => {
             .input('personAffectedTypeId', sql.Int, req.body.personAffectedTypeId || null)
             .query(`
                 INSERT INTO OHSIncidents (
-                    IncidentNumber, StoreId, StoreName, EventTypeId, CategoryId, SubCategoryId,
+                    IncidentNumber, StoreId, StoreName, EventTypeId, SeverityLevelId, CategoryId, SubCategoryId,
                     IncidentDate, IncidentTime, ExactLocation, IncidentDescription,
                     InjuryOccurred, InjuryTypeId, BodyPartId, InjuryDescription,
                     InjuredPersonName, InjuredPersonType, InjuredPersonEmployeeId,
@@ -979,7 +991,7 @@ router.post('/submit', upload.array('attachments', 10), async (req, res) => {
                 )
                 OUTPUT INSERTED.Id
                 VALUES (
-                    @incidentNumber, @storeId, @storeName, @eventTypeId, @categoryId, @subCategoryId,
+                    @incidentNumber, @storeId, @storeName, @eventTypeId, @severityLevelId, @categoryId, @subCategoryId,
                     @incidentDate, @incidentTime, @exactLocation, @incidentDescription,
                     @injuryOccurred, @injuryTypeId, @bodyPartId, @injuryDescription,
                     @injuredPersonName, @injuredPersonType, @injuredPersonEmployeeId,
